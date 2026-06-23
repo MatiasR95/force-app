@@ -29,6 +29,23 @@ export default function App() {
     const token = getToken()
     fetchRoutine(token).then(setRoutine).catch((e) => setError(String(e)))
     syncOutbox(token).catch(() => {})
+
+    // Keep the routine fresh: re-read the live sheet whenever the app regains
+    // focus (so a coach's edit appears without a restart), and flush the offline
+    // outbox to Seguimiento when connectivity returns. Silent — never flashes the
+    // splash, never clobbers the screen if the network momentarily fails.
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      const t = getToken()
+      fetchRoutine(t).then(setRoutine).catch(() => {})
+      syncOutbox(t).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('online', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('online', refresh)
+    }
   }, [])
 
   if (error) return <Splash sub={`No pudimos cargar tu rutina.\n${error}`} />
