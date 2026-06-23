@@ -76,3 +76,81 @@
 /* hide scrollbars on horizontal pagers but keep scroll */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- Futuristic / tech polish (dependency-light) ---- */
+
+/* slow-drifting gold aurora behind everything for depth */
+body::before {
+  content: '';
+  position: fixed; inset: -20% -20% auto -20%; height: 60%;
+  background: radial-gradient(60% 60% at 30% 0%, rgba(198,174,120,0.16), transparent 70%);
+  filter: blur(20px);
+  pointer-events: none; z-index: 0;
+  animation: aurora 16s ease-in-out infinite alternate;
+}
+#root { position: relative; z-index: 1; }
+@keyframes aurora {
+  0%   { transform: translate3d(-4%, -2%, 0) scale(1); opacity: .8; }
+  100% { transform: translate3d(6%, 3%, 0) scale(1.15); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+
+@layer components {
+  /* glassmorphism surface */
+  .glass {
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.10);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+  }
+
+  /* welcome hero — glass + animated gold gradient edge */
+  .hero-card {
+    position: relative;
+    background: linear-gradient(180deg, rgba(198,174,120,0.10), rgba(255,255,255,0.02));
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+  }
+  .hero-card::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+    background: linear-gradient(120deg, rgba(198,174,120,0.7), rgba(198,174,120,0) 40%, rgba(198,174,120,0) 60%, rgba(198,174,120,0.5));
+    background-size: 200% 100%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: sheen 6s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes sheen { to { background-position: -200% 0; } }
+
+  /* gold glow + sheen sweep on primary CTAs */
+  .btn-glow {
+    position: relative; overflow: hidden;
+    box-shadow: 0 6px 22px rgba(198,174,120,0.30), 0 0 0 1px rgba(198,174,120,0.25) inset;
+  }
+  .btn-glow::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 40%;
+    left: -60%; transform: skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    animation: sweep 3.2s ease-in-out infinite;
+  }
+  @keyframes sweep { 0% { left: -60%; } 55%,100% { left: 130%; } }
+
+  /* heading gets a faint gold halo */
+  .glow-text { text-shadow: 0 0 18px rgba(198,174,120,0.25); }
+
+  /* set/round dot acknowledgement pop */
+  .dot-pop { animation: dotpop .42s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes dotpop {
+    0% { transform: scale(.6); box-shadow: 0 0 0 0 rgba(198,174,120,.6); }
+    60% { transform: scale(1.18); box-shadow: 0 0 0 8px rgba(198,174,120,0); }
+    100% { transform: scale(1); }
+  }
+
+  /* gentle screen-enter transition */
+  .screen-in { animation: screenin .28s ease; }
+  @keyframes screenin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}

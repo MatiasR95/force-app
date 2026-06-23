@@ -70,9 +70,11 @@ export default function App() {
         </div>
       )}
 
-      {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
-      {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
-      {tab === 'panel' && <Dashboard routine={routine} />}
+      <div key={tab} className="screen-in">
+        {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+        {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
+        {tab === 'panel' && <Dashboard routine={routine} />}
+      </div>
 
       {/* bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto
@@ -86,7 +88,12 @@ export default function App() {
       </nav>
 
       {training != null && (
-        <Entrenar day={routine.days[training.dayIdx]} week={training.week} onClose={() => setTraining(null)} />
+        <Entrenar
+          day={routine.days[training.dayIdx]}
+          week={training.week}
+          lastWeek={routine.totalWeeks > 1 && training.week >= routine.totalWeeks}
+          onClose={() => setTraining(null)}
+        />
       )}
     </div>
   )
@@ -103,7 +110,8 @@ function NavBtn({ active, onClick, icon, label }: {
 }) {
   return (
     <button onClick={onClick}
-      className={`flex flex-col items-center gap-1 py-2.5 transition ${active ? 'text-gold' : 'text-white/45'}`}>
+      className={`relative flex flex-col items-center gap-1 py-2.5 transition ${active ? 'text-gold' : 'text-white/45'}`}>
+      {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold-fill shadow-[0_0_10px_rgba(198,174,120,0.7)]" />}
       {icon}
       <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
     </button>

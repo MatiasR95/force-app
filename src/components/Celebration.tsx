@@ -55,7 +55,7 @@ function Confetti() {
   return <canvas ref={ref} className="pointer-events-none fixed inset-0 z-[60]" />
 }
 
-export function Celebration({ title, onClose }: { title: string; onClose: () => void }) {
+export function Celebration({ title, extra, onClose }: { title: string; extra?: string; onClose: () => void }) {
   const [fact] = useState(() => nextFact())
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
@@ -64,6 +64,12 @@ export function Celebration({ title, onClose }: { title: string; onClose: () => 
         <div className="text-5xl mb-2">🎉</div>
         <div className="kicker">{title}</div>
         <h1 className="heading text-3xl text-white mt-1 mb-5">¡Bien ahí!</h1>
+
+        {extra && (
+          <div className="rounded-card border border-gold/40 bg-gold/[0.12] p-3 text-left mb-3">
+            <p className="text-white/90 text-sm leading-snug">{extra}</p>
+          </div>
+        )}
 
         <div className="rounded-card border border-gold/30 bg-gold/[0.07] p-4 text-left">
           <div className="flex items-center gap-2 kicker mb-1.5">

@@ -17,6 +17,9 @@ export interface SessionLog {
   rpe?: number        // session RPE 1–10
   note?: string
   durationMin?: number
+  week?: number       // plan week trained
+  dayLabel?: string   // e.g. "DÍA 1"
+  bigOne?: string     // the Big One performed (for the "last time" recap)
 }
 
 export interface OutboxItem {
@@ -33,6 +36,7 @@ const KEYS = {
   sets: 'force.sets',
   sessions: 'force.sessions',
   outbox: 'force.outbox',
+  restPref: 'force.restPref',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -102,6 +106,22 @@ export function logSession(entry: SessionLog): SessionLog[] {
 }
 export const getSession = (date: string, dayId: string): SessionLog | undefined =>
   getSessions().find((s) => s.date === date && s.dayId === dayId)
+
+/** Most recent session (by date then insertion), for the "última vez" recap. */
+export function lastSession(): SessionLog | null {
+  const all = getSessions()
+  if (!all.length) return null
+  return [...all].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(-1)[0]
+}
+
+// ---- rest-timer preference (client-controlled pause length) ---------------
+const DEFAULT_REST = 120
+export const getRestPref = (): number => {
+  const n = read<number>(KEYS.restPref, DEFAULT_REST)
+  return typeof n === 'number' && n > 0 ? n : DEFAULT_REST
+}
+export const setRestPref = (sec: number): void =>
+  write(KEYS.restPref, Math.max(15, Math.min(600, Math.round(sec))))
 
 // ---- offline outbox -------------------------------------------------------
 export const getOutbox = (): OutboxItem[] => read<OutboxItem[]>(KEYS.outbox, [])

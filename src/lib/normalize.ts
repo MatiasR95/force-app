@@ -40,12 +40,12 @@ export function slugify(raw: string): string {
 
 // Movement-pattern classification (drives fallback icons + volume-by-pattern metrics).
 const PATTERN_RULES: Array<[RegExp, MovementPattern]> = [
-  [/sentadilla|squat|bulgara|zancada|step|pistol|prensa/, 'squat'],
-  [/peso muerto|deadlift|rdl|hip thrust|buenos dias|good ?morning|ghd|puente|gluteo|bisagra/, 'hinge'],
-  [/press|flexion|fondos?|empuje|push|militar|frances|tricep/, 'push'],
-  [/remo|dominada|jalon|pull|face ?pull|biceps|curl|traccion|menton/, 'pull'],
-  [/abdominal|plancha|core|olla|rueda|ruedita|pallof|hollow/, 'core'],
-  [/caminata|carry|farmer|paseo/, 'carry'],
+  [/abdominal|plancha|core|olla|rueda|ruedita|pallof|hollow|isometr|bird ?dog|dead ?bug|oblicuo/, 'core'],
+  [/sentadilla|squat|bulgara|zancada|estocada|desplante|lunge|split|step|pistol|prensa|hack|sissy/, 'squat'],
+  [/peso muerto|deadlift|rdl|hip thrust|buenos dias|good ?morning|ghd|puente|gluteo|bisagra|reverse hyper|hyper|nordic|isquio/, 'hinge'],
+  [/remo|dominada|jalon|pull|face ?pull|biceps|curl|traccion|menton|encogimiento|shrug|pajaro|aperturas? invertidas?/, 'pull'],
+  [/press|flexion|fondos?|empuje|push|militar|frances|tricep|apertura|vuelo|elevacion( lateral| frontal)|patada/, 'push'],
+  [/caminata|carry|farmer|paseo|traslado/, 'carry'],
 ]
 
 export function classifyPattern(raw: string): MovementPattern {

@@ -8,5 +8,5 @@ export function ExerciseMedia({ slug, pattern, name }: {
 }) {
   const real = mediaFor(slug)
   if (real) return <img src={real} alt={name} className="h-full w-full object-cover" />
-  return <AnimatedExercise pattern={pattern} />
+  return <AnimatedExercise name={name} pattern={pattern} />
 }
