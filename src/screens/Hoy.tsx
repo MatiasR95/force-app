@@ -1,15 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Routine, ExerciseRow } from '../lib/types'
 import { DayView } from '../components/DayView'
 import { Pill } from '../components/ui'
 import { WeekBar } from '../components/WeekBar'
 import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
-import { CheckCircle2, Dumbbell, CalendarCheck } from 'lucide-react'
-import { hasCheckedInToday, addCheckin, getClientName } from '../lib/store'
+import { CheckCircle2, Dumbbell, CalendarCheck, History } from 'lucide-react'
+import { hasCheckedInToday, addCheckin, getClientName, lastTrainingDay, localDate } from '../lib/store'
+import { getWeather, type Weather } from '../lib/weather'
 
 const TODAY = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+function relativeDay(date: string | null): string | null {
+  if (!date) return null
+  const a = new Date(date + 'T00:00:00').getTime()
+  const b = new Date(localDate() + 'T00:00:00').getTime()
+  const days = Math.round((b - a) / 86_400_000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 7) return `hace ${days} días`
+  if (days < 14) return 'hace 1 semana'
+  return `hace ${Math.floor(days / 7)} semanas`
+}
 
 export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   routine: Routine
@@ -21,8 +34,12 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   const [dayIdx, setDayIdx] = useState(suggestedDay)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [checked, setChecked] = useState(hasCheckedInToday())
+  const [weather, setWeather] = useState<Weather | null>(null)
   const day = routine.days[dayIdx]
   const name = getClientName()
+  const lastTrained = relativeDay(lastTrainingDay())
+
+  useEffect(() => { getWeather().then(setWeather) }, [])
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
   const effWeek = dayWeeks.includes(week) ? week : 1
 
@@ -40,6 +57,22 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
         </div>
         <img src={emblem} alt="FORCE" className="h-10 w-10 object-contain opacity-90 mt-1" />
       </header>
+
+      {/* weather + last attendance */}
+      <div className="flex items-center gap-2 mb-4 text-xs">
+        {weather && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-white/75">
+            <span>{weather.emoji}</span>
+            <span className="font-bold text-white">{weather.tempC}°</span>
+            <span className="text-white/45">La Plata · {weather.label}</span>
+          </span>
+        )}
+        {lastTrained && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-white/60 ml-auto">
+            <History size={12} className="text-gold/70" /> Últ. {lastTrained}
+          </span>
+        )}
+      </div>
 
       <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>
 

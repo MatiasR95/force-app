@@ -72,6 +72,12 @@ export function addCheckin(date = localDate()): string[] {
 }
 export const hasCheckedInToday = (): boolean => getCheckins().includes(localDate())
 
+/** Most recent training day (from check-ins or completed sessions), or null. */
+export function lastTrainingDay(): string | null {
+  const dates = [...getCheckins(), ...getSessions().map((s) => s.date)].filter(Boolean).sort()
+  return dates.length ? dates[dates.length - 1] : null
+}
+
 // ---- set logs -------------------------------------------------------------
 export const getSets = (): SetLog[] => read<SetLog[]>(KEYS.sets, [])
 export function logSet(entry: Omit<SetLog, 'ts'>): SetLog[] {

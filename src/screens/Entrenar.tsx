@@ -5,6 +5,7 @@ import { PlateCalc } from '../components/PlateCalc'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
 import { logSet, logSession, localDate } from '../lib/store'
+import { Celebration } from '../components/Celebration'
 import { X, ChevronLeft, ChevronRight, Check, Timer, Play, Pause, RotateCcw, Repeat } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
@@ -118,7 +119,7 @@ export function Entrenar({ day, week, onClose }: { day: RoutineDay; week: number
         <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0}
           className="p-3 rounded-full bg-white/5 text-white/70 disabled:opacity-30"><ChevronLeft size={20} /></button>
         {i < items.length - 1 ? (
-          <button onClick={() => setI((n) => n + 1)}
+          <button onClick={() => setI((n) => Math.min(items.length - 1, n + 1))}
             className="flex-1 rounded-full bg-white/10 text-white font-bold py-3 flex items-center justify-center gap-1">
             Siguiente <ChevronRight size={18} />
           </button>
@@ -203,9 +204,13 @@ function repsCol(ex: ExerciseRow, week: number): string {
 function Finish({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
   const [rpe, setRpe] = useState(7)
   const [note, setNote] = useState('')
+  const [celebrating, setCelebrating] = useState(false)
   const save = () => {
     logSession({ date: localDate(), dayId: day.id, rpe, note: note.trim() || undefined })
-    onClose()
+    setCelebrating(true)
+  }
+  if (celebrating) {
+    return <Celebration title={`${day.label.replace('DÍA', 'Día')} completado`} onClose={onClose} />
   }
   return (
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)] max-w-md mx-auto">
