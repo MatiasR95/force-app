@@ -1,4 +1,5 @@
 import type { ExerciseRow, Technique } from '../lib/types'
+import { resolveWeek } from '../lib/week'
 
 function label(t: Technique): string {
   switch (t.type) {
@@ -23,20 +24,23 @@ export function TechniqueChips({ ex }: { ex: ExerciseRow }) {
   )
 }
 
-/** "4 × 6" style sets×reps, tolerant of ramp/odd rows (falls back to raw). */
-export function setsReps(ex: ExerciseRow): string {
-  const reps = ex.repsRaw || (ex.reps != null ? String(ex.reps) : '')
+/** "4 × 6" style sets×reps for a given week; tolerant of ramp/complex rows. */
+export function setsReps(ex: ExerciseRow, week = 1): string {
   if (ex.isWarmupRamp) {
     const ord = ex.setOrdinal ? `${ex.setOrdinal}ª` : 'aprox'
-    return `${ord} · ${reps || '—'}`
+    return `${ord} · ${ex.repsRaw || (ex.reps != null ? String(ex.reps) : '—')}`
   }
-  const sets = ex.sets != null ? `${ex.sets}` : ex.setsRaw
+  const r = resolveWeek(ex, week)
+  if (r.complexRaw) return r.complexRaw
+  const reps = r.repsRaw || (r.reps != null ? String(r.reps) : '')
+  const sets = r.sets != null ? `${r.sets}` : r.setsRaw
   if (sets && reps) return `${sets} × ${reps}`
   return reps || sets || '—'
 }
 
-export function loadText(ex: ExerciseRow): string {
-  if (ex.load.value != null) return `${ex.load.value.toLocaleString('es-AR')} kg${ex.load.perSide ? ' /lado' : ''}`
-  if (ex.load.band) return ex.load.band.replace(/^\w/, (c) => c.toUpperCase())
+export function loadText(ex: ExerciseRow, week = 1): string {
+  const load = resolveWeek(ex, week).load
+  if (load.value != null) return `${load.value.toLocaleString('es-AR')} kg${load.perSide ? ' /lado' : ''}`
+  if (load.band) return load.band.replace(/^\w/, (c) => c.toUpperCase())
   return ex.notes || '—'
 }

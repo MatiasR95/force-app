@@ -9,8 +9,20 @@ export type SectionTag =
   | 'big'         // THE BIG ONE — the main lift
   | 'accessory'   // ACCS / ACCESORIOS
   | 'finisher'    // FINISHERS
-  | 'core'        // CORE
+  | 'core'        // CORE / Zona Media
+  | 'hiit'        // HIIT / metabólico
   | 'other'
+
+// Per-week override read from the "Semana N" columns to the right of the base
+// (Week 1) block. e.g. "10X3" → reps 10 × sets 3; "2X4 28,75kg x lado" adds load.
+export interface WeekCell {
+  week: number
+  reps: number | null
+  sets: number | null
+  load: Load | null   // weight override if the cell carried one
+  raw: string         // original cell text (always kept; shown when complex)
+  complex: boolean    // couldn't be cleanly split into reps×sets (e.g. "3X1+2X3")
+}
 
 export type MovementPattern =
   | 'squat' | 'hinge' | 'push' | 'pull' | 'core' | 'carry' | 'other'
@@ -47,12 +59,15 @@ export interface ExerciseRow {
   load: Load
   techniques: Technique[]
   notes: string              // OBSERVACIONES minus the parsed load (free coaching note)
+  weeks: Record<number, WeekCell> // per-week overrides (week 2+); week 1 = base fields
   raw: { exercise: string; reps: string; series: string; obs: string }
 }
 
 export interface Block {
   tag: SectionTag
   title: string              // human label: "The Big One", "Accesorios"…
+  circuit: boolean           // exercises performed together as rounds
+  rounds: number | null      // number of circuit rounds (= series count)
   exercises: ExerciseRow[]
 }
 
@@ -61,6 +76,7 @@ export interface RoutineDay {
   label: string              // "DÍA 1"
   index: number
   warmup: string             // free-text warm-up line
+  weeks: number[]            // week numbers available for this day (incl. 1)
   blocks: Block[]
 }
 
@@ -75,5 +91,7 @@ export interface Routine {
   title: string              // sheet title, e.g. "Enero 2026"
   meta: RoutineMeta
   days: RoutineDay[]
+  weeksAvailable: number[]   // union of week numbers across all days (incl. 1)
+  totalWeeks: number         // from meta "8 semanas" (fallback: max weeksAvailable)
   parsedWarnings: string[]   // anything the parser couldn't structure (still shown raw)
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseRoutine, parseLoad, parseTechniques } from '../src/lib/parser'
+import { parseRoutine, parseLoad, parseTechniques, parseWeekCell } from '../src/lib/parser'
+import { resolveWeek } from '../src/lib/week'
 import { ENERO_2026 } from '../src/data/fixtureEnero2026'
 
 describe('parseRoutine — real Enero 2026 sheet', () => {
@@ -12,8 +13,8 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
     expect(r.meta.goal).toBe('Fuerza+hipetrofia')
   })
 
-  it('detects all four days in sheet order', () => {
-    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'DÍA 4', 'DÍA 3'])
+  it('sorts days by number (Día 3 before Día 4)', () => {
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'DÍA 3', 'DÍA 4'])
   })
 
   it('captures each day warm-up line', () => {
@@ -21,16 +22,41 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
     expect(r.days[1].warmup).toContain('Sentadilla c/barra')
   })
 
-  it('identifies THE BIG ONE per day', () => {
-    const big = (i: number) => r.days[i].blocks.find((b) => b.tag === 'big')?.exercises ?? []
-    expect(big(0)[0].name).toBe('Press Plano')
-    expect(big(1)[0].name).toBe('Sentadillas  Low Bar')
-    expect(big(2)[0].name).toBe('Peso Muerto')
-    // Day 3 (DÍA 3) is a superset: Press + Sentadilla both under THE BIG ONE
-    expect(big(3).map((e) => e.name)).toEqual([
+  it('identifies THE BIG ONE per day (after sorting)', () => {
+    const bigOf = (label: string) =>
+      r.days.find((d) => d.label === label)!.blocks.find((b) => b.tag === 'big')!.exercises
+    expect(bigOf('DÍA 1')[0].name).toBe('Press Plano')
+    expect(bigOf('DÍA 2')[0].name).toBe('Sentadillas  Low Bar')
+    expect(bigOf('DÍA 4')[0].name).toBe('Peso Muerto')
+    // DÍA 3 is a superset: Press + Sentadilla both under THE BIG ONE
+    expect(bigOf('DÍA 3').map((e) => e.name)).toEqual([
       'Press Plano TEMPO 3:1:0',
       'Sentadilla  High Bar + 2"',
     ])
+  })
+
+  it('groups accessory sections into a circuit with rounds', () => {
+    const d1 = r.days.find((d) => d.label === 'DÍA 1')!
+    const accs = d1.blocks.find((b) => b.tag === 'accessory')!
+    expect(accs.circuit).toBe(true)
+    expect(accs.rounds).toBe(3)
+    expect(accs.exercises.map((e) => e.name)).toEqual(['Remo Helms', 'Press Inclinado', 'Face Pull'])
+    // ramp and big are never circuits
+    expect(d1.blocks.find((b) => b.tag === 'big')!.circuit).toBe(false)
+  })
+
+  it('parses per-week (Semana N) columns', () => {
+    const d1 = r.days.find((d) => d.label === 'DÍA 1')!
+    expect(d1.weeks).toEqual([1, 2, 3])
+    const press = d1.blocks.find((b) => b.tag === 'big')!.exercises[0]
+    // week 1 = base (5×4 @ 27.5/side)
+    expect(resolveWeek(press, 1)).toMatchObject({ reps: 5, sets: 4 })
+    // week 2 = "6X4" → 6 reps × 4 sets, weight unchanged
+    expect(resolveWeek(press, 2)).toMatchObject({ reps: 6, sets: 4 })
+    // week 3 = "4X4 30kg x lado" → new load
+    const w3 = resolveWeek(press, 3)
+    expect(w3).toMatchObject({ reps: 4, sets: 4 })
+    expect(w3.load.value).toBe(30)
   })
 
   it('classifies warm-up ramp sets by their ordinal series', () => {
@@ -44,16 +70,16 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
     const big = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
     expect(big.load.value).toBe(27.5)
     expect(big.load.perSide).toBe(true)
-    const dl = r.days[2].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    const dl = r.days.find((d) => d.label === 'DÍA 4')!.blocks.find((b) => b.tag === 'big')!.exercises[0]
     expect(dl.load.value).toBe(50)
   })
 
   it('detects techniques: tempo, pause, myoreps, cluster, band, per-side', () => {
-    const d3 = r.days[3]
+    const d3 = r.days.find((d) => d.label === 'DÍA 3')!
     const pressTempo = d3.blocks.find((b) => b.tag === 'big')!.exercises[0]
     expect(pressTempo.techniques).toContainEqual({ type: 'tempo', value: '3:1:0' })
 
-    const myo = r.days[0].blocks.find((b) => b.tag === 'finisher')!.exercises[0]
+    const myo = r.days.find((d) => d.label === 'DÍA 1')!.blocks.find((b) => b.tag === 'finisher')!.exercises[0]
     expect(myo.techniques).toContainEqual({ type: 'myoreps' })
 
     const cluster = d3.blocks.find((b) => b.tag === 'accessory')!.exercises[0]
@@ -65,10 +91,10 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
   })
 
   it('classifies movement patterns for volume metrics', () => {
-    const big0 = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
-    expect(big0.pattern).toBe('push') // Press Plano
-    const big2 = r.days[2].blocks.find((b) => b.tag === 'big')!.exercises[0]
-    expect(big2.pattern).toBe('hinge') // Peso Muerto
+    const bigOf = (label: string) =>
+      r.days.find((d) => d.label === label)!.blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(bigOf('DÍA 1').pattern).toBe('push') // Press Plano
+    expect(bigOf('DÍA 4').pattern).toBe('hinge') // Peso Muerto
   })
 
   it('never throws and keeps raw text as fallback', () => {
@@ -99,5 +125,25 @@ describe('parseLoad', () => {
 describe('parseTechniques', () => {
   it('finds pause from "+2\\""', () => {
     expect(parseTechniques('Sentadilla High Bar + 2"', '5', '')).toContainEqual({ type: 'pause', seconds: 2 })
+  })
+})
+
+describe('parseWeekCell', () => {
+  it('splits "10X3" into reps × sets', () => {
+    expect(parseWeekCell('10X3', 2)).toMatchObject({ reps: 10, sets: 3, complex: false })
+  })
+  it('extracts a weight override', () => {
+    const c = parseWeekCell('2X4 28,75kg x lado', 4)!
+    expect(c).toMatchObject({ reps: 2, sets: 4 })
+    expect(c.load?.value).toBe(28.75)
+    expect(c.load?.perSide).toBe(true)
+  })
+  it('keeps complex schemes raw', () => {
+    const c = parseWeekCell('3X1+2X3', 5)!
+    expect(c.complex).toBe(true)
+    expect(c.raw).toBe('3X1+2X3')
+  })
+  it('returns null for an empty cell', () => {
+    expect(parseWeekCell('', 2)).toBeNull()
   })
 })

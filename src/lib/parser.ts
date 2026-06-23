@@ -1,5 +1,5 @@
 import type {
-  Routine, RoutineDay, RoutineMeta, ExerciseRow, Load, Technique, SectionTag,
+  Routine, RoutineDay, RoutineMeta, ExerciseRow, Load, Technique, SectionTag, WeekCell,
 } from './types'
 import { slugify, classifyPattern, deburr } from './normalize'
 
@@ -13,24 +13,34 @@ const SECTION_TITLES: Record<SectionTag, string> = {
   big: 'The Big One',
   accessory: 'Accesorios',
   finisher: 'Finishers',
-  core: 'Core',
+  core: 'Zona media',
+  hiit: 'HIIT',
   other: 'Trabajo',
 }
 
-function tagFromCell(a: string): SectionTag | null {
+// Sections performed as a circuit (all exercises together, N rounds) by default.
+const CIRCUIT_TAGS = new Set<SectionTag>(['accessory', 'finisher', 'core', 'hiit', 'other'])
+
+// Map a column-A label to a canonical section { tag, title }.
+function tagInfo(a: string): { tag: SectionTag; title: string } | null {
   const s = deburr(a)
   if (!s) return null
-  if (/^dia\s*\d+/.test(s)) return null // day marker handled separately
-  if (s.includes('warm')) return 'warmup'
-  if (s.includes('big one')) return 'big'
-  if (s.startsWith('acc')) return 'accessory'
-  if (s.startsWith('fini')) return 'finisher' // FINISHERS / FINIISHERS (typo-tolerant)
-  if (s.startsWith('core')) return 'core'
-  return null
+  if (!/[a-z]/.test(s)) return null // not a real label (e.g. "??!!") → let it warn
+  if (/^dia\s*\d+/.test(s)) return null
+  if (s.includes('warm') || s.includes('entrada en calor')) return { tag: 'warmup', title: SECTION_TITLES.warmup }
+  if (s.includes('big one')) return { tag: 'big', title: SECTION_TITLES.big }
+  if (s.startsWith('acc')) return { tag: 'accessory', title: SECTION_TITLES.accessory }
+  if (s.startsWith('fini')) return { tag: 'finisher', title: SECTION_TITLES.finisher } // FINISHERS / FINIISHERS
+  if (s.includes('hiit') || s.includes('metabol')) return { tag: 'hiit', title: SECTION_TITLES.hiit }
+  if (s.includes('core') || s.includes('zona media') || s.includes('abdomin')) return { tag: 'core', title: SECTION_TITLES.core }
+  // unknown label → its own circuit-capable section, titled as written
+  return { tag: 'other', title: titleCase(a) }
 }
 
-const isDayMarker = (a: string): RegExpMatchArray | null =>
-  deburr(a).match(/^dia\s*(\d+)/)
+const titleCase = (s: string): string =>
+  s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).trim()
+
+const isDayMarker = (a: string): RegExpMatchArray | null => deburr(a).match(/^dia\s*(\d+)/)
 
 // ---- value parsers ------------------------------------------------------
 
@@ -42,8 +52,7 @@ const toNum = (s: string): number | null => {
 export function parseLoad(obs: string): Load {
   const raw = obs.trim()
   const perSide = /x\s*lado/i.test(raw)
-  // band-only loads (no kg)
-  const bandMatch = raw.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla)\b/i)
+  const bandMatch = raw.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
   const hasKg = /kg/i.test(raw) || /^\s*-?\d/.test(raw)
   const value = hasKg ? toNum(raw) : null
   const load: Load = { value, perSide, unit: 'kg', raw }
@@ -61,25 +70,45 @@ export function parseTechniques(name: string, reps: string, obs: string): Techni
   if (/myo\s*reps?/i.test(hay)) t.push({ type: 'myoreps' })
   const cluster = hay.match(/cluster\s*(\d+)?\s*["¨'']?/i)
   if (cluster) t.push({ type: 'cluster', restSeconds: cluster[1] ? parseInt(cluster[1], 10) : null })
-  const band = obs.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla)\b/i)
+  const band = obs.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
   if (band) t.push({ type: 'band', color: band[1] })
   if (/x\s*lado/i.test(hay)) t.push({ type: 'perSide' })
   if (/amrap|al\s*fallo|max/i.test(hay)) t.push({ type: 'amrap' })
   return t
 }
 
-// OBSERVACIONES minus the numeric load = the free coaching note.
 function extractNote(obs: string, load: Load): string {
   if (load.value == null) return load.band ? '' : obs.trim()
   return obs.replace(/-?\d+(?:[.,]\d+)?\s*kg/i, '').replace(/x\s*lado/i, '').replace(/\s+/g, ' ').trim()
+}
+
+// A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex).
+export function parseWeekCell(raw: string, week: number): WeekCell | null {
+  const s = raw.trim()
+  if (!s) return null
+  const m = s.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
+  if (m && !/[x+]/i.test(m[3].replace(/x\s*lado/i, ''))) {
+    const rest = m[3].trim()
+    return {
+      week,
+      reps: parseInt(m[1], 10),
+      sets: parseInt(m[2], 10),
+      load: rest ? parseLoad(rest) : null,
+      raw: s,
+      complex: false,
+    }
+  }
+  // couldn't cleanly split → keep raw, surface any weight
+  const load = /kg/i.test(s) ? parseLoad(s) : null
+  return { week, reps: null, sets: null, load, raw: s, complex: true }
 }
 
 // ---- main ---------------------------------------------------------------
 
 /**
  * Parse a routine sheet (2D cell array) into a structured Routine.
- * Tolerant by design: anything it can't classify is preserved in `raw` and
- * surfaced in `parsedWarnings`, never dropped or thrown.
+ * Tolerant: anything it can't classify is preserved in `raw` and surfaced in
+ * `parsedWarnings`, never dropped or thrown.
  */
 export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   const meta: RoutineMeta = { sessionsPerWeek: '', startDate: '', weeks: '', goal: '' }
@@ -87,24 +116,31 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   const warnings: string[] = []
 
   let day: RoutineDay | null = null
-  let section: SectionTag = 'ramp'   // rows before THE BIG ONE are aproximación
+  let section: SectionTag = 'ramp'
   let seenBig = false
   let exIdx = 0
+  let weekCols: Array<{ week: number; col: number }> = []
 
   const pushExercise = (cells: string[]) => {
     if (!day) return
-    const [a, b, c, d, e] = [0, 1, 2, 3, 4].map((i) => norm(cells[i]))
-    const name = b
-    if (!name) return
+    const b = norm(cells[1])
+    if (!b) return
+    const c = norm(cells[2])
+    const d = norm(cells[3])
+    const e = norm(cells[4])
     const load = parseLoad(e)
     const setOrdinalMatch = d.match(/(\d+)\s*°/)
     const isRamp = !!setOrdinalMatch || (!seenBig && section === 'ramp')
-    const techniques = parseTechniques(name, c, e)
+    const weeks: Record<number, WeekCell> = {}
+    for (const wc of weekCols) {
+      const cell = parseWeekCell(norm(cells[wc.col]), wc.week)
+      if (cell) weeks[wc.week] = cell
+    }
     const row: ExerciseRow = {
       id: `${day.id}-x${exIdx++}`,
-      name,
-      slug: slugify(name),
-      pattern: classifyPattern(name),
+      name: b,
+      slug: slugify(b),
+      pattern: classifyPattern(b),
       section: isRamp ? 'ramp' : section,
       isWarmupRamp: isRamp,
       reps: toNum(c),
@@ -113,23 +149,22 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       setsRaw: d,
       setOrdinal: setOrdinalMatch ? parseInt(setOrdinalMatch[1], 10) : null,
       load,
-      techniques,
+      techniques: parseTechniques(b, c, e),
       notes: extractNote(e, load),
+      weeks,
       raw: { exercise: b, reps: c, series: d, obs: e },
     }
     const tag = row.section
     let block = day.blocks.find((bl) => bl.tag === tag)
     if (!block) {
-      block = { tag, title: SECTION_TITLES[tag], exercises: [] }
+      block = { tag, title: SECTION_TITLES[tag], circuit: false, rounds: null, exercises: [] }
       day.blocks.push(block)
     }
     block.exercises.push(row)
-    void a // col A only carried the section tag (already consumed)
   }
 
   for (const cells of rows) {
     const a = norm(cells[0])
-    const b = norm(cells[1])
     const c = norm(cells[2])
     const dCol = norm(cells[3])
 
@@ -142,44 +177,64 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       else if (key.includes('objetivo')) meta.goal ||= dCol
     }
 
-    // new day
+    // new day — also scan this row for "Semana N" week columns
     const dm = isDayMarker(a)
     if (dm) {
       const idx = parseInt(dm[1], 10)
-      day = { id: `d${days.length + 1}-${idx}`, label: a.toUpperCase(), index: idx, warmup: '', blocks: [] }
+      day = { id: `d${days.length + 1}-${idx}`, label: a.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
       days.push(day)
       section = 'ramp'
       seenBig = false
       exIdx = 0
+      weekCols = []
+      for (let i = 5; i < cells.length; i++) {
+        const wm = norm(cells[i]).match(/semana\s*(\d+)/i)
+        if (wm) weekCols.push({ week: parseInt(wm[1], 10), col: i })
+      }
+      day.weeks = [1, ...weekCols.map((w) => w.week)].sort((x, y) => x - y)
       continue
     }
 
     if (!day) continue
 
-    // warm-up free text line
-    if (tagFromCell(a) === 'warmup') {
-      day.warmup = b || c
+    const info = tagInfo(a)
+    if (info && info.tag === 'warmup') {
+      day.warmup = norm(cells[1]) || c
       continue
     }
+    if (deburr(norm(cells[1])) === 'ejercicio') continue // column header row
 
-    // column header row ("EJERCICIO | REPETICIONES | SERIES | OBSERVACIONES")
-    if (deburr(b) === 'ejercicio') continue
-
-    // section tag in col A switches the current section
-    const tag = tagFromCell(a)
-    if (tag && tag !== 'warmup') {
-      section = tag
-      if (tag === 'big') seenBig = true
+    if (info) {
+      section = info.tag
+      if (info.tag === 'big') seenBig = true
+      // remember custom titles for "other"/unknown sections
+      if (info.tag === 'other' || info.tag === 'hiit') {
+        const exists = day.blocks.find((bl) => bl.tag === info.tag)
+        if (!exists) day.blocks.push({ tag: info.tag, title: info.title, circuit: false, rounds: null, exercises: [] })
+      }
     }
 
-    // exercise row?
-    if (b) {
-      pushExercise(cells)
-    } else if (a && !tag) {
-      warnings.push(`Fila sin estructura clara: "${[a, b, c].filter(Boolean).join(' | ')}"`)
+    if (norm(cells[1])) pushExercise(cells)
+    else if (a && !info) warnings.push(`Fila sin estructura clara: "${a}"`)
+  }
+
+  // finalize circuits per block
+  for (const dd of days) {
+    for (const bl of dd.blocks) {
+      if (CIRCUIT_TAGS.has(bl.tag) && bl.exercises.length > 1) {
+        bl.circuit = true
+        const setCounts = bl.exercises.map((x) => x.sets).filter((n): n is number => n != null)
+        bl.rounds = setCounts.length ? Math.max(...setCounts) : null
+      }
     }
   }
 
+  // sort days by number (Día 3 before Día 4), stable for duplicates
+  days.sort((x, y) => x.index - y.index)
+
+  const weeksAvailable = [...new Set(days.flatMap((d) => d.weeks))].sort((x, y) => x - y)
+  const totalWeeks = toNum(meta.weeks) ?? (weeksAvailable.length ? Math.max(...weeksAvailable) : 1)
+
   if (!days.length) warnings.push('No se detectaron días (DÍA N) en la planilla.')
-  return { title, meta, days, parsedWarnings: warnings }
+  return { title, meta, days, weeksAvailable, totalWeeks, parsedWarnings: warnings }
 }

@@ -4,8 +4,12 @@ import { TechniqueChips, setsReps, loadText } from '../components/TechniqueChips
 import { PlateCalc } from '../components/PlateCalc'
 import { ExerciseMedia } from '../components/ExerciseMedia'
 import { PATTERN_LABEL } from '../lib/media'
+import { resolveWeek } from '../lib/week'
 
-export function ExerciseSheet({ ex, onClose }: { ex: ExerciseRow | null; onClose: () => void }) {
+export function ExerciseSheet({ ex, week = 1, onClose }: {
+  ex: ExerciseRow | null; week?: number; onClose: () => void
+}) {
+  const load = ex ? resolveWeek(ex, week).load : null
   return (
     <BottomSheet open={!!ex} onClose={onClose}>
       {ex && (
@@ -20,14 +24,14 @@ export function ExerciseSheet({ ex, onClose }: { ex: ExerciseRow | null; onClose
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Mini label="Series × reps" value={setsReps(ex)} />
-            <Mini label="Carga" value={loadText(ex)} />
+            <Mini label="Series × reps" value={setsReps(ex, week)} />
+            <Mini label="Carga" value={loadText(ex, week)} />
           </div>
 
           <TechniqueChips ex={ex} />
 
-          {ex.load.value != null && ex.load.perSide && (
-            <div className="mt-4"><PlateCalc perSideKg={ex.load.value} /></div>
+          {load && load.value != null && load.perSide && (
+            <div className="mt-4"><PlateCalc perSideKg={load.value} /></div>
           )}
 
           {ex.notes && (

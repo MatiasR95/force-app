@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
 import { getToken, setToken, getClientName, setClientName, getSessions, localDate } from './lib/store'
+import { currentWeek } from './lib/week'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
 import { Dashboard } from './screens/Dashboard'
@@ -15,7 +16,8 @@ export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('hoy')
-  const [training, setTraining] = useState<number | null>(null)
+  const [week, setWeek] = useState<number | null>(null)
+  const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
 
   useEffect(() => {
     // capture the magic-link token (?t=...) once, then clean the URL
@@ -51,9 +53,13 @@ export default function App() {
   if (error) return <Splash sub={`No pudimos cargar tu rutina.\n${error}`} />
   if (!routine) return <Splash sub="Cargando tu rutina…" />
 
-  // suggested day = next session not yet trained this week (by count, mod #days)
-  const trainedThisWeek = getSessions().filter((s) => withinDays(s.date, 7)).length
-  const suggested = routine.days.length ? trainedThisWeek % routine.days.length : 0
+  // current week: from the plan's start date, but let the client override it
+  const wk = week ?? currentWeek(routine.meta.startDate, routine.totalWeeks)
+
+  // suggested day = next day NOT trained this week (miss a day → do the next one)
+  const trainedDayIds = new Set(getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId))
+  const nextUndone = routine.days.findIndex((d) => !trainedDayIds.has(d.id))
+  const suggestedDay = nextUndone >= 0 ? nextUndone : 0
 
   return (
     <div className="min-h-full max-w-md mx-auto relative">
@@ -64,8 +70,8 @@ export default function App() {
         </div>
       )}
 
-      {tab === 'hoy' && <Hoy routine={routine} suggested={suggested} onTrain={setTraining} />}
-      {tab === 'semana' && <Semana routine={routine} />}
+      {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+      {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
       {tab === 'panel' && <Dashboard routine={routine} />}
 
       {/* bottom nav */}
@@ -80,7 +86,7 @@ export default function App() {
       </nav>
 
       {training != null && (
-        <Entrenar day={routine.days[training]} onClose={() => setTraining(null)} />
+        <Entrenar day={routine.days[training.dayIdx]} week={training.week} onClose={() => setTraining(null)} />
       )}
     </div>
   )

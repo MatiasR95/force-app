@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react'
 import type { Routine, ExerciseRow } from '../lib/types'
 import { DayView } from '../components/DayView'
 import { Pill } from '../components/ui'
+import { WeekBar } from '../components/WeekBar'
 import { ExerciseSheet } from './ExerciseSheet'
 import { fetchHistory } from '../lib/api'
 import { getToken } from '../lib/store'
 import { Target, CalendarRange, Clock, History } from 'lucide-react'
 
-export function Semana({ routine }: { routine: Routine }) {
+export function Semana({ routine, week, setWeek }: {
+  routine: Routine; week: number; setWeek: (w: number) => void
+}) {
   const [dayIdx, setDayIdx] = useState(0)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [history, setHistory] = useState<Array<{ id: string; title: string }>>([])
   const day = routine.days[dayIdx]
+  const effWeek = (day.weeks.length > 1 ? day.weeks : routine.weeksAvailable).includes(week) ? week : 1
 
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])
 
@@ -27,7 +31,9 @@ export function Semana({ routine }: { routine: Routine }) {
         <Meta icon={<Clock size={14} />} label="Duración" value={routine.meta.weeks || '—'} />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1">
+      <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>
+
+      <div className="flex gap-2 overflow-x-auto no-scrollbar my-4 -mx-1 px-1">
         {routine.days.map((d, i) => (
           <Pill key={d.id} active={i === dayIdx} onClick={() => setDayIdx(i)}>
             {d.label.replace('DÍA', 'Día')}
@@ -35,7 +41,7 @@ export function Semana({ routine }: { routine: Routine }) {
         ))}
       </div>
 
-      <DayView day={day} onPick={setPicked} />
+      <DayView day={day} week={effWeek} onPick={setPicked} />
 
       {history.length > 0 && (
         <section className="mt-8">
@@ -60,7 +66,7 @@ export function Semana({ routine }: { routine: Routine }) {
         </p>
       )}
 
-      <ExerciseSheet ex={picked} onClose={() => setPicked(null)} />
+      <ExerciseSheet ex={picked} week={effWeek} onClose={() => setPicked(null)} />
     </div>
   )
 }
