@@ -2,7 +2,6 @@ import type { Routine } from './types'
 import type { RecordEntry } from './records'
 import { parseRoutine } from './parser'
 import { ENERO_2026 } from '../data/fixtureEnero2026'
-import { SEED_RECORDS } from './records'
 import { getOutbox, clearOutbox, getMyRecords } from './store'
 
 // The Apps Script Web App URL (gym account). Empty in demo → use local fixture.
@@ -43,10 +42,10 @@ export async function fetchHistory(token: string | null): Promise<Array<{ id: st
   return call('getHistory', { token })
 }
 
-/** Gym-wide records. Demo = seed + the member's own local marks. */
+/** Gym-wide records. Demo = the member's own auto-captured marks (no seed). */
 export async function fetchRecords(token: string | null): Promise<RecordEntry[]> {
   if (isDemo() || !token) {
-    return [...SEED_RECORDS, ...getMyRecords()]
+    return [...getMyRecords()]
   }
   return call<RecordEntry[]>('getRecords', { token })
 }

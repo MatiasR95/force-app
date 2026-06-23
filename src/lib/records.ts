@@ -1,6 +1,9 @@
-// Gym-wide records (PRs) for a fixed set of headline lifts. Members submit a
-// record ONLY after they hit it (it may not have happened yet), split by gender,
-// shown as a leaderboard with the current member's mark compared to the top.
+// Gym-wide records (PRs) for a fixed set of headline lifts. Records are captured
+// AUTOMATICALLY when a member completes a set of a record-eligible lift during a
+// session (never entered by hand), split by gender, shown as a leaderboard with
+// the current member's mark compared to the top.
+
+import { deburr } from './normalize'
 
 export type Gender = 'M' | 'F'
 
@@ -49,25 +52,30 @@ export function bestOf(entries: RecordEntry[], client: string): RecordEntry | nu
   return mine[0] ?? null
 }
 
-// ---- demo seed (so the leaderboard looks alive before the backend is wired) --
-const N = (s: string) => s
-export const SEED_RECORDS: RecordEntry[] = [
-  // squat
-  { id: 's1', client: N('Sergio Sosa'), gender: 'M', lift: 'sentadilla', kg: 180, reps: 1, ts: '2026-06-01' },
-  { id: 's2', client: N('Tomás Vega'), gender: 'M', lift: 'sentadilla', kg: 160, reps: 3, ts: '2026-06-02' },
-  { id: 's3', client: N('Alva Cornaggia'), gender: 'F', lift: 'sentadilla', kg: 110, reps: 2, ts: '2026-06-03' },
-  { id: 's4', client: N('Cami Von Wernich'), gender: 'F', lift: 'sentadilla', kg: 95, reps: 5, ts: '2026-06-04' },
-  // deadlift
-  { id: 'd1', client: N('Sergio Sosa'), gender: 'M', lift: 'peso-muerto', kg: 220, reps: 1, ts: '2026-06-01' },
-  { id: 'd2', client: N('Santi Maffia'), gender: 'M', lift: 'peso-muerto', kg: 190, reps: 2, ts: '2026-06-05' },
-  { id: 'd3', client: N('Alva Cornaggia'), gender: 'F', lift: 'peso-muerto', kg: 140, reps: 1, ts: '2026-06-03' },
-  // bench
-  { id: 'b1', client: N('Tomás Vega'), gender: 'M', lift: 'press-banca', kg: 130, reps: 1, ts: '2026-06-02' },
-  { id: 'b2', client: N('Santi Maffia'), gender: 'M', lift: 'press-banca', kg: 110, reps: 4, ts: '2026-06-05' },
-  { id: 'b3', client: N('Cami Von Wernich'), gender: 'F', lift: 'press-banca', kg: 65, reps: 3, ts: '2026-06-04' },
-  // pull-ups
-  { id: 'p1', client: N('Sergio Sosa'), gender: 'M', lift: 'dominadas', kg: 50, reps: 3, ts: '2026-06-01' },
-  { id: 'p2', client: N('Alva Cornaggia'), gender: 'F', lift: 'dominadas', kg: 20, reps: 5, ts: '2026-06-03' },
-  // military
-  { id: 'm1', client: N('Santi Maffia'), gender: 'M', lift: 'press-militar', kg: 75, reps: 2, ts: '2026-06-05' },
-]
+/**
+ * Map an exercise name to a record lift key, or null if it's not record-eligible.
+ * Only the headline lifts count; variations that aren't records are excluded
+ * (bulgarian/split squats, incline bench, romanian/RDL, etc.).
+ */
+export function matchRecordLift(name: string): string | null {
+  const s = deburr(name)
+  // squats: any squat variation EXCEPT bulgarian/split/sissy/pistol/hack/leg-press/lunges
+  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal kb|goblet/.test(s)) return 'sentadilla'
+  if (/hex/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-hex'
+  if (/sumo/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-sumo'
+  // conventional deadlift only (exclude romanian / RDL / good-morning)
+  if (/peso muerto|deadlift/.test(s) && !/rumano|\brdl\b|buenos dias|good ?morning|unipodal|1 ?pie/.test(s)) return 'peso-muerto'
+  // bench with dumbbells
+  if (/(press (plano|de banca|banca)|banca|bench).*(mancuerna|db)|(mancuerna|db).*(press (plano|banca)|banca|bench)/.test(s)) return 'press-banca-db'
+  // flat barbell bench only (exclude incline)
+  if (/press plano|press (de )?banca|press banca|bench press|\bbanca\b/.test(s) && !/inclinad|incline/.test(s)) return 'press-banca'
+  if (/dominada|pull ?up|chin ?up/.test(s)) return 'dominadas'
+  if (/press militar|militar|overhead press|press de hombro/.test(s)) return 'press-militar'
+  return null
+}
+
+/** Total kg lifted for a record from a per-side value + implement (bar = 20kg). */
+export function recordKg(value: number, perSide: boolean, isBarbell: boolean, barKg = 20): number {
+  if (!perSide) return value
+  return value * 2 + (isBarbell ? barKg : 0)
+}

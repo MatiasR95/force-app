@@ -3,15 +3,18 @@ import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { setsReps, loadText, TechniqueChips } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
 import { RestTimer } from '../components/RestTimer'
-import { AnimatedExercise } from '../components/AnimatedExercise'
+import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, getGender, getClientName, getMyRecords, addMyRecord, getToken } from '../lib/store'
+import { matchRecordLift, recordKg, bestOf, liftLabel } from '../lib/records'
+import { submitRecord } from '../lib/api'
 import { Celebration } from '../components/Celebration'
-import { X, ChevronLeft, Check, Repeat, ArrowRight } from 'lucide-react'
+import { X, ChevronLeft, Check, Repeat, ArrowRight, MessageSquarePlus, Trophy, Megaphone } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
+const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
 
 type Item =
   | { type: 'single'; ex: ExerciseRow; section: SectionTag }
@@ -41,6 +44,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [i, setI] = useState(0)
   const [done, setDone] = useState<Record<string, number>>({})
   const [flash, setFlash] = useState(-1)
+  const [pr, setPr] = useState<string | null>(null)
   const [finishing, setFinishing] = useState(false)
 
   const totalUnits = items.reduce((a, it) => a + unitsOf(it, week), 0)
@@ -49,25 +53,51 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} onClose={onClose} />
   const item = items[i]
   if (!item) return null
+  const isTimed = item.type === 'circuit' && item.block.timed
   const key = item.type === 'single' ? item.ex.id : `c-${item.block.tag}`
   const target = unitsOf(item, week)
   const doneCount = done[key] ?? 0
   const allDone = doneCount >= target
   const isLast = i === items.length - 1
 
+  // Auto-capture a record when a record-eligible lift is completed (a PR vs the
+  // member's own best). No manual entry — it just happens when they finish it.
+  const captureRecord = (ex: ExerciseRow) => {
+    const lift = matchRecordLift(ex.name)
+    const gender = getGender()
+    if (!lift || !gender) return
+    const r = resolveWeek(ex, week)
+    const reps = r.reps ?? ex.reps ?? 0
+    if (r.load.value == null || reps <= 0) return
+    const kg = recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell')
+    if (kg <= 0) return
+    const client = getClientName() ?? 'Vos'
+    const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
+    if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return // not a PR
+    const entry = { id: rid(), client, gender, lift, kg, reps, ts: new Date().toISOString() }
+    addMyRecord(entry)
+    submitRecord(getToken(), entry).catch(() => {})
+    setPr(`¡Récord! ${liftLabel(lift)}: ${kg} kg × ${reps}`)
+    window.setTimeout(() => setPr(null), 3600)
+  }
+
   const mark = () => {
     const n = Math.min(target, doneCount + 1)
     setDone((d) => ({ ...d, [key]: n }))
     setFlash(n - 1); window.setTimeout(() => setFlash(-1), 420)
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
-    if (item.type === 'single') logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
-    else if (n >= target) item.block.exercises.forEach((ex) => logSet({ exerciseId: ex.id, dayId: day.id, done: true }))
+    if (item.type === 'single') {
+      logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
+      if (n >= target && item.section !== 'ramp') captureRecord(item.ex)
+    } else if (n >= target) {
+      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); captureRecord(ex) })
+    }
   }
   const go = () => setI((n) => Math.min(items.length - 1, n + 1))
 
   const markWord = item.type === 'circuit' && item.block.tag !== 'big' ? 'vuelta' : 'serie'
   const primary = !allDone
-    ? { label: `Marcar ${markWord} ${doneCount + 1}`, onClick: mark, icon: <Check size={18} /> }
+    ? { label: isTimed ? 'Finalizado' : `Marcar ${markWord} ${doneCount + 1}`, onClick: mark, icon: <Check size={18} /> }
     : isLast
       ? { label: 'Finalizar', onClick: () => setFinishing(true), icon: <ArrowRight size={18} /> }
       : { label: 'Siguiente', onClick: go, icon: <ArrowRight size={18} /> }
@@ -80,18 +110,25 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
         <span className="text-xs font-bold text-white/50 tabular-nums">Sem {week} · {i + 1}/{items.length}</span>
       </div>
 
+      {/* PR toast */}
+      {pr && (
+        <div className="mx-4 mb-2 rounded-card border border-gold/50 bg-gold/[0.14] px-3 py-2 flex items-center gap-2 animate-[pop_.3s_ease]">
+          <Trophy size={16} className="text-gold" /><span className="text-gold font-bold text-sm">{pr}</span>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-5">
         {item.type === 'single'
-          ? <SingleView ex={item.ex} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
-          : <CircuitView block={item.block} week={week} round={doneCount} rounds={target} flash={flash} />}
+          ? <SingleView ex={item.ex} dayId={day.id} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
+          : <CircuitView block={item.block} dayId={day.id} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
 
         <button onClick={primary.onClick}
           className={`mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.98]
-            ${allDone ? 'bg-gold-fill text-ink btn-glow' : 'bg-white/10 text-white border border-gold/30'}`}>
+            ${allDone || isTimed ? 'bg-gold-fill text-ink btn-glow' : 'bg-white/10 text-white border border-gold/30'}`}>
           {primary.icon} {primary.label}
         </button>
 
-        <div className="mt-4"><RestTimer /></div>
+        {!isTimed && <div className="mt-4"><RestTimer /></div>}
 
         {item.type === 'single' && singleLoad(item.ex, week) && (
           <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} /></div>
@@ -112,6 +149,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
 function unitsOf(it: Item, week: number): number {
   if (it.type === 'single') return resolveWeek(it.ex, week).sets ?? 1
+  if (it.block.timed) return 1 // HIIT: one "Finalizado", not round-by-round
   return circuitRounds(it.block, week) ?? 1
 }
 
@@ -134,8 +172,29 @@ function Dots({ n, done, flash, label }: { n: number; done: number; flash: numbe
   )
 }
 
-function SingleView({ ex, section, week, done, target, flash }: {
-  ex: ExerciseRow; section: SectionTag; week: number; done: number; target: number; flash: number
+// Per-exercise observación (e.g. "no pude terminar", "bajé el peso"). Saved to Seguimiento.
+function NoteField({ id, dayId }: { id: string; dayId: string }) {
+  const [open, setOpen] = useState(() => !!getNote(id))
+  const [text, setText] = useState(() => getNote(id))
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-5 flex items-center gap-2 text-white/55 text-sm font-bold">
+        <MessageSquarePlus size={16} className="text-gold/70" /> Agregar observación
+      </button>
+    )
+  }
+  return (
+    <div className="mt-5">
+      <div className="kicker mb-1.5">Tu observación (la ve el coach)</div>
+      <textarea value={text} rows={2} onChange={(e) => setText(e.target.value)} onBlur={() => saveNote(id, dayId, text)}
+        placeholder="Ej: no pude terminar la última serie / bajé a 25 kg / molestó el hombro"
+        className="w-full rounded-card bg-white/5 border border-white/10 p-3 text-white text-sm placeholder:text-white/30 focus:border-gold/40 outline-none resize-none" />
+    </div>
+  )
+}
+
+function SingleView({ ex, dayId, section, week, done, target, flash }: {
+  ex: ExerciseRow; dayId: string; section: SectionTag; week: number; done: number; target: number; flash: number
 }) {
   return (
     <>
@@ -145,25 +204,35 @@ function SingleView({ ex, section, week, done, target, flash }: {
       <TechniqueChips ex={ex} />
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       <Dots n={target} done={done} flash={flash} />
+      <NoteField id={ex.id} dayId={dayId} />
     </>
   )
 }
 
-function CircuitView({ block, week, round, rounds, flash }: {
-  block: Block; week: number; round: number; rounds: number; flash: number
+function CircuitView({ block, dayId, week, round, rounds, flash, timed }: {
+  block: Block; dayId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
 }) {
   const g = groupInfo(block)
   const word = g.roundWord === 'series' ? 'Serie' : 'Vuelta'
+  const seriesCount = circuitRounds(block, week) ?? rounds // real series (timed completion is single)
   const intro = block.tag === 'big'
     ? 'Una serie de cada ejercicio, alternando. Descansá entre series.'
-    : g.icon === 'hiit'
-      ? 'Tiempo de trabajo por ejercicio, una vuelta atrás de otra.'
-      : 'Hacé una serie de cada ejercicio, una atrás de otra. La pausa, al terminar la vuelta.'
+    : 'Hacé una serie de cada ejercicio, una atrás de otra. La pausa, al terminar la vuelta.'
   return (
     <>
       <div className="flex items-center gap-2 kicker"><Repeat size={13} /> {block.title} · {g.text}</div>
-      <h1 className="heading text-3xl text-white mt-1 mb-1">{word} {Math.min(round + 1, rounds)} <span className="text-white/30">/ {rounds}</span></h1>
-      <p className="text-white/50 text-sm mb-4">{intro}</p>
+      {timed
+        ? <h1 className="heading text-3xl text-white mt-1 mb-1">{seriesCount} {seriesCount === 1 ? 'serie' : 'series'} por tiempo</h1>
+        : <h1 className="heading text-3xl text-white mt-1 mb-1">{word} {Math.min(round + 1, rounds)} <span className="text-white/30">/ {rounds}</span></h1>}
+      {!timed && <p className="text-white/50 text-sm mb-4">{intro}</p>}
+
+      {timed && (
+        <div className="rounded-card border border-gold/30 bg-gold/[0.08] p-3 my-3 flex gap-2.5">
+          <Megaphone size={16} className="text-gold shrink-0 mt-0.5" />
+          <p className="text-white/85 text-sm leading-snug">Pedile al entrenador que arranque el programa de HIIT. Cuando termines, tocá <b className="text-gold">Finalizado</b>.</p>
+        </div>
+      )}
+
       <div className="space-y-2">
         {block.exercises.map((ex, idx) => (
           <div key={ex.id} className="flex items-center gap-3 rounded-card bg-white/[0.04] border border-white/10 p-2.5">
@@ -171,12 +240,13 @@ function CircuitView({ block, week, round, rounds, flash }: {
             <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
             <div className="flex-1 min-w-0">
               <div className="font-bold text-white text-sm truncate">{ex.name}</div>
-              <div className="text-xs text-white/55">{repsCol(ex, week)} · {loadText(ex, week)}</div>
+              <div className="text-xs text-white/55">{repsCol(ex, week)}{loadText(ex, week) !== '—' ? ` · ${loadText(ex, week)}` : ''}</div>
             </div>
           </div>
         ))}
       </div>
-      <Dots n={rounds} done={round} flash={flash} label={(s) => `V${s + 1}`} />
+      {!timed && <Dots n={rounds} done={round} flash={flash} label={(s) => `V${s + 1}`} />}
+      <NoteField id={`${dayId}-${block.tag}`} dayId={dayId} />
     </>
   )
 }

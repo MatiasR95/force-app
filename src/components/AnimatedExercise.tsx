@@ -87,14 +87,19 @@ const Squat = (impl: Impl) => wrap(<>
   </g>
 </>)
 
+// Conventional deadlift: knees bend, hips lower, bar travels to the floor and
+// the lifter stands up (distinct from a stiff-legged RDL).
 const Deadlift = (impl: Impl) => wrap(<>
   <Ground />
-  <path d="M40,90 L42,66 M60,90 L58,66" {...stroke} />
-  <g>{rot('70 50 66;3 50 66;70 50 66')}
-    <line x1="50" y1="66" x2="50" y2="42" {...stroke} /><Head cx={50} cy={35} />
-    <line x1="50" y1="46" x2="50" y2="60" {...stroke} />
-    <Load impl={impl} x1={42} x2={58} y={60} />
-  </g>
+  {/* legs+back: bent-over with bent knees (bottom) → standing tall (top) → bottom */}
+  <path {...stroke}>{morph(
+    'M40,90 L42,74 L50,68 L66,56 M60,90 L58,74 L50,68;' +
+    'M40,90 L44,72 L50,62 L50,40 M60,90 L56,72 L50,62;' +
+    'M40,90 L42,74 L50,68 L66,56 M60,90 L58,74 L50,68')}</path>
+  <g>{tr('21 20;0 0;21 20')}<Head cx={50} cy={33} /></g>
+  {/* arms hang from the shoulder to the bar */}
+  <path {...stroke}>{morph('M66,56 L66,78;M50,44 L50,60;M66,56 L66,78')}</path>
+  <g>{tr('16 20;0 0;16 20')}<Load impl={impl} x1={42} x2={58} y={60} /></g>
 </>)
 
 const HipThrust = (impl: Impl) => wrap(<>
@@ -189,6 +194,27 @@ const Plank = () => wrap(<>
   </g>
 </>)
 
+// Crunch / sit-up for abdominales — torso curls up off the floor.
+const Crunch = () => wrap(<>
+  <Ground />
+  <path d="M58,88 L50,74 L40,80" {...stroke} />{/* foot → knee → hip */}
+  <g>{rot('0 40 80;-40 40 80;0 40 80')}
+    <line x1="40" y1="80" x2="22" y2="82" {...stroke} /><Head cx={17} cy={82} />
+  </g>
+</>)
+
+// Ab-wheel rollout — kneel, wheel rolls forward and back.
+const Rollout = () => wrap(<>
+  <Ground />
+  <Head cx={24} cy={62} />
+  <line x1="28" y1="66" x2="34" y2="82" {...stroke} />{/* torso → knee */}
+  <g>{tr('0 0;22 6;0 0')}
+    <line x1="34" y1="72" x2="50" y2="82" {...stroke} />
+    <circle cx="55" cy="84" r="5" {...stroke} />
+    <line x1="55" y1="80" x2="55" y2="88" {...thin} />
+  </g>
+</>)
+
 const Pushup = () => wrap(<>
   <Ground />
   <g>{tr('0 0;0 6;0 0')}
@@ -208,12 +234,14 @@ type Mv = (impl: Impl) => React.ReactElement
 const MOVES: Record<string, Mv> = {
   squat: Squat, deadlift: Deadlift, hipthrust: HipThrust, bench: Bench, overhead: Overhead,
   row: Row, pulldown: Pulldown, curl: Curl, pushdown: Pushdown, lunge: Lunge, plank: Plank,
-  pushup: Pushup, generic: Generic,
+  crunch: Crunch, rollout: Rollout, pushup: Pushup, generic: Generic,
 }
 
 // keyword → movement (first match wins)
 const NAME_RULES: Array<[RegExp, string]> = [
-  [/plancha|\bcore\b|olla|rueda|hollow|pallof|isometr|bird ?dog|dead ?bug|abdominal colgad|inf\. colgad/, 'plank'],
+  [/rueda|ruedita|rollout|ab ?wheel|bolita/, 'rollout'],
+  [/abdominal|crunch|olla|sit ?up|encogimiento|elevacion de piernas|elevaciones de piernas/, 'crunch'],
+  [/plancha|\bcore\b|hollow|pallof|isometr|bird ?dog|dead ?bug|colgad|inf\. colgad/, 'plank'],
   [/flexion|push ?up|fondo/, 'pushup'],
   [/hip thrust|puente|gluteo|elevacion de cadera/, 'hipthrust'],
   [/peso muerto|deadlift|\brdl\b|buenos dias|good ?morning|ghd|reverse hyper|nordic|isquio|bisagra/, 'deadlift'],

@@ -41,6 +41,7 @@ const KEYS = {
   restPref: 'force.restPref',
   gender: 'force.gender',
   myRecords: 'force.myRecords',
+  notes: 'force.notes',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -137,6 +138,18 @@ export function addMyRecord(entry: RecordEntry): RecordEntry[] {
   write(KEYS.myRecords, all)
   enqueue('record', entry)
   return all
+}
+
+// ---- per-exercise observaciones (client notes during a session) -----------
+type NoteMap = Record<string, string>
+export const getNote = (exerciseId: string): string => read<NoteMap>(KEYS.notes, {})[exerciseId] ?? ''
+export function saveNote(exerciseId: string, dayId: string, text: string): void {
+  const map = read<NoteMap>(KEYS.notes, {})
+  const t = text.trim()
+  if (t) map[exerciseId] = t
+  else delete map[exerciseId]
+  write(KEYS.notes, map)
+  enqueue('note', { exerciseId, dayId, note: t, date: localDate() })
 }
 
 // ---- offline outbox -------------------------------------------------------

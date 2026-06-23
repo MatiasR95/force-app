@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender } from './lib/store'
+import type { Gender } from './lib/records'
 import { currentWeek } from './lib/week'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
@@ -19,6 +20,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('hoy')
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
+  const [askGender, setAskGender] = useState(!getGender())
 
   useEffect(() => {
     // capture the magic-link token (?t=...) once, then clean the URL
@@ -98,6 +100,25 @@ export default function App() {
           onClose={() => setTraining(null)}
         />
       )}
+
+      {askGender && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
+    </div>
+  )
+}
+
+function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+      <div className="w-full text-center">
+        <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
+        <div className="kicker">Para los récords</div>
+        <h1 className="heading text-2xl text-white mt-1 mb-5">¿En qué categoría competís?</h1>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => onPick('F')} className="rounded-card glass py-6 text-white font-black uppercase active:scale-[0.98]">Mujeres</button>
+          <button onClick={() => onPick('M')} className="rounded-card glass py-6 text-white font-black uppercase active:scale-[0.98]">Hombres</button>
+        </div>
+        <p className="text-white/40 text-xs mt-4">Lo usamos solo para el ranking de récords.</p>
+      </div>
     </div>
   )
 }
