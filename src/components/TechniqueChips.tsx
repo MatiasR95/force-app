@@ -32,7 +32,7 @@ export function setsReps(ex: ExerciseRow, week = 1): string {
   }
   const r = resolveWeek(ex, week)
   if (r.complexRaw) return r.complexRaw
-  const reps = r.repsRaw || (r.reps != null ? String(r.reps) : '')
+  const reps = ex.timeSec != null ? `${ex.timeSec} s` : (r.repsRaw || (r.reps != null ? String(r.reps) : ''))
   const sets = r.sets != null ? `${r.sets}` : r.setsRaw
   if (sets && reps) return `${sets} × ${reps}`
   return reps || sets || '—'

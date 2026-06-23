@@ -6,11 +6,12 @@ import { currentWeek } from './lib/week'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
 import { Dashboard } from './screens/Dashboard'
+import { Records } from './screens/Records'
 import { Entrenar } from './screens/Entrenar'
-import { CalendarDays, LayoutGrid, BarChart3 } from 'lucide-react'
+import { CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
-type Tab = 'hoy' | 'semana' | 'panel'
+type Tab = 'hoy' | 'semana' | 'panel' | 'records'
 
 export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
@@ -74,15 +75,17 @@ export default function App() {
         {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
         {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
         {tab === 'panel' && <Dashboard routine={routine} />}
+        {tab === 'records' && <Records />}
       </div>
 
       {/* bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto
         bg-black/80 backdrop-blur border-t border-white/10
         pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           <NavBtn active={tab === 'hoy'} onClick={() => setTab('hoy')} icon={<CalendarDays size={20} />} label="Hoy" />
           <NavBtn active={tab === 'semana'} onClick={() => setTab('semana')} icon={<LayoutGrid size={20} />} label="Plan" />
+          <NavBtn active={tab === 'records'} onClick={() => setTab('records')} icon={<Trophy size={20} />} label="Récords" />
           <NavBtn active={tab === 'panel'} onClick={() => setTab('panel')} icon={<BarChart3 size={20} />} label="Panel" />
         </div>
       </nav>

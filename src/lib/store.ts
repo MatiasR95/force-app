@@ -2,6 +2,8 @@
 // actual loads, set completion) save locally first (optimistic), then flush to
 // the backend when online. Coaches read the synced log in the Seguimiento sheet.
 
+import type { RecordEntry, Gender } from './records'
+
 export interface SetLog {
   exerciseId: string
   dayId: string
@@ -24,7 +26,7 @@ export interface SessionLog {
 
 export interface OutboxItem {
   id: string
-  kind: 'checkin' | 'set' | 'session' | 'note'
+  kind: 'checkin' | 'set' | 'session' | 'note' | 'record'
   payload: unknown
   ts: string
 }
@@ -37,6 +39,8 @@ const KEYS = {
   sessions: 'force.sessions',
   outbox: 'force.outbox',
   restPref: 'force.restPref',
+  gender: 'force.gender',
+  myRecords: 'force.myRecords',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -122,6 +126,18 @@ export const getRestPref = (): number => {
 }
 export const setRestPref = (sec: number): void =>
   write(KEYS.restPref, Math.max(15, Math.min(600, Math.round(sec))))
+
+// ---- records (PRs) --------------------------------------------------------
+export const getGender = (): Gender | null => read<Gender | null>(KEYS.gender, null)
+export const setGender = (g: Gender): void => write(KEYS.gender, g)
+
+export const getMyRecords = (): RecordEntry[] => read<RecordEntry[]>(KEYS.myRecords, [])
+export function addMyRecord(entry: RecordEntry): RecordEntry[] {
+  const all = [...getMyRecords(), entry]
+  write(KEYS.myRecords, all)
+  enqueue('record', entry)
+  return all
+}
 
 // ---- offline outbox -------------------------------------------------------
 export const getOutbox = (): OutboxItem[] => read<OutboxItem[]>(KEYS.outbox, [])

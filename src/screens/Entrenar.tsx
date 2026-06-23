@@ -4,6 +4,7 @@ import { setsReps, loadText, TechniqueChips } from '../components/TechniqueChips
 import { PlateCalc } from '../components/PlateCalc'
 import { RestTimer } from '../components/RestTimer'
 import { AnimatedExercise } from '../components/AnimatedExercise'
+import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
 import { logSet, logSession, localDate } from '../lib/store'
@@ -64,8 +65,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   }
   const go = () => setI((n) => Math.min(items.length - 1, n + 1))
 
+  const markWord = item.type === 'circuit' && item.block.tag !== 'big' ? 'vuelta' : 'serie'
   const primary = !allDone
-    ? { label: item.type === 'circuit' ? `Marcar vuelta ${doneCount + 1}` : `Marcar serie ${doneCount + 1}`, onClick: mark, icon: <Check size={18} /> }
+    ? { label: `Marcar ${markWord} ${doneCount + 1}`, onClick: mark, icon: <Check size={18} /> }
     : isLast
       ? { label: 'Finalizar', onClick: () => setFinishing(true), icon: <ArrowRight size={18} /> }
       : { label: 'Siguiente', onClick: go, icon: <ArrowRight size={18} /> }
@@ -150,11 +152,18 @@ function SingleView({ ex, section, week, done, target, flash }: {
 function CircuitView({ block, week, round, rounds, flash }: {
   block: Block; week: number; round: number; rounds: number; flash: number
 }) {
+  const g = groupInfo(block)
+  const word = g.roundWord === 'series' ? 'Serie' : 'Vuelta'
+  const intro = block.tag === 'big'
+    ? 'Una serie de cada ejercicio, alternando. Descansá entre series.'
+    : g.icon === 'hiit'
+      ? 'Tiempo de trabajo por ejercicio, una vuelta atrás de otra.'
+      : 'Hacé una serie de cada ejercicio, una atrás de otra. La pausa, al terminar la vuelta.'
   return (
     <>
-      <div className="flex items-center gap-2 kicker"><Repeat size={13} /> {block.title} · Circuito</div>
-      <h1 className="heading text-3xl text-white mt-1 mb-1">Vuelta {Math.min(round + 1, rounds)} <span className="text-white/30">/ {rounds}</span></h1>
-      <p className="text-white/50 text-sm mb-4">Hacé una serie de cada ejercicio, una atrás de otra. La pausa, al terminar la vuelta.</p>
+      <div className="flex items-center gap-2 kicker"><Repeat size={13} /> {block.title} · {g.text}</div>
+      <h1 className="heading text-3xl text-white mt-1 mb-1">{word} {Math.min(round + 1, rounds)} <span className="text-white/30">/ {rounds}</span></h1>
+      <p className="text-white/50 text-sm mb-4">{intro}</p>
       <div className="space-y-2">
         {block.exercises.map((ex, idx) => (
           <div key={ex.id} className="flex items-center gap-3 rounded-card bg-white/[0.04] border border-white/10 p-2.5">
@@ -173,6 +182,7 @@ function CircuitView({ block, week, round, rounds, flash }: {
 }
 
 function repsCol(ex: ExerciseRow, week: number): string {
+  if (ex.timeSec != null) return `${ex.timeSec} s`
   const s = setsReps(ex, week)
   const m = s.match(/×\s*(.+)$/)
   return m ? `${m[1]} reps` : s

@@ -22,6 +22,7 @@ export interface WeekCell {
   load: Load | null   // weight override if the cell carried one
   raw: string         // original cell text (always kept; shown when complex)
   complex: boolean    // couldn't be cleanly split into reps×sets (e.g. "3X1+2X3")
+  inherit: boolean    // "Mismo semana ant." → use the previous week's prescription
 }
 
 export type MovementPattern =
@@ -53,6 +54,7 @@ export interface ExerciseRow {
   isWarmupRamp: boolean
   reps: number | null        // leading numeric reps
   repsRaw: string
+  timeSec: number | null     // work time in seconds (HIIT / isometrics) instead of reps
   sets: number | null        // numeric work sets (null for ordinal ramp rows)
   setsRaw: string            // "4", "1°", "2°"
   setOrdinal: number | null  // 1, 2 … for ramp sets
@@ -66,8 +68,9 @@ export interface ExerciseRow {
 export interface Block {
   tag: SectionTag
   title: string              // human label: "The Big One", "Accesorios"…
-  circuit: boolean           // exercises performed together as rounds
-  rounds: number | null      // number of circuit rounds (= series count)
+  circuit: boolean           // exercises performed together as rounds (superset/circuit/big pair)
+  rounds: number | null      // number of rounds (= series count)
+  timed: boolean             // HIIT / time-based (seconds, not reps)
   exercises: ExerciseRow[]
 }
 
@@ -93,5 +96,6 @@ export interface Routine {
   days: RoutineDay[]
   weeksAvailable: number[]   // union of week numbers across all days (incl. 1)
   totalWeeks: number         // from meta "8 semanas" (fallback: max weeksAvailable)
+  style: 'weekly' | 'daily'  // weekly = powerlifting (per-week columns); daily = day-by-day
   parsedWarnings: string[]   // anything the parser couldn't structure (still shown raw)
 }

@@ -47,7 +47,9 @@ export const ENERO_2026: string[][] = [
   ['THE BIG ONE', 'Peso Muerto', '3', '4', '50kg x lado'],
   ['ACCESORIOS', 'RDL  Unipodal', '8', '4', 'Gris'],
   ['', 'GHD + Disco', '10', '4', '10kg'],
-  ['FINISHERS', '', '12', '3', ''],
+  ['HIIT', 'Burpees', "30''", '4', ''],
+  ['', 'Mountain Climbers', "30''", '4', ''],
+  ['', 'Descanso', "30''", '4', ''],
   ['', '', '', '', ''],
 
   ...HEADER(),

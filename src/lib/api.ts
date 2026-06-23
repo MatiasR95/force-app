@@ -1,7 +1,9 @@
 import type { Routine } from './types'
+import type { RecordEntry } from './records'
 import { parseRoutine } from './parser'
 import { ENERO_2026 } from '../data/fixtureEnero2026'
-import { getOutbox, clearOutbox } from './store'
+import { SEED_RECORDS } from './records'
+import { getOutbox, clearOutbox, getMyRecords } from './store'
 
 // The Apps Script Web App URL (gym account). Empty in demo → use local fixture.
 // Set via Vite env: VITE_FORCE_API=https://script.google.com/macros/s/XXXX/exec
@@ -39,6 +41,24 @@ export async function fetchHistory(token: string | null): Promise<Array<{ id: st
     ]
   }
   return call('getHistory', { token })
+}
+
+/** Gym-wide records. Demo = seed + the member's own local marks. */
+export async function fetchRecords(token: string | null): Promise<RecordEntry[]> {
+  if (isDemo() || !token) {
+    return [...SEED_RECORDS, ...getMyRecords()]
+  }
+  return call<RecordEntry[]>('getRecords', { token })
+}
+
+/** Submit a record the member just hit. Demo persists locally only. */
+export async function submitRecord(token: string | null, entry: RecordEntry): Promise<void> {
+  if (isDemo() || !token) return
+  await fetch(new URL(API_BASE).toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'postRecord', token, entry }),
+  })
 }
 
 /** Flush the offline outbox to the Seguimiento log. No-op in demo. */

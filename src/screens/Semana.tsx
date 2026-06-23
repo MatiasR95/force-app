@@ -31,7 +31,7 @@ export function Semana({ routine, week, setWeek }: {
         <Meta icon={<Clock size={14} />} label="Duración" value={routine.meta.weeks || '—'} />
       </div>
 
-      <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>
+      {routine.style === 'weekly' && <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>}
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar my-4 -mx-1 px-1">
         {routine.days.map((d, i) => (

@@ -30,6 +30,7 @@ function doGet(e) {
   try {
     if (action === 'getRoutine') return json(getRoutine_(e.parameter.token))
     if (action === 'getHistory') return json(getHistory_(e.parameter.token))
+    if (action === 'getRecords') return json(getRecords_(e.parameter.token))
     if (action === 'ping') return json({ ok: true })
     return json({ error: 'unknown action: ' + action }, 400)
   } catch (err) {
@@ -41,6 +42,7 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents)
     if (body.action === 'logInput') return json(logInput_(body.token, body.items))
+    if (body.action === 'postRecord') return json(postRecord_(body.token, body.entry))
     return json({ error: 'unknown action' }, 400)
   } catch (err) {
     return json({ error: String(err) }, 500)
@@ -127,6 +129,41 @@ function logInput_(token, items) {
   })
   if (rows.length) sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows)
   return { ok: true, written: rows.length }
+}
+
+// ---- records (gym-wide PRs) -----------------------------------------------
+// Stored in a "records" tab of the CONFIG spreadsheet: id | client | gender |
+// lift | kg | reps | ts. Members submit only after hitting the mark.
+function recordsSheet_() {
+  var ss = SpreadsheetApp.openById(CONFIG_SHEET_ID)
+  var sh = ss.getSheetByName('records')
+  if (!sh) {
+    sh = ss.insertSheet('records')
+    sh.appendRow(['id', 'client', 'gender', 'lift', 'kg', 'reps', 'ts'])
+  }
+  return sh
+}
+
+function getRecords_(token) {
+  clientFor_(token) // authorize
+  var rows = recordsSheet_().getDataRange().getValues()
+  var out = []
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i]
+    if (!r[0]) continue
+    out.push({ id: String(r[0]), client: r[1], gender: r[2], lift: r[3], kg: Number(r[4]), reps: Number(r[5]), ts: String(r[6]) })
+  }
+  return out
+}
+
+function postRecord_(token, entry) {
+  clientFor_(token)
+  if (!entry || !entry.lift) return { error: 'invalid entry' }
+  recordsSheet_().appendRow([
+    entry.id || Utilities.getUuid(), entry.client, entry.gender, entry.lift,
+    entry.kg, entry.reps, entry.ts || new Date().toISOString(),
+  ])
+  return { ok: true }
 }
 
 /** A per-client "Seguimiento" spreadsheet (created once, kept beside the routine). */

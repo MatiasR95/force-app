@@ -45,6 +45,25 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
     expect(d1.blocks.find((b) => b.tag === 'big')!.circuit).toBe(false)
   })
 
+  it('detects routine style (weekly = powerlifting)', () => {
+    expect(r.style).toBe('weekly') // fixture has Semana 2/3 columns
+  })
+
+  it('treats a multi-lift Big One as an alternating group', () => {
+    const d3 = r.days.find((d) => d.label === 'DÍA 3')!
+    const big = d3.blocks.find((b) => b.tag === 'big')!
+    expect(big.exercises.length).toBe(2)
+    expect(big.circuit).toBe(true) // Press + Sentadilla alternated
+  })
+
+  it('parses a HIIT block as timed (seconds)', () => {
+    const d4 = r.days.find((d) => d.label === 'DÍA 4')!
+    const hiit = d4.blocks.find((b) => b.tag === 'hiit')!
+    expect(hiit.timed).toBe(true)
+    expect(hiit.circuit).toBe(true)
+    expect(hiit.exercises[0].timeSec).toBe(30)
+  })
+
   it('parses per-week (Semana N) columns', () => {
     const d1 = r.days.find((d) => d.label === 'DÍA 1')!
     expect(d1.weeks).toEqual([1, 2, 3])
@@ -145,5 +164,22 @@ describe('parseWeekCell', () => {
   })
   it('returns null for an empty cell', () => {
     expect(parseWeekCell('', 2)).toBeNull()
+  })
+  it('flags "Mismo semana ant." as inherit', () => {
+    expect(parseWeekCell('Mismo semana ant.', 4)).toMatchObject({ inherit: true })
+  })
+})
+
+describe('resolveWeek inheritance', () => {
+  it('"Mismo semana ant." resolves to the previous concrete week', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', '', 'Semana 2', 'Semana 3'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['ACCESORIOS', 'Remo', '10', '3', '20kg', '12X3', 'Mismo semana ant.'],
+      ['', 'Curl', '12', '3', '10kg', '', ''],
+    ])
+    const remo = r.days[0].blocks.find((b) => b.tag === 'accessory')!.exercises[0]
+    // week 3 inherits week 2 = 12 reps × 3 sets
+    expect(resolveWeek(remo, 3)).toMatchObject({ reps: 12, sets: 3 })
   })
 })

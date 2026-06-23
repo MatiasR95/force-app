@@ -39,9 +39,13 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   const [quote] = useState(() => nextQuote())
   const day = routine.days[dayIdx]
   const name = getClientName()
+  const weekly = routine.style === 'weekly'
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
   const effWeek = dayWeeks.includes(week) ? week : 1
-  const isLastWeek = routine.totalWeeks > 1 && week >= routine.totalWeeks
+  const isLastWeek = weekly && routine.totalWeeks > 1 && week >= routine.totalWeeks
+  const isToday = dayIdx === suggestedDay
+  const bigNames = day.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
+  const focus = bigNames || day.blocks.flatMap((b) => b.exercises)[0]?.name || 'Entrenamiento'
 
   // last-session recap (day · week · Big One · when)
   const ls = lastSession()
@@ -53,24 +57,25 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
 
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-28">
-      <header className="flex items-start justify-between mb-3">
+      <header className="flex items-center justify-between mb-3">
         <div>
           <div className="kicker">{name ? `Hola, ${name.split(' ')[0]}` : 'Bienvenido'}</div>
-          <h1 className="heading text-3xl text-white mt-1 glow-text">
-            {day.label.replace('DÍA', 'Día')}
-            <span className="text-white/30"> · </span>
-            <span className="text-gold">Sem {week}</span>
-          </h1>
-          <div className="text-white/40 text-xs mt-1 capitalize">{TODAY()}</div>
+          <div className="text-white/40 text-xs mt-0.5 capitalize">{TODAY()}</div>
         </div>
-        <img src={emblem} alt="FORCE" className="h-10 w-10 object-contain opacity-90 mt-1" />
+        <img src={emblem} alt="FORCE" className="h-10 w-10 object-contain opacity-90" />
       </header>
 
-      {/* welcome hero: motivational quote */}
+      {/* welcome hero: WHAT to do today, unmistakably */}
       <div className="hero-card rounded-card p-4 mb-3">
-        <div className="flex gap-2.5">
-          <Quote size={16} className="text-gold/70 shrink-0 mt-0.5" />
-          <p className="text-white/85 text-sm leading-relaxed font-medium">{quote}</p>
+        <div className="kicker">{isToday ? '🔥 Hoy te toca' : 'Estás viendo'}</div>
+        <h1 className="heading text-3xl text-white mt-1 glow-text">
+          {day.label.replace('DÍA', 'Día')}
+          {weekly && <><span className="text-white/30"> · </span><span className="text-gold">Sem {week}</span></>}
+        </h1>
+        <div className="text-gold/90 font-bold text-sm mt-1">{focus}</div>
+        <div className="flex gap-2.5 mt-3 pt-3 border-t border-white/10">
+          <Quote size={15} className="text-gold/60 shrink-0 mt-0.5" />
+          <p className="text-white/80 text-sm leading-relaxed">{quote}</p>
         </div>
       </div>
 
@@ -101,7 +106,7 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
         </div>
       )}
 
-      <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>
+      {weekly && <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>}
 
       {/* check-in */}
       <button
@@ -123,12 +128,17 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
         </div>
       </button>
 
-      {/* day selector */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1">
+      {/* day selector — the suggested (next undone) day is tagged HOY */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1 pt-2">
         {routine.days.map((d, i) => (
-          <Pill key={d.id} active={i === dayIdx} onClick={() => setDayIdx(i)}>
-            {d.label.replace('DÍA', 'Día')}
-          </Pill>
+          <div key={d.id} className="relative shrink-0">
+            {i === suggestedDay && (
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 text-[0.5rem] font-black uppercase tracking-wide text-ink bg-gold px-1.5 py-0.5 rounded-full">Hoy</span>
+            )}
+            <Pill active={i === dayIdx} onClick={() => setDayIdx(i)}>
+              {d.label.replace('DÍA', 'Día')}
+            </Pill>
+          </div>
         ))}
       </div>
 

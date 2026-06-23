@@ -21,6 +21,7 @@ export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
   if (week <= 1) return base
   const w = ex.weeks[week]
   if (!w) return base // blank week cell → same as week 1
+  if (w.inherit) return resolveWeek(ex, week - 1) // "Mismo semana ant."
   if (w.complex) {
     return { ...base, load: w.load ?? ex.load, complexRaw: w.raw }
   }

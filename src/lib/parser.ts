@@ -82,10 +82,14 @@ function extractNote(obs: string, load: Load): string {
   return obs.replace(/-?\d+(?:[.,]\d+)?\s*kg/i, '').replace(/x\s*lado/i, '').replace(/\s+/g, ' ').trim()
 }
 
-// A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex).
+// A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
+// "Mismo semana ant." (inherit previous week).
 export function parseWeekCell(raw: string, week: number): WeekCell | null {
   const s = raw.trim()
   if (!s) return null
+  if (/mism[oa]\s+sem|sem(ana)?\s*ant|^=$|^idem$|^igual/i.test(deburr(s))) {
+    return { week, reps: null, sets: null, load: null, raw: s, complex: false, inherit: true }
+  }
   const m = s.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
   if (m && !/[x+]/i.test(m[3].replace(/x\s*lado/i, ''))) {
     const rest = m[3].trim()
@@ -96,11 +100,18 @@ export function parseWeekCell(raw: string, week: number): WeekCell | null {
       load: rest ? parseLoad(rest) : null,
       raw: s,
       complex: false,
+      inherit: false,
     }
   }
   // couldn't cleanly split → keep raw, surface any weight
   const load = /kg/i.test(s) ? parseLoad(s) : null
-  return { week, reps: null, sets: null, load, raw: s, complex: true }
+  return { week, reps: null, sets: null, load, raw: s, complex: true, inherit: false }
+}
+
+// Work time in seconds from a reps cell: "30''", "30s", "40 seg", "30\"".
+export function parseTimeSec(reps: string): number | null {
+  const m = reps.match(/(\d+)\s*(?:''|"|seg|segs|s\b|´´|¨)/i)
+  return m ? parseInt(m[1], 10) : null
 }
 
 // ---- main ---------------------------------------------------------------
@@ -145,6 +156,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       isWarmupRamp: isRamp,
       reps: toNum(c),
       repsRaw: c,
+      timeSec: parseTimeSec(c),
       sets: setOrdinalMatch ? null : toNum(d),
       setsRaw: d,
       setOrdinal: setOrdinalMatch ? parseInt(setOrdinalMatch[1], 10) : null,
@@ -157,7 +169,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const tag = row.section
     let block = day.blocks.find((bl) => bl.tag === tag)
     if (!block) {
-      block = { tag, title: SECTION_TITLES[tag], circuit: false, rounds: null, exercises: [] }
+      block = { tag, title: SECTION_TITLES[tag], circuit: false, rounds: null, timed: false, exercises: [] }
       day.blocks.push(block)
     }
     block.exercises.push(row)
@@ -210,7 +222,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       // remember custom titles for "other"/unknown sections
       if (info.tag === 'other' || info.tag === 'hiit') {
         const exists = day.blocks.find((bl) => bl.tag === info.tag)
-        if (!exists) day.blocks.push({ tag: info.tag, title: info.title, circuit: false, rounds: null, exercises: [] })
+        if (!exists) day.blocks.push({ tag: info.tag, title: info.title, circuit: false, rounds: null, timed: false, exercises: [] })
       }
     }
 
@@ -218,14 +230,17 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     else if (a && !info) warnings.push(`Fila sin estructura clara: "${a}"`)
   }
 
-  // finalize circuits per block
+  // finalize blocks: circuits (done in rounds), the alternating Big One pair, HIIT timing
   for (const dd of days) {
     for (const bl of dd.blocks) {
-      if (CIRCUIT_TAGS.has(bl.tag) && bl.exercises.length > 1) {
+      // a multi-exercise THE BIG ONE is a superset done set-by-set (alternated)
+      const groupable = CIRCUIT_TAGS.has(bl.tag) || bl.tag === 'big'
+      if (groupable && bl.exercises.length > 1) {
         bl.circuit = true
         const setCounts = bl.exercises.map((x) => x.sets).filter((n): n is number => n != null)
         bl.rounds = setCounts.length ? Math.max(...setCounts) : null
       }
+      bl.timed = bl.tag === 'hiit' || bl.exercises.some((x) => x.timeSec != null)
     }
   }
 
@@ -234,7 +249,9 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
 
   const weeksAvailable = [...new Set(days.flatMap((d) => d.weeks))].sort((x, y) => x - y)
   const totalWeeks = toNum(meta.weeks) ?? (weeksAvailable.length ? Math.max(...weeksAvailable) : 1)
+  // weekly (powerlifting: same lifts, per-week columns) vs daily (changes day by day)
+  const style: 'weekly' | 'daily' = weeksAvailable.length > 1 ? 'weekly' : 'daily'
 
   if (!days.length) warnings.push('No se detectaron días (DÍA N) en la planilla.')
-  return { title, meta, days, weeksAvailable, totalWeeks, parsedWarnings: warnings }
+  return { title, meta, days, weeksAvailable, totalWeeks, style, parsedWarnings: warnings }
 }

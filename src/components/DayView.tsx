@@ -3,7 +3,19 @@ import { Spine } from './ui'
 import { setsReps, loadText } from './TechniqueChips'
 import { AnimatedExercise } from './AnimatedExercise'
 import { circuitRounds } from '../lib/week'
-import { Flame, ChevronRight, Repeat } from 'lucide-react'
+import { Flame, ChevronRight, Repeat, Layers, Zap } from 'lucide-react'
+
+// Human label for a grouped block. "Circuito" is reserved for HIIT; accessories
+// done back-to-back are superseries/triseries/bloques; a multi-lift Big One is
+// the alternated main work.
+export function groupInfo(block: Block): { text: string; hint: string; icon: 'big' | 'hiit' | 'set'; roundWord: string } {
+  if (block.tag === 'big') return { text: 'Serie principal', hint: 'una de cada, alternando', icon: 'big', roundWord: 'series' }
+  if (block.timed || block.tag === 'hiit') return { text: 'Circuito HIIT', hint: 'por tiempo', icon: 'hiit', roundWord: 'vueltas' }
+  const n = block.exercises.length
+  if (n === 2) return { text: 'Superserie', hint: '2 ejercicios seguidos', icon: 'set', roundWord: 'vueltas' }
+  if (n === 3) return { text: 'Triserie', hint: '3 ejercicios seguidos', icon: 'set', roundWord: 'vueltas' }
+  return { text: `Bloque · ${n} ejercicios`, hint: 'seguidos', icon: 'set', roundWord: 'vueltas' }
+}
 
 const SECTION_ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 
@@ -68,16 +80,18 @@ function CircuitCard({ block, week, onPick }: {
   block: Block; week: number; onPick: (ex: ExerciseRow) => void
 }) {
   const rounds = circuitRounds(block, week)
+  const g = groupInfo(block)
+  const Icon = g.icon === 'hiit' ? Zap : g.icon === 'big' ? Layers : Repeat
   return (
     <section>
-      <BlockHeader title={block.title} />
-      <div className="rounded-card border border-gold/25 bg-gold/[0.06] overflow-hidden">
+      <BlockHeader title={block.title} big={block.tag === 'big'} />
+      <div className={`rounded-card overflow-hidden border ${block.tag === 'big' ? 'border-gold/40 bg-gold/[0.09]' : 'border-gold/25 bg-gold/[0.06]'}`}>
         <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-white/10 bg-black/20">
-          <Repeat size={14} className="text-gold" />
+          <Icon size={14} className="text-gold" />
           <span className="text-xs font-bold text-gold uppercase tracking-wide">
-            Circuito{rounds ? ` · ${rounds} vueltas` : ''}
+            {g.text}{rounds ? ` · ${rounds} ${g.roundWord}` : ''}
           </span>
-          <span className="text-[0.62rem] text-white/45 ml-auto">se hacen juntos</span>
+          <span className="text-[0.62rem] text-white/45 ml-auto">{g.hint}</span>
         </div>
         <div className="divide-y divide-white/8">
           {block.exercises.map((ex, i) => (
@@ -113,6 +127,7 @@ const showLoad = (ex: ExerciseRow) => ex.load.value != null || !!ex.load.band
 
 // In a circuit the round count is shown once on the header; per-row we show reps only.
 function repsOnly(ex: ExerciseRow, week: number): string {
+  if (ex.timeSec != null) return `${ex.timeSec} s`
   const s = setsReps(ex, week)
   const m = s.match(/×\s*(.+)$/)
   return m ? m[1] : s
