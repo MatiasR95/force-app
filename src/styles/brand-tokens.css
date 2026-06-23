@@ -1,0 +1,75 @@
+/* FORCE — Brand Tokens (CSS custom properties)
+ * Single source of truth for the FORCE visual identity, extracted from the live
+ * content engine. Import this in any future product (e.g. the member routine app)
+ * so it matches the Instagram presence pixel-for-pixel.
+ *
+ *   <link rel="stylesheet" href="force_brand_tokens.css">  →  use var(--gold), etc.
+ *
+ * System name: HIERRO TEMPLADO · Tagline: #TRUSTTHEPROCESS
+ */
+:root {
+  /* ---- Brand ---- */
+  --gold:        #C6AE78;   /* PRIMARY — accents, key numbers, CTAs, the Spine */
+  --gold-pale:   #EADEB4;   /* highlights / lit states */
+  --gold-deep:   #8A6A38;   /* gradient anchor / pressed states */
+
+  /* ---- Neutrals ---- */
+  --black:       #000000;   /* photo & video backgrounds */
+  --ink:         #0E0E0F;   /* primary text on light / near-black surfaces */
+  --cream:       #F5F4F2;   /* light 'paper' surface */
+  --white:       #FFFFFF;
+
+  /* ---- Text roles ---- */
+  --text-on-dark:        #FFFFFF;
+  --text-on-dark-soft:   rgba(255,255,255,0.80);
+  --text-on-dark-lead:   rgba(255,255,255,0.50);
+  --text-on-light:       #0E0E0F;
+  --text-on-light-soft:  #2C2B28;
+  --text-on-light-lead:  #94908A;
+
+  /* ---- Semantic ---- */
+  --good-fg: #C6AE78; --good-bg: rgba(198,174,120,0.13); --good-border: rgba(198,174,120,0.45);
+  --bad-fg:  #9A948C; --bad-bg:  rgba(140,140,140,0.12);
+  --alert-fg:#9C3B2B; --alert-bg:#FBF2F0; --alert-border:#E9CFC8;
+
+  /* ---- Gradients ---- */
+  --grad-dark-stage: radial-gradient(125% 90% at 72% 8%, #15140F 0%, #000000 70%);
+  --grad-gold-rule:  linear-gradient(180deg,#8A6A38,#C6AE78 18%,#C6AE78 82%,#8A6A38);
+  --grad-gold-fill:  linear-gradient(90deg,#C6AE78,#8A6A38);
+  --grad-photo:      linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0.80) 100%);
+
+  /* ---- Type ---- */
+  --font-primary: 'Montserrat', system-ui, sans-serif;
+  --font-accent:  'Caveat', cursive;          /* rare handwritten accent only */
+  --font-alt:     'Archivo', var(--font-primary);
+
+  --fw-body: 400; --fw-bold: 700; --fw-heavy: 900;
+  --tracking-kicker: 0.30em;   /* gold eyebrow labels */
+  --tracking-eyebrow:0.22em;
+  --tracking-micro:  0.16em;
+  --leading-display: 0.92; --leading-heading: 1.0; --leading-body: 1.55;
+
+  /* Fluid type scale (app/web) — mirrors the 1080px canvas ratios, auto-fitting */
+  --fs-display: clamp(2.25rem, 7vw, 4.5rem);
+  --fs-h1:      clamp(1.75rem, 5vw, 3rem);
+  --fs-h2:      clamp(1.25rem, 3.2vw, 2rem);
+  --fs-body:    clamp(0.95rem, 1.6vw, 1.125rem);
+  --fs-micro:   0.72rem;
+
+  /* ---- Geometry ---- */
+  --radius-pill: 9999px; --radius-card: 16px; --radius-photo: 22px;
+  --radius-icon: 18px;   --radius-chip: 5px;  --radius-bar: 9px;
+  --stroke-spine: 2px; --stroke-rule: 3px; --stroke-card: 1px;
+  --space: 8px;   /* base unit; gaps are multiples */
+}
+
+/* Headline helper — uppercase, heavy, slightly extended, tight leading */
+.force-display { font-family: var(--font-primary); font-weight: var(--fw-heavy);
+  text-transform: uppercase; font-stretch: 125%; line-height: var(--leading-display);
+  letter-spacing: -0.01em; }
+.force-kicker  { font-family: var(--font-primary); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--tracking-kicker); color: var(--gold); }
+.force-body    { font-family: var(--font-primary); font-weight: var(--fw-body); line-height: var(--leading-body); }
+
+/* The Spine — FORCE's signature vertical gold rule (use as a left accent on cards/screens) */
+.force-spine { width: var(--stroke-spine); background: var(--grad-gold-rule); }

@@ -1,0 +1,78 @@
+@import './brand-tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../assets/fonts/Montserrat.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Caveat';
+  src: url('../assets/fonts/Caveat.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo';
+  src: url('../assets/fonts/Archivo.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--grad-dark-stage);
+    background-attachment: fixed;
+    color: var(--text-on-dark);
+    font-family: var(--font-primary);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* safe-area aware for notched phones */
+    overscroll-behavior-y: none;
+  }
+  * { -webkit-tap-highlight-color: transparent; }
+}
+
+@layer components {
+  /* The Gold Spine — FORCE's signature vertical accent */
+  .spine { width: 2px; background: var(--grad-gold-rule); border-radius: 2px; }
+
+  .kicker {
+    font-weight: 600; text-transform: uppercase;
+    letter-spacing: var(--tracking-kicker); color: var(--gold);
+    font-size: 0.7rem;
+  }
+  .heading {
+    font-weight: 900; text-transform: uppercase;
+    letter-spacing: -0.01em; line-height: 1.0; font-stretch: 118%;
+  }
+
+  /* Card surface on dark */
+  .card {
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: var(--radius-card);
+    backdrop-filter: blur(8px);
+  }
+
+  /* technique chip */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 3px 8px; border-radius: var(--radius-chip);
+    background: var(--good-bg); color: var(--gold); border: 1px solid var(--good-border);
+  }
+
+  /* progress rail */
+  .rail { height: 4px; border-radius: 9px; background: rgba(255,255,255,0.10); overflow: hidden; }
+  .rail > span { display:block; height:100%; background: var(--grad-gold-fill); border-radius: 9px; }
+}
+
+/* hide scrollbars on horizontal pagers but keep scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
