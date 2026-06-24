@@ -38,5 +38,7 @@ see `.claude/launch.json`. For terminal commands, prefix PATH:
   animated SVGs (`AnimatedExercise.tsx`), implement-aware.
 
 ## Screens
-`Hoy` (today's session, unmistakable), `Semana`/Plan, `Récords`, `Panel` (dashboard); `Entrenar`
-is the full-screen lifting mode. Nav + week state in `src/App.tsx`.
+`Inicio` (Home landing — welcome, La Plata forecast, próximo feriado, coach tip, rachas, birthdays,
+Perfil sheet), `Hoy` (today's session, unmistakable), `Semana`/Plan, `Récords`, `Panel` (dashboard);
+`Entrenar` is the full-screen lifting mode. 5-tab nav + week state in `src/App.tsx`. The S&C coach
+agent (`.claude/agents/sc-coach.md`) owns exercise accuracy: animated icons, `coachTips.ts`, plan audits.

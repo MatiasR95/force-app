@@ -1,0 +1,95 @@
+import { describe, it, expect } from 'vitest'
+import { weightClass, wcLabel } from '../src/lib/records'
+import { buildCellWrites, replaceKg, fmtKg } from '../src/lib/sheetWrite'
+import { nextFeriado } from '../src/lib/feriados'
+import type { ExerciseRow, WeekCell } from '../src/lib/types'
+
+// minimal ExerciseRow factory for writeback tests
+function mkEx(p: Partial<ExerciseRow>): ExerciseRow {
+  return {
+    id: 'x', row: 10, name: 'Sentadilla', slug: 'sentadilla', pattern: 'squat',
+    section: 'big', isWarmupRamp: false, reps: 5, repsRaw: '5', timeSec: null,
+    sets: 4, setsRaw: '4', setOrdinal: null,
+    load: { value: 28.75, perSide: true, unit: 'kg', raw: '28,75kg x lado' },
+    techniques: [], notes: '', weeks: {},
+    raw: { exercise: 'Sentadilla', reps: '5', series: '4', obs: '28,75kg x lado' },
+    ...p,
+  }
+}
+const wk = (p: Partial<WeekCell>): WeekCell =>
+  ({ week: 2, reps: 10, sets: 3, load: null, raw: '10X3', complex: false, inherit: false, col: 7, ...p })
+
+describe('weightClass', () => {
+  it('classifies men at the confirmed bands (≤65 / 66–80 / +80)', () => {
+    expect(weightClass('M', 65)?.key).toBe('m-65')
+    expect(weightClass('M', 66)?.key).toBe('m66-80')
+    expect(weightClass('M', 80)?.key).toBe('m66-80')
+    expect(weightClass('M', 80.5)?.key).toBe('m80+')
+  })
+  it('classifies women at the confirmed bands (≤50 / 51–65 / +65)', () => {
+    expect(weightClass('F', 50)?.key).toBe('f-50')
+    expect(weightClass('F', 51)?.key).toBe('f51-65')
+    expect(weightClass('F', 65)?.key).toBe('f51-65')
+    expect(weightClass('F', 66)?.key).toBe('f65+')
+  })
+  it('returns null for unknown bodyweight and labels legacy keys as General', () => {
+    expect(weightClass('M', null)).toBeNull()
+    expect(weightClass('M', 0)).toBeNull()
+    expect(wcLabel('m-65')).toBe('Hasta 65 kg')
+    expect(wcLabel('???')).toBe('General')
+  })
+})
+
+describe('sheet writeback cell rebuild', () => {
+  it('formats kg with the rioplatense comma', () => {
+    expect(fmtKg(27.5)).toBe('27,5')
+    expect(fmtKg(30)).toBe('30')
+  })
+  it('replaces or appends the kg token, preserving the rest', () => {
+    expect(replaceKg('28,75kg x lado', 30)).toBe('30kg x lado')
+    expect(replaceKg('Banda roja', 25)).toBe('Banda roja 25kg')
+  })
+  it('week 1: writes separate reps/series/obs cells', () => {
+    const ex = mkEx({ row: 12 })
+    expect(buildCellWrites(ex, 1, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado' }])
+    expect(buildCellWrites(ex, 1, { reps: 8 })).toEqual([{ row: 12, col: 2, value: '8' }])
+    expect(buildCellWrites(ex, 1, { series: 5 })).toEqual([{ row: 12, col: 3, value: '5' }])
+  })
+  it('does not overwrite ramp ordinal series', () => {
+    const ex = mkEx({ setOrdinal: 2, setsRaw: '2°' })
+    expect(buildCellWrites(ex, 1, { series: 5 })).toEqual([])
+  })
+  it('week N: rewrites the composite "Semana N" cell for fields it owns', () => {
+    const load = { value: 28.75, perSide: true, unit: 'kg' as const, raw: '28,75kg x lado' }
+    const ex = mkEx({ row: 12, weeks: { 2: wk({ raw: '2X4 28,75kg x lado', reps: 2, sets: 4, load }) } })
+    expect(buildCellWrites(ex, 2, { reps: 12 })).toEqual([{ row: 12, col: 7, value: '12X4 28,75kg x lado' }])
+    expect(buildCellWrites(ex, 2, { kg: 30 })).toEqual([{ row: 12, col: 7, value: '2X4 30kg x lado' }])
+  })
+  it('week N without its own weight: kg falls back to the base OBSERVACIONES cell', () => {
+    // "5X4" overrides only reps/sets; weight is inherited from the base row.
+    const ex = mkEx({ row: 12, weeks: { 8: wk({ week: 8, raw: '5X4', reps: 5, sets: 4, load: null, col: 9 }) } })
+    expect(buildCellWrites(ex, 8, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado' }])
+    expect(buildCellWrites(ex, 8, { reps: 6 })).toEqual([{ row: 12, col: 9, value: '6X4' }])
+  })
+  it('skips inherited / complex week cells', () => {
+    const inh = mkEx({ weeks: { 2: wk({ inherit: true, raw: 'Mismo semana ant.' }) } })
+    const cx = mkEx({ weeks: { 2: wk({ complex: true, raw: '3X1+2X3' }) } })
+    expect(buildCellWrites(inh, 2, { reps: 9 })).toEqual([])
+    expect(buildCellWrites(cx, 2, { reps: 9 })).toEqual([])
+  })
+})
+
+describe('nextFeriado', () => {
+  it('finds the next holiday on or after a date, with days left', () => {
+    const n = nextFeriado('2026-06-24')!
+    expect(n.date).toBe('2026-07-09')
+    expect(n.name).toMatch(/Independencia/)
+    expect(n.daysLeft).toBe(15)
+  })
+  it('counts a holiday today as 0 days left', () => {
+    expect(nextFeriado('2026-07-09')!.daysLeft).toBe(0)
+  })
+  it('rolls into the next year', () => {
+    expect(nextFeriado('2026-12-26')!.date).toBe('2027-01-01')
+  })
+})

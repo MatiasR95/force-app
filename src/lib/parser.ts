@@ -84,11 +84,11 @@ function extractNote(obs: string, load: Load): string {
 
 // A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
 // "Mismo semana ant." (inherit previous week).
-export function parseWeekCell(raw: string, week: number): WeekCell | null {
+export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | null {
   const s = raw.trim()
   if (!s) return null
   if (/mism[oa]\s+sem|sem(ana)?\s*ant|^=$|^idem$|^igual/i.test(deburr(s))) {
-    return { week, reps: null, sets: null, load: null, raw: s, complex: false, inherit: true }
+    return { week, reps: null, sets: null, load: null, raw: s, complex: false, inherit: true, col }
   }
   const m = s.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
   if (m && !/[x+]/i.test(m[3].replace(/x\s*lado/i, ''))) {
@@ -101,11 +101,12 @@ export function parseWeekCell(raw: string, week: number): WeekCell | null {
       raw: s,
       complex: false,
       inherit: false,
+      col,
     }
   }
   // couldn't cleanly split → keep raw, surface any weight
   const load = /kg/i.test(s) ? parseLoad(s) : null
-  return { week, reps: null, sets: null, load, raw: s, complex: true, inherit: false }
+  return { week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col }
 }
 
 // Work time in seconds from a reps cell: "30''", "30s", "40 seg", "30\"".
@@ -132,7 +133,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   let exIdx = 0
   let weekCols: Array<{ week: number; col: number }> = []
 
-  const pushExercise = (cells: string[]) => {
+  const pushExercise = (cells: string[], rowIdx: number) => {
     if (!day) return
     const b = norm(cells[1])
     if (!b) return
@@ -144,11 +145,12 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const isRamp = !!setOrdinalMatch || (!seenBig && section === 'ramp')
     const weeks: Record<number, WeekCell> = {}
     for (const wc of weekCols) {
-      const cell = parseWeekCell(norm(cells[wc.col]), wc.week)
+      const cell = parseWeekCell(norm(cells[wc.col]), wc.week, wc.col)
       if (cell) weeks[wc.week] = cell
     }
     const row: ExerciseRow = {
       id: `${day.id}-x${exIdx++}`,
+      row: rowIdx,
       name: b,
       slug: slugify(b),
       pattern: classifyPattern(b),
@@ -175,7 +177,8 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     block.exercises.push(row)
   }
 
-  for (const cells of rows) {
+  for (let r = 0; r < rows.length; r++) {
+    const cells = rows[r]
     const a = norm(cells[0])
     const c = norm(cells[2])
     const dCol = norm(cells[3])
@@ -226,7 +229,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       }
     }
 
-    if (norm(cells[1])) pushExercise(cells)
+    if (norm(cells[1])) pushExercise(cells, r)
     else if (a && !info) warnings.push(`Fila sin estructura clara: "${a}"`)
   }
 

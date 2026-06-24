@@ -26,7 +26,7 @@ export interface SessionLog {
 
 export interface OutboxItem {
   id: string
-  kind: 'checkin' | 'set' | 'session' | 'note' | 'record'
+  kind: 'checkin' | 'set' | 'session' | 'note' | 'record' | 'cell'
   payload: unknown
   ts: string
 }
@@ -44,6 +44,8 @@ const KEYS = {
   notes: 'force.notes',
   actuals: 'force.actuals',
   maxStreak: 'force.maxStreak',
+  bodyweights: 'force.bodyweights',
+  birthday: 'force.birthday',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -150,6 +152,42 @@ export function addMyRecord(entry: RecordEntry): RecordEntry[] {
   return all
 }
 
+// ---- bodyweight (for record categories) + birthday ------------------------
+// Bodyweight is kept as a dated history so we can nudge for a monthly update and
+// classify records by the weight at the time. Birthday drives the cumpleaños board.
+export interface BodyweightEntry { date: string; kg: number }
+export const getBodyweights = (): BodyweightEntry[] => read<BodyweightEntry[]>(KEYS.bodyweights, [])
+export function addBodyweight(kg: number, date = localDate()): BodyweightEntry[] {
+  const all = getBodyweights().filter((b) => b.date !== date) // one entry per day
+  all.push({ date, kg: Math.round(kg * 10) / 10 })
+  all.sort((a, b) => (a.date < b.date ? -1 : 1))
+  write(KEYS.bodyweights, all)
+  enqueue('note', { kind: 'bodyweight', kg, date })
+  return all
+}
+export function getBodyweight(): number | null {
+  const all = getBodyweights()
+  return all.length ? all[all.length - 1].kg : null
+}
+/** Days since the last bodyweight entry, or null if none. */
+export function bodyweightAgeDays(): number | null {
+  const all = getBodyweights()
+  if (!all.length) return null
+  const last = new Date(all[all.length - 1].date + 'T00:00:00').getTime()
+  return Math.floor((new Date(localDate() + 'T00:00:00').getTime() - last) / 86_400_000)
+}
+
+export const getBirthday = (): string | null => read<string | null>(KEYS.birthday, null) // 'MM-DD'
+export function setBirthday(mmdd: string): void {
+  write(KEYS.birthday, mmdd)
+  enqueue('note', { kind: 'birthday', birthday: mmdd })
+}
+/** True if today (local) matches the stored birthday. */
+export function isBirthdayToday(): boolean {
+  const b = getBirthday()
+  return !!b && localDate().slice(5) === b
+}
+
 // ---- per-exercise observaciones (client notes during a session) -----------
 type NoteMap = Record<string, string>
 export const getNote = (exerciseId: string): string => read<NoteMap>(KEYS.notes, {})[exerciseId] ?? ''
@@ -172,6 +210,15 @@ export function saveActual(exerciseId: string, dayId: string, a: Actual): void {
   m[exerciseId] = { ...m[exerciseId], ...a }
   write(KEYS.actuals, m)
   enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate() })
+}
+
+// ---- routine sheet writeback (overwrite prescription cells) ---------------
+// The client's edits overwrite the matching cell in their routine sheet. Each
+// write is queued in the outbox (offline-safe) and flushed to the `updateCells`
+// backend endpoint. No-op in demo (no token) — items just stay queued.
+export interface CellWrite { row: number; col: number; value: string }
+export function queueCellWrites(writes: CellWrite[]): void {
+  for (const w of writes) enqueue('cell', w)
 }
 
 // ---- offline outbox -------------------------------------------------------

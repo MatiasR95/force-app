@@ -71,7 +71,8 @@ export async function syncStreak(token: string | null, mine: StreakEntry): Promi
   return call<StreakEntry[]>('getStreaks', { token })
 }
 
-/** Flush the offline outbox to the Seguimiento log. No-op in demo. */
+/** Flush the offline outbox. Log items → Seguimiento; `cell` items → overwrite
+ *  the matching cell in the routine sheet. No-op in demo. */
 export async function syncOutbox(token: string | null): Promise<number> {
   const box = getOutbox()
   if (!box.length) return 0
@@ -79,12 +80,24 @@ export async function syncOutbox(token: string | null): Promise<number> {
     // demo keeps items local so the UI can show "pendiente de sincronizar"
     return 0
   }
-  const res = await fetch(new URL(API_BASE).toString(), {
+  const url = new URL(API_BASE).toString()
+  const post = (body: object) => fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoid CORS preflight w/ Apps Script
-    body: JSON.stringify({ action: 'logInput', token, items: box }),
+    body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`sync → ${res.status}`)
+
+  const cells = box.filter((i) => i.kind === 'cell')
+  const logs = box.filter((i) => i.kind !== 'cell')
+
+  if (logs.length) {
+    const res = await post({ action: 'logInput', token, items: logs })
+    if (!res.ok) throw new Error(`sync → ${res.status}`)
+  }
+  if (cells.length) {
+    const res = await post({ action: 'updateCells', token, cells: cells.map((i) => i.payload) })
+    if (!res.ok) throw new Error(`updateCells → ${res.status}`)
+  }
   clearOutbox(box.map((i) => i.id))
   return box.length
 }

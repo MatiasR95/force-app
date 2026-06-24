@@ -23,6 +23,7 @@ export interface WeekCell {
   raw: string         // original cell text (always kept; shown when complex)
   complex: boolean    // couldn't be cleanly split into reps×sets (e.g. "3X1+2X3")
   inherit: boolean    // "Mismo semana ant." → use the previous week's prescription
+  col: number         // 0-based sheet column of this "Semana N" cell (for writeback)
 }
 
 export type MovementPattern =
@@ -47,6 +48,7 @@ export type Technique =
 
 export interface ExerciseRow {
   id: string                 // stable per day (slug + index)
+  row: number                // 0-based sheet row index (for writeback to the routine sheet)
   name: string               // display name (raw, as the coach wrote it)
   slug: string               // normalized key for media lookup
   pattern: MovementPattern

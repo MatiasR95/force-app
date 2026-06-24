@@ -4,21 +4,22 @@ import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
 import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender } from './lib/store'
 import type { Gender } from './lib/records'
 import { currentWeek } from './lib/week'
+import { Home } from './screens/Home'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
 import { Dashboard } from './screens/Dashboard'
 import { Records } from './screens/Records'
 import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
-import { CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
+import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
-type Tab = 'hoy' | 'semana' | 'panel' | 'records'
+type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
 
 export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('hoy')
+  const [tab, setTab] = useState<Tab>('inicio')
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [askGender, setAskGender] = useState(!getGender())
@@ -76,6 +77,7 @@ export default function App() {
       )}
 
       <div key={tab} className="screen-in">
+        {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
         {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
         {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
         {tab === 'panel' && <Dashboard routine={routine} />}
@@ -86,11 +88,12 @@ export default function App() {
       <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto
         bg-black/80 backdrop-blur border-t border-white/10
         pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-4">
-          <NavBtn active={tab === 'hoy'} onClick={() => setTab('hoy')} icon={<CalendarDays size={20} />} label="Hoy" />
-          <NavBtn active={tab === 'semana'} onClick={() => setTab('semana')} icon={<LayoutGrid size={20} />} label="Plan" />
-          <NavBtn active={tab === 'records'} onClick={() => setTab('records')} icon={<Trophy size={20} />} label="Récords" />
-          <NavBtn active={tab === 'panel'} onClick={() => setTab('panel')} icon={<BarChart3 size={20} />} label="Panel" />
+        <div className="grid grid-cols-5">
+          <NavBtn active={tab === 'inicio'} onClick={() => setTab('inicio')} icon={<House size={19} />} label="Inicio" />
+          <NavBtn active={tab === 'hoy'} onClick={() => setTab('hoy')} icon={<CalendarDays size={19} />} label="Hoy" />
+          <NavBtn active={tab === 'semana'} onClick={() => setTab('semana')} icon={<LayoutGrid size={19} />} label="Plan" />
+          <NavBtn active={tab === 'records'} onClick={() => setTab('records')} icon={<Trophy size={19} />} label="Récords" />
+          <NavBtn active={tab === 'panel'} onClick={() => setTab('panel')} icon={<BarChart3 size={19} />} label="Panel" />
         </div>
       </nav>
 

@@ -93,30 +93,63 @@ Member phone (PWA, installable, offline-first)        Google (gym account forceb
 
 ---
 
+## 3b. June 2026 session — what changed
+
+- **White line on Récords fixed** for real: `html`/`body` now have a solid `#000` floor under the
+  fixed gradient (iOS exposed white in the safe-area). `src/styles/index.css`.
+- **Exercise icons animate again** — `AnimatedExercise.tsx` wraps each pose's moving segment in
+  `<g class="exm exm-…">`, driven by **CSS translate keyframes** in `index.css` (NOT SMIL — SMIL was
+  what broke the screenshot tool). One slow rep, `prefers-reduced-motion` aware. Poses follow the
+  new coach agent's biomechanics notes.
+- **Sheet writeback = OVERWRITE** (Matias' call). Client edits to kg/reps/series now overwrite the
+  matching cell in their routine sheet. Parser tracks each exercise's sheet `row` + each `WeekCell`'s
+  `col` (`types.ts`/`parser.ts`); `src/lib/sheetWrite.ts` rebuilds the exact cell (mirrors
+  `resolveWeek` — writes to the "Semana N" cell only for fields it owns, else the base C/D/E cell);
+  queued via the outbox (`store.queueCellWrites`) and flushed to the new `updateCells` Apps Script
+  endpoint (`Code.gs`), which logs the prior value to Seguimiento first (recoverable). No-op in demo.
+- **Records by bodyweight category.** `weightClass()`/`WEIGHT_CLASSES` in `records.ts` — **M: ≤65 /
+  66–80 / +80 · F: ≤50 / 51–65 / +65**. `RecordEntry.wc` stamped at capture from the member's current
+  bodyweight; Récords screen has a category filter; backend `records` tab gained a `wc` column.
+- **S&C coach agent** at `.claude/agents/sc-coach.md` (certified CSCS persona: accurate icons,
+  coaching cues, plan audits, exercise↔record mapping). It maintains `src/lib/coachTips.ts` — per-lift
+  cue pools feeding the Home "tip of the day", tied to today's Big One via `pickMove`.
+- **Animated Argentina flag** `src/components/ArgentinaFlag.tsx` (celeste/white + gold Sol de Mayo as
+  a face-less radiant disc, gentle CSS wave) — beside the emblem on Home.
+- **New `Inicio` (Home) tab** — `src/screens/Home.tsx`, now the default of a **5-tab** nav
+  (`Inicio·Hoy·Plan·Récords·Panel`). Shows: welcome + date, today's-session CTA, **4-day La Plata
+  forecast** (`weather.getForecast`), **próximo feriado** (`src/lib/feriados.ts`, AR 2026–2027),
+  coach tip, rachas snapshot, today's-birthday board, bodyweight nudge. **Perfil** sheet
+  (`src/components/Profile.tsx`) edits name/gender/birthday/bodyweight (stored in `store.ts`).
+- Tests: 52 pass (added `test/features.test.ts`: weightClass, cell rebuild, feriados). `tsc -b` +
+  `npm run build` clean. Verified via DOM/`preview_eval` (screenshot tool still times out).
+
 ## 4. KNOWN ISSUE — preview screenshot tool
 
 The Claude **preview screenshot tool timed out for the entire latter half of the build** (it worked in early
 rounds, then broke; times out even with all CSS animations cancelled and zero SMIL — a tooling fault, not the
 app). **Verification was done via DOM/`preview_eval`, not pixels.** Two things were therefore NOT visually
-confirmed and should be eyeballed on a real device:
-1. The **"white line" fix** on Récords (changed `.hero-card` to a static gold border in `src/styles/index.css`).
-2. How the **static exercise icons** actually look (`src/components/AnimatedExercise.tsx`) — especially
-   `StirPot` (batir la olla). If an icon reads wrong, redraw that one `Mv` function.
+confirmed and should be eyeballed on a real device (June 2026 session re-verified via DOM only):
+1. The **"white line" fix** on Récords — now a solid `#000` floor on `html`/`body` (`src/styles/index.css`).
+   Confirm on the actual phone it's gone.
+2. How the **animated exercise icons** actually read (`src/components/AnimatedExercise.tsx`) — especially
+   `StirPot` (batir la olla). If an icon reads wrong, fix that one `Mv` function (ask the `sc-coach` agent).
+3. The **Inicio (Home)** screen layout/spacing, the **waving flag**, and the **5-tab nav** ("Récords" is the
+   tightest label) — eyeball on device.
 
 A fresh session may have a working screenshot tool — do a real visual pass first thing.
 
 ---
 
-## 5. OPEN DECISIONS (waiting on Matias)
+## 5. OPEN DECISIONS
 
-1. **Exercise visuals.** Currently static line icons (license-clean, on-brand, minimalist). Options if he wants
-   richer: (a) commission/AI-generate ~20 branded illustrations, (b) stylize gym photos he provides. Drop into
-   the per-slug slot in `src/lib/media.ts` (`SLUG_MEDIA`) — `mediaFor()` already overrides the icon when present.
-2. **Weight edits → Google Sheet.** Client edits currently flow to `Seguimiento` only. Matias may want them in
-   the routine sheet. **Recommended:** append to the OBSERVACIONES cell (e.g. `(cliente 24/6: 10kg)`), do NOT
-   overwrite the coach's prescription. Needs the parser to also return each value's cell coordinates so Apps
-   Script can target the right cell (parser currently discards row/col indices) + an `updateExercise` endpoint.
-3. **Gender source.** A one-time in-app prompt sets it (drives record categories; e.g. Alva=male). For real
+1. ~~Exercise visuals~~ → **Done:** icons animate again (coach-agent poses). Richer per-slug real assets can
+   still drop into `src/lib/media.ts` (`SLUG_MEDIA`); `mediaFor()` overrides when present.
+2. ~~Weight edits → Google Sheet~~ → **Done (OVERWRITE, per Matias):** see §3b. Field-aware, mirrors
+   `resolveWeek`, logs prior value to Seguimiento. Needs the live backend redeploy (new `updateCells` action).
+3. **Gender source.** A one-time in-app prompt (or now the Perfil sheet) sets it. For real rollout, source gender
+   from the gym's data (Pagos sheet has `Sexo`) via the config `clientes` tab + return it from the backend.
+   Same applies to **birthday/bodyweight** — currently local-first; for a gym-wide birthday board and shared
+   weight-class records, add `getBirthdays`/bodyweight columns to the config and return them from the backend.
    rollout, source gender from the gym's data (Pagos sheet has `Sexo`) via the config `clientes` tab + return it
    from the backend so the prompt isn't needed.
 

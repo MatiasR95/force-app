@@ -8,9 +8,10 @@ import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken } from '../lib/store'
-import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight } from '../lib/records'
-import { submitRecord } from '../lib/api'
+import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight } from '../lib/store'
+import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass } from '../lib/records'
+import { submitRecord, syncOutbox } from '../lib/api'
+import { buildCellWrites } from '../lib/sheetWrite'
 import { Celebration } from '../components/Celebration'
 import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus } from 'lucide-react'
 
@@ -78,7 +79,8 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
     if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return // not a PR
-    const entry = { id: rid(), client, gender, lift, kg, reps, ts: new Date().toISOString() }
+    const wc = weightClass(gender, getBodyweight())?.key
+    const entry = { id: rid(), client, gender, lift, kg, reps, ts: new Date().toISOString(), ...(wc ? { wc } : {}) }
     addMyRecord(entry)
     submitRecord(getToken(), entry).catch(() => {})
     setPr(`¡Récord! ${liftLabel(lift)}: ${kg} kg × ${reps}`)
@@ -217,6 +219,10 @@ function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week
   const commit = (a: { kg?: number; reps?: number; sets?: number }) => {
     if (a.kg != null) setKg(a.kg); if (a.reps != null) setReps(a.reps); if (a.sets != null) setSets(a.sets)
     saveActual(ex.id, dayId, { kg, reps, sets, ...a })
+    // overwrite the matching prescription cell(s) in the routine sheet (only the
+    // field the member just changed). Queued + flushed; no-op offline / in demo.
+    const writes = buildCellWrites(ex, week, { kg: a.kg, reps: a.reps, series: a.sets })
+    if (writes.length) { queueCellWrites(writes); syncOutbox(getToken()).catch(() => {}) }
   }
   if (!open) {
     return (

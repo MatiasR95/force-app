@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { RecordEntry, Gender, StreakEntry } from '../lib/records'
-import { RECORD_LIFTS, rank, bestOf, epley1RM, liftLabel } from '../lib/records'
+import { RECORD_LIFTS, rank, bestOf, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
 import { fetchRecords, syncStreak } from '../lib/api'
 import { getToken, getGender, getClientName, getCheckins, getMaxStreak } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
@@ -30,12 +30,14 @@ function RecordsView({ client }: { client: string }) {
   const [all, setAll] = useState<RecordEntry[]>([])
   const [lift, setLift] = useState(RECORD_LIFTS[0].key)
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
+  const [wc, setWc] = useState<string>('all') // 'all' | weight-class key
 
   useEffect(() => { fetchRecords(getToken()).then(setAll).catch(() => {}) }, [])
 
   const board = useMemo(
-    () => rank(all.filter((e) => e.lift === lift && e.gender === gender)),
-    [all, lift, gender],
+    () => rank(all.filter((e) =>
+      e.lift === lift && e.gender === gender && (wc === 'all' || e.wc === wc))),
+    [all, lift, gender, wc],
   )
   const mine = bestOf(board, client)
   const top = board[0]
@@ -48,17 +50,27 @@ function RecordsView({ client }: { client: string }) {
       </p>
 
       <div className="flex gap-2 mb-3">
-        <Pill active={gender === 'F'} onClick={() => setG('F')}>Mujeres</Pill>
-        <Pill active={gender === 'M'} onClick={() => setG('M')}>Hombres</Pill>
+        <Pill active={gender === 'F'} onClick={() => { setG('F'); setWc('all') }}>Mujeres</Pill>
+        <Pill active={gender === 'M'} onClick={() => { setG('M'); setWc('all') }}>Hombres</Pill>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 -mx-1 px-1">
         {RECORD_LIFTS.map((l) => (
           <Pill key={l.key} active={l.key === lift} onClick={() => setLift(l.key)}>{l.emoji} {l.label.split(' ')[0]}</Pill>
         ))}
       </div>
 
-      <h2 className="heading text-lg text-white mb-2">{liftLabel(lift)}</h2>
+      {/* bodyweight category */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1">
+        <Pill active={wc === 'all'} onClick={() => setWc('all')}>Todas las categorías</Pill>
+        {WEIGHT_CLASSES[gender].map((w) => (
+          <Pill key={w.key} active={wc === w.key} onClick={() => setWc(w.key)}>{w.label}</Pill>
+        ))}
+      </div>
+
+      <h2 className="heading text-lg text-white mb-2">{liftLabel(lift)}
+        {wc !== 'all' && <span className="text-gold/80 text-sm font-bold"> · {WEIGHT_CLASSES[gender].find((w) => w.key === wc)?.label}</span>}
+      </h2>
 
       {mine && (
         <div className="hero-card rounded-card p-4 mb-5">

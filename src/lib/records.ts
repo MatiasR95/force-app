@@ -36,6 +36,39 @@ export interface RecordEntry {
   kg: number        // total weight lifted
   reps: number
   ts: string        // ISO
+  wc?: string       // bodyweight category key at the time (see weightClass)
+}
+
+// Bodyweight categories per gender (confirmed with Matias).
+//   Men:   Hasta 65 · 66–80 · +80
+//   Women: Hasta 50 · 51–65 · +65
+export interface WeightClass { key: string; label: string }
+export const WEIGHT_CLASSES: Record<Gender, WeightClass[]> = {
+  M: [
+    { key: 'm-65', label: 'Hasta 65 kg' },
+    { key: 'm66-80', label: '66–80 kg' },
+    { key: 'm80+', label: '+80 kg' },
+  ],
+  F: [
+    { key: 'f-50', label: 'Hasta 50 kg' },
+    { key: 'f51-65', label: '51–65 kg' },
+    { key: 'f65+', label: '+65 kg' },
+  ],
+}
+
+/** The weight category for a bodyweight, or null if bodyweight is unknown. */
+export function weightClass(gender: Gender, bw: number | null | undefined): WeightClass | null {
+  if (bw == null || bw <= 0) return null
+  if (gender === 'M') return bw <= 65 ? WEIGHT_CLASSES.M[0] : bw <= 80 ? WEIGHT_CLASSES.M[1] : WEIGHT_CLASSES.M[2]
+  return bw <= 50 ? WEIGHT_CLASSES.F[0] : bw <= 65 ? WEIGHT_CLASSES.F[1] : WEIGHT_CLASSES.F[2]
+}
+
+export const wcLabel = (key: string): string => {
+  for (const g of ['M', 'F'] as Gender[]) {
+    const f = WEIGHT_CLASSES[g].find((w) => w.key === key)
+    if (f) return f.label
+  }
+  return 'General'
 }
 
 // Streak leaderboard (gym-wide, weeks). `weeks` = current streak, `max` = personal best.

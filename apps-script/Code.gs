@@ -45,6 +45,7 @@ function doPost(e) {
     if (body.action === 'logInput') return json(logInput_(body.token, body.items))
     if (body.action === 'postRecord') return json(postRecord_(body.token, body.entry))
     if (body.action === 'postStreak') return json(postStreak_(body.token, body.entry))
+    if (body.action === 'updateCells') return json(updateCells_(body.token, body.cells))
     return json({ error: 'unknown action' }, 400)
   } catch (err) {
     return json({ error: String(err) }, 500)
@@ -133,6 +134,38 @@ function logInput_(token, items) {
   return { ok: true, written: rows.length }
 }
 
+// ---- updateCells: overwrite prescription cells in the routine sheet -------
+// The member edits what they actually did; per the product decision these
+// OVERWRITE the matching cell in their current routine sheet. We log the prior
+// value to Seguimiento first so the coach's original number stays recoverable.
+// cells = [ { row, col, value } ]  (0-based row/col, matching the parsed array).
+function updateCells_(token, cells) {
+  var c = clientFor_(token)
+  var folder = DriveApp.getFolderById(c.folderId)
+  var file = currentRoutineFile_(folder)
+  if (!file) return { error: 'sin rutina' }
+  var sheet = SpreadsheetApp.openById(file.getId()).getSheets()[0]
+  var log = []
+  var written = 0
+  ;(cells || []).forEach(function (w) {
+    if (w == null || w.row == null || w.col == null) return
+    var cell = sheet.getRange(w.row + 1, w.col + 1) // Apps Script is 1-based
+    var prev = cell.getValue()
+    if (String(prev) === String(w.value)) return
+    cell.setValue(w.value)
+    written++
+    log.push([new Date(), 'cell', '', 'r' + w.row + 'c' + w.col, '', '', '', 'antes: "' + prev + '" → "' + w.value + '"'])
+  })
+  if (log.length) {
+    try {
+      var ss = seguimientoSheet_(folder, c.nombre)
+      var sh = ss.getSheets()[0]
+      sh.getRange(sh.getLastRow() + 1, 1, log.length, log[0].length).setValues(log)
+    } catch (err) { /* logging is best-effort */ }
+  }
+  return { ok: true, written: written }
+}
+
 // ---- records (gym-wide PRs) -----------------------------------------------
 // Stored in a "records" tab of the CONFIG spreadsheet: id | client | gender |
 // lift | kg | reps | ts. Members submit only after hitting the mark.
@@ -141,7 +174,7 @@ function recordsSheet_() {
   var sh = ss.getSheetByName('records')
   if (!sh) {
     sh = ss.insertSheet('records')
-    sh.appendRow(['id', 'client', 'gender', 'lift', 'kg', 'reps', 'ts'])
+    sh.appendRow(['id', 'client', 'gender', 'lift', 'kg', 'reps', 'ts', 'wc'])
   }
   return sh
 }
@@ -153,7 +186,7 @@ function getRecords_(token) {
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i]
     if (!r[0]) continue
-    out.push({ id: String(r[0]), client: r[1], gender: r[2], lift: r[3], kg: Number(r[4]), reps: Number(r[5]), ts: String(r[6]) })
+    out.push({ id: String(r[0]), client: r[1], gender: r[2], lift: r[3], kg: Number(r[4]), reps: Number(r[5]), ts: String(r[6]), wc: r[7] ? String(r[7]) : '' })
   }
   return out
 }
@@ -163,7 +196,7 @@ function postRecord_(token, entry) {
   if (!entry || !entry.lift) return { error: 'invalid entry' }
   recordsSheet_().appendRow([
     entry.id || Utilities.getUuid(), entry.client, entry.gender, entry.lift,
-    entry.kg, entry.reps, entry.ts || new Date().toISOString(),
+    entry.kg, entry.reps, entry.ts || new Date().toISOString(), entry.wc || '',
   ])
   return { ok: true }
 }

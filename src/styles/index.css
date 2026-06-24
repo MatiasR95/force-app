@@ -23,10 +23,15 @@
 }
 
 @layer base {
-  html, body, #root { height: 100%; }
+  html, body, #root { height: 100%; min-height: 100dvh; }
+  /* Solid black on the root element: iOS renders `background-attachment: fixed`
+     unreliably in the safe-area / overscroll zone, exposing a white strip (most
+     visible under shorter screens like Récords). The black floor kills it. */
+  html { background: #000; }
   body {
     margin: 0;
     background: var(--grad-dark-stage);
+    background-color: #000;
     background-attachment: fixed;
     color: var(--text-on-dark);
     font-family: var(--font-primary);
@@ -141,4 +146,48 @@ body::before {
   /* gentle screen-enter transition */
   .screen-in { animation: screenin .28s ease; }
   @keyframes screenin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+/* ---- Exercise-icon rep animation (translate-only; iOS-safe, no SMIL) ----
+   Each pose wraps its moving segment in `.exm.exm-<kind>`. The figure loops one
+   slow rep: load/limb travels to the working position and returns. */
+.exm { animation-duration: 2.6s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; will-change: transform; }
+.exm-dip      { animation-name: exDip; }
+.exm-pull     { animation-name: exPull; }
+.exm-press    { animation-name: exPress; }
+.exm-hip      { animation-name: exHip; }
+.exm-chin     { animation-name: exChin; }
+.exm-curl     { animation-name: exCurl; }
+.exm-pushdown { animation-name: exPushdown; }
+.exm-crunch   { animation-name: exCrunch; }
+.exm-reach    { animation-name: exReach; }
+.exm-stir     { animation-name: exStir; animation-duration: 3.2s; animation-timing-function: linear; }
+.exm-bob      { animation-name: exBob; }
+
+@keyframes exDip      { 0%,100% { transform: translateY(0); }   50% { transform: translateY(9px); } }
+@keyframes exPull     { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-15px); } }
+@keyframes exPress    { 0%,100% { transform: translateY(0); }   50% { transform: translateY(11px); } }
+@keyframes exHip      { 0%,100% { transform: translateY(0); }   50% { transform: translateY(7px); } }
+@keyframes exChin     { 0%,100% { transform: translateY(0); }   50% { transform: translateY(12px); } }
+@keyframes exCurl     { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-12px); } }
+@keyframes exPushdown { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-10px); } }
+@keyframes exCrunch   { 0%,100% { transform: translateY(0); }   50% { transform: translate(4px,6px); } }
+@keyframes exReach    { 0%,100% { transform: translateX(0); }   50% { transform: translateX(13px); } }
+@keyframes exBob      { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-3px); } }
+@keyframes exStir     { 0% { transform: translate(0,0); } 25% { transform: translate(6px,-3px); } 50% { transform: translate(9px,3px); } 75% { transform: translate(2px,6px); } 100% { transform: translate(0,0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .exm { animation: none !important; }
+}
+
+/* Waving Argentina flag (subtle cloth skew) */
+.flag-wave { transform-origin: left center; animation: flagWave 3.4s ease-in-out infinite; }
+@keyframes flagWave {
+  0%, 100% { transform: skewY(0deg) scaleY(1); }
+  25%      { transform: skewY(-2.2deg) scaleY(0.99); }
+  50%      { transform: skewY(0deg) scaleY(1); }
+  75%      { transform: skewY(2.2deg) scaleY(0.99); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flag-wave { animation: none; }
 }

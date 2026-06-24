@@ -43,7 +43,7 @@ export function ExerciseSheet({ ex, week = 1, onClose }: {
           )}
 
           <p className="mt-4 text-center text-[0.68rem] text-white/35">
-            ¿No reconocés el movimiento? Pronto vas a ver el gif demo de FORCE acá.
+            Animación de referencia. Ante cualquier duda con la técnica, consultá a tu coach.
           </p>
         </div>
       )}
