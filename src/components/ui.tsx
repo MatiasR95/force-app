@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 
 // FORCE visual vocabulary as small primitives (see brand §4).
 
@@ -56,14 +57,31 @@ export function Pill({ active, children, onClick }: {
 export function BottomSheet({ open, onClose, children }: {
   open: boolean; onClose: () => void; children: ReactNode
 }) {
+  const [dragY, setDragY] = useState(0)
+  const startY = useRef<number | null>(null)
+  const dragging = useRef(false)
   if (!open) return null
+  const onStart = (e: React.TouchEvent) => { startY.current = e.touches[0].clientY; dragging.current = true }
+  const onMove = (e: React.TouchEvent) => {
+    if (startY.current == null) return
+    const dy = e.touches[0].clientY - startY.current
+    if (dy > 0) setDragY(dy)
+  }
+  const onEnd = () => { dragging.current = false; if (dragY > 90) onClose(); else setDragY(0); startY.current = null }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]" onClick={onClose} />
       <div className="relative w-full max-h-[88vh] overflow-y-auto rounded-t-[22px] border-t border-white/10
-        bg-surface-2 pb-[env(safe-area-inset-bottom)] animate-[slideup_.25s_ease]">
-        <div className="sticky top-0 flex justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur">
-          <div className="h-1 w-10 rounded-full bg-white/20" />
+        bg-surface-2 pb-[env(safe-area-inset-bottom)] animate-[slideup_.25s_ease]"
+        style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
+        <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"
+          onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}>
+          <div className="h-1.5 w-12 rounded-full bg-white/25" />
+          <button onClick={onClose} aria-label="Cerrar"
+            className="absolute right-3 top-2.5 h-8 w-8 grid place-items-center rounded-full bg-white/8 text-white/60 active:scale-90">
+            <X size={18} />
+          </button>
         </div>
         {children}
       </div>

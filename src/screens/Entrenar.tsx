@@ -8,11 +8,11 @@ import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getGender, getClientName, getMyRecords, addMyRecord, getToken } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken } from '../lib/store'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight } from '../lib/records'
 import { submitRecord } from '../lib/api'
 import { Celebration } from '../components/Celebration'
-import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone } from 'lucide-react'
+import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -46,6 +46,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [done, setDone] = useState<Record<string, number>>({})
   const [flash, setFlash] = useState(-1)
   const [pr, setPr] = useState<string | null>(null)
+  const [restSignal, setRestSignal] = useState(0)
   const [finishing, setFinishing] = useState(false)
 
   const totalUnits = items.reduce((a, it) => a + unitsOf(it, week), 0)
@@ -67,11 +68,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const gender = getGender()
     if (!lift || !gender) return
     const r = resolveWeek(ex, week)
-    const reps = r.reps ?? ex.reps ?? 0
+    // prefer what the member actually did: explicit edit > note mention > prescription
+    const act = getActual(ex.id)
+    const reps = act?.reps ?? r.reps ?? ex.reps ?? 0
     if (r.load.value == null || reps <= 0) return
-    // if the member noted a different weight ("bajé a 25kg" / "subí a 30kg"),
-    // record what they actually lifted, not the prescription.
-    const used = noteWeight(getNote(ex.id)) ?? r.load.value
+    const used = act?.kg ?? noteWeight(getNote(ex.id)) ?? r.load.value
     const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
     if (kg <= 0) return
     const client = getClientName() ?? 'Vos'
@@ -92,6 +93,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const n = Math.min(target, doneCount + 1)
     setDone((d) => ({ ...d, [key]: n }))
     setFlash(n - 1); window.setTimeout(() => setFlash(-1), 420)
+    if (!isTimed) setRestSignal((s) => s + 1) // start/reset the pause after marking
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
     if (item.type === 'single') {
       logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
@@ -138,7 +140,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
           {primary.icon} {primary.label}
         </button>
 
-        {!isTimed && <div className="mt-4"><RestTimer /></div>}
+        {!isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
 
         {item.type === 'single' && singleLoad(item.ex, week) && (
           <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)} /></div>
@@ -203,6 +205,47 @@ function NoteField({ id, dayId }: { id: string; dayId: string }) {
   )
 }
 
+// Adjust what the member actually did (weight per side / reps). Saved to
+// Seguimiento and used for records + progress. Prefilled with the prescription.
+function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week: number }) {
+  const r = resolveWeek(ex, week)
+  const saved = getActual(ex.id)
+  const [open, setOpen] = useState(() => !!saved)
+  const [kg, setKg] = useState(() => saved?.kg ?? r.load.value ?? 0)
+  const [reps, setReps] = useState(() => saved?.reps ?? r.reps ?? 0)
+  const commit = (nk: number, nr: number) => { setKg(nk); setReps(nr); saveActual(ex.id, dayId, { kg: nk, reps: nr }) }
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-3 flex items-center gap-2 text-white/55 text-sm font-bold">
+        <SlidersHorizontal size={16} className="text-gold/70" /> Ajustar lo que hiciste
+      </button>
+    )
+  }
+  return (
+    <div className="mt-3 rounded-card bg-white/5 border border-white/10 p-3">
+      <div className="kicker mb-2">Lo que hiciste de verdad</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Stepper label={r.load.perSide ? 'Peso x lado (kg)' : 'Peso (kg)'} value={kg} step={1.25} onChange={(v) => commit(v, reps)} />
+        <Stepper label="Reps" value={reps} step={1} onChange={(v) => commit(kg, v)} />
+      </div>
+      <p className="text-[0.62rem] text-white/40 mt-2">Se guarda para tu récord y tu progreso, y lo ve el coach.</p>
+    </div>
+  )
+}
+
+function Stepper({ label, value, step, onChange }: { label: string; value: number; step: number; onChange: (v: number) => void }) {
+  return (
+    <div>
+      <div className="text-[0.55rem] uppercase tracking-micro text-white/45 font-bold mb-1.5">{label}</div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onChange(Math.max(0, Math.round((value - step) * 100) / 100))} className="h-8 w-8 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Minus size={15} /></button>
+        <div className="flex-1 text-center text-gold text-xl font-black tabular-nums">{value}</div>
+        <button onClick={() => onChange(Math.round((value + step) * 100) / 100)} className="h-8 w-8 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={15} /></button>
+      </div>
+    </div>
+  )
+}
+
 function SingleView({ ex, dayId, section, week, done, target, flash }: {
   ex: ExerciseRow; dayId: string; section: SectionTag; week: number; done: number; target: number; flash: number
 }) {
@@ -215,6 +258,7 @@ function SingleView({ ex, dayId, section, week, done, target, flash }: {
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       <Dots n={target} done={done} flash={flash} />
       <NoteField id={ex.id} dayId={dayId} />
+      {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} week={week} />}
     </>
   )
 }

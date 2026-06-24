@@ -56,7 +56,7 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   useEffect(() => { getWeather().then(setWeather) }, [])
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-28">
+    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <header className="flex items-center justify-between mb-3">
         <div>
           <div className="kicker">{name ? `Hola, ${name.split(' ')[0]}` : 'Bienvenido'}</div>
@@ -142,18 +142,16 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
         ))}
       </div>
 
-      <DayView day={day} week={effWeek} onPick={setPicked} />
+      {/* start training — inline so nothing covers the day content */}
+      <button
+        onClick={() => onTrain(dayIdx, effWeek)}
+        className="btn-glow w-full flex items-center justify-center gap-2 rounded-full
+          bg-gold-fill text-ink font-black uppercase tracking-wide py-4 mb-5 active:scale-[0.98]"
+      >
+        <Dumbbell size={18} /> Entrenar {day.label.replace('DÍA', 'Día')}
+      </button>
 
-      {/* start training */}
-      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] px-4 pointer-events-none max-w-md mx-auto">
-        <button
-          onClick={() => onTrain(dayIdx, effWeek)}
-          className="btn-glow pointer-events-auto w-full flex items-center justify-center gap-2 rounded-full
-            bg-gold-fill text-ink font-black uppercase tracking-wide py-4 active:scale-[0.98]"
-        >
-          <Dumbbell size={18} /> Entrenar {day.label.replace('DÍA', 'Día')}
-        </button>
-      </div>
+      <DayView day={day} week={effWeek} onPick={setPicked} />
 
       <ExerciseSheet ex={picked} week={effWeek} onClose={() => setPicked(null)} />
     </div>

@@ -20,7 +20,7 @@ export function Semana({ routine, week, setWeek }: {
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-28">
+    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <div className="kicker">{routine.title}</div>
       <h1 className="heading text-2xl text-white mb-4">El plan completo</h1>
 

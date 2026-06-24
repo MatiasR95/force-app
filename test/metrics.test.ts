@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { planPlates, groupPlates } from '../src/lib/plates'
 import { parseRoutine } from '../src/lib/parser'
 import { ENERO_2026 } from '../src/data/fixtureEnero2026'
-import { bigThreeE1RM, epley1RM, exerciseLoadKg, attendanceThisMonth, currentStreak } from '../src/lib/metrics'
+import { bigThreeE1RM, epley1RM, exerciseLoadKg, attendanceThisMonth, currentStreak, currentStreakWeeks } from '../src/lib/metrics'
 
 describe('planPlates', () => {
   it('decomposes 27.5/side on a 20kg bar (no 25kg discs by default)', () => {
@@ -51,5 +51,20 @@ describe('attendance', () => {
   it('computes a streak ending today', () => {
     const ci = ['2026-06-23', '2026-06-22', '2026-06-21', '2026-06-19']
     expect(currentStreak(ci, now)).toBe(3)
+  })
+
+  it('weeks streak ignores skipped non-training days (Mon/Wed/Fri)', () => {
+    // now = Tue 2026-06-23. Trained across 3 weeks; skipping days within a week is fine.
+    const ci = [
+      '2026-06-22', '2026-06-18', // this week (Mon 06-22) + week of 06-15 (Thu 06-18)
+      '2026-06-16', '2026-06-11', // week of 06-15 (Tue) + week of 06-08 (Thu)
+      '2026-06-09',               // week of 06-08 (Tue)
+    ]
+    expect(currentStreakWeeks(ci, now)).toBe(3)
+  })
+
+  it('weeks streak breaks when a whole week is missed', () => {
+    const ci = ['2026-06-22', '2026-06-08'] // this week + 2 weeks ago (gap last week)
+    expect(currentStreakWeeks(ci, now)).toBe(1)
   })
 })

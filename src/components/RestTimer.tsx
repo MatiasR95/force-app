@@ -8,11 +8,17 @@ import { Timer, Play, Pause, RotateCcw, Minus, Plus } from 'lucide-react'
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
-export function RestTimer() {
+export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
   const [pref, setPref] = useState(getRestPref())
   const [secs, setSecs] = useState<number | null>(null) // null = idle
   const [running, setRunning] = useState(false)
   const ref = useRef<number | null>(null)
+
+  // start/reset the pause whenever the member marks a set done
+  useEffect(() => {
+    if (startSignal > 0) { setSecs(pref); setRunning(true) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal])
 
   useEffect(() => {
     if (!running) return

@@ -109,6 +109,31 @@ export function currentStreak(checkins: string[], now = new Date()): number {
   return streak
 }
 
+// Monday (local) of the week containing d → a stable week key.
+function mondayKey(d: Date): string {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7))
+  return dayKey(x)
+}
+
+/**
+ * Schedule-aware streak: consecutive WEEKS with at least one training day.
+ * Members train on appointments (e.g. Mon/Wed/Fri), so skipping a non-training
+ * day must NOT break the streak — only skipping a whole week does. The current
+ * week not being trained yet doesn't break it either.
+ */
+export function currentStreakWeeks(checkins: string[], now = new Date()): number {
+  const weeks = new Set(checkins.map((c) => mondayKey(new Date(c.slice(0, 10) + 'T00:00:00'))))
+  const cursor = new Date(now)
+  if (!weeks.has(mondayKey(cursor))) cursor.setDate(cursor.getDate() - 7) // current week pending → look back
+  let streak = 0
+  while (weeks.has(mondayKey(cursor))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 7)
+  }
+  return streak
+}
+
 export const fmtKg = (n: number): string =>
   (Math.round(n * 10) / 10).toLocaleString('es-AR', { maximumFractionDigits: 1 })
 

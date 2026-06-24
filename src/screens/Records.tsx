@@ -23,7 +23,7 @@ export function Records() {
   const gap = mine && top ? Math.round((top.kg - mine.kg) * 10) / 10 : null
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-28">
+    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <div className="kicker flex items-center gap-1.5"><Trophy size={13} className="text-gold" /> Salón de la fama</div>
       <h1 className="heading text-2xl text-white mb-1 glow-text">Récords FORCE</h1>
       <p className="text-white/45 text-xs mb-4 flex items-center gap-1.5">

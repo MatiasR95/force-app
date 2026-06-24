@@ -42,6 +42,7 @@ const KEYS = {
   gender: 'force.gender',
   myRecords: 'force.myRecords',
   notes: 'force.notes',
+  actuals: 'force.actuals',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -150,6 +151,18 @@ export function saveNote(exerciseId: string, dayId: string, text: string): void 
   else delete map[exerciseId]
   write(KEYS.notes, map)
   enqueue('note', { exerciseId, dayId, note: t, date: localDate() })
+}
+
+// ---- actuals (client-edited weight/reps for what they really did) ----------
+export interface Actual { kg?: number; reps?: number } // kg = per-side as written
+type ActualMap = Record<string, Actual>
+export const getActual = (exerciseId: string): Actual | undefined =>
+  read<ActualMap>(KEYS.actuals, {})[exerciseId]
+export function saveActual(exerciseId: string, dayId: string, a: Actual): void {
+  const m = read<ActualMap>(KEYS.actuals, {})
+  m[exerciseId] = { ...m[exerciseId], ...a }
+  write(KEYS.actuals, m)
+  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, date: localDate() })
 }
 
 // ---- offline outbox -------------------------------------------------------

@@ -2,17 +2,18 @@ import type { Routine } from '../lib/types'
 import type { MovementPattern } from '../lib/types'
 import { StatHero, Spine } from '../components/ui'
 import {
-  bigThreeE1RM, weeklySetVolume, routineTonnage, attendanceThisMonth, currentStreak, fmtTonnage, fmtKg,
+  bigThreeE1RM, weeklySetVolume, routineTonnage, attendanceThisMonth, currentStreakWeeks, fmtTonnage, fmtKg,
 } from '../lib/metrics'
 import { PATTERN_LABEL } from '../lib/media'
-import { getCheckins, getSessions } from '../lib/store'
-import { Flame, TrendingUp, Dumbbell, Activity } from 'lucide-react'
+import { getCheckins, getSessions, getMyRecords } from '../lib/store'
+import { epley1RM, liftLabel } from '../lib/records'
+import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp } from 'lucide-react'
 
 export function Dashboard({ routine }: { routine: Routine }) {
   const checkins = getCheckins()
   const sessions = getSessions()
   const asistencia = attendanceThisMonth(checkins)
-  const racha = currentStreak(checkins)
+  const racha = currentStreakWeeks(checkins)
   const big = bigThreeE1RM(routine)
   const vol = weeklySetVolume(routine)
   const tonnage = routineTonnage(routine)
@@ -24,8 +25,17 @@ export function Dashboard({ routine }: { routine: Routine }) {
 
   const rpes = sessions.filter((s) => s.rpe != null).slice(-8)
 
+  // self-progress over time: e1RM trend per lift from the member's own records
+  const byLift = new Map<string, ReturnType<typeof getMyRecords>>()
+  for (const r of getMyRecords()) { const a = byLift.get(r.lift) ?? []; a.push(r); byLift.set(r.lift, a) }
+  const evo = [...byLift.entries()].map(([lift, recs]) => {
+    const sorted = [...recs].sort((a, b) => (a.ts < b.ts ? -1 : 1))
+    const series = sorted.map((r) => epley1RM(r.kg, r.reps))
+    return { lift, label: liftLabel(lift), series, delta: Math.round((series[series.length - 1] - series[0]) * 10) / 10, best: Math.max(...series) }
+  }).sort((a, b) => b.best - a.best)
+
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-28">
+    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <div className="kicker">Tu progreso</div>
       <h1 className="heading text-2xl text-white mb-5">Panel</h1>
 
@@ -36,8 +46,31 @@ export function Dashboard({ routine }: { routine: Routine }) {
         </div>
         <div className="card p-4 flex items-center justify-center gap-2">
           <Flame className="text-gold" size={22} />
-          <div><StatHero value={String(racha)} label="Racha (días)" /></div>
+          <div><StatHero value={String(racha)} label="Semanas seguidas" /></div>
         </div>
+      </div>
+
+      {/* self-progress over time */}
+      <SectionTitle icon={<LineChart size={14} />}>Tu evolución</SectionTitle>
+      <div className="space-y-2 mb-6">
+        {evo.length === 0 && (
+          <Empty>Entrená los básicos y cada récord que hagas va a dibujar tu progreso acá. 📈</Empty>
+        )}
+        {evo.map((e) => (
+          <div key={e.lift} className="card p-3.5">
+            <div className="flex items-center justify-between mb-1">
+              <div className="font-bold text-white text-sm">{e.label}</div>
+              {e.delta > 0 ? (
+                <div className="flex items-center gap-1 text-gold text-sm font-black"><ArrowUp size={14} />+{fmtKg(e.delta)} kg</div>
+              ) : (
+                <div className="text-white/40 text-xs">{fmtKg(e.best)} kg est.</div>
+              )}
+            </div>
+            {e.series.length >= 2
+              ? <Spark values={e.series} dynamic />
+              : <div className="text-white/40 text-xs">Tu primera marca: {fmtKg(e.series[0])} kg est. ¡A superarla!</div>}
+          </div>
+        ))}
       </div>
 
       {/* Big lifts e1RM */}
@@ -112,9 +145,11 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-white/45 text-sm py-2 text-center">{children}</p>
 }
 
-function Spark({ values }: { values: number[] }) {
+function Spark({ values, dynamic = false }: { values: number[]; dynamic?: boolean }) {
   const W = 280, H = 70, pad = 6
-  const max = 10, min = 1
+  const lo = Math.min(...values), hi = Math.max(...values)
+  const min = dynamic ? lo - (hi - lo) * 0.15 - 0.01 : 1
+  const max = dynamic ? hi + (hi - lo) * 0.15 + 0.01 : 10
   const pts = values.map((v, i) => {
     const x = pad + (i / (values.length - 1)) * (W - pad * 2)
     const y = pad + (1 - (v - min) / (max - min)) * (H - pad * 2)
