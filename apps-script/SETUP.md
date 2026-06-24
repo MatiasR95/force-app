@@ -41,4 +41,17 @@ creating a new monthly sheet and moving the old one into `Historial/` exactly as
 
 ## Member inputs
 `logInput` appends rows (timestamp, type, day, exercise, real kg/reps, RPE, note) to a
-**`Seguimiento — <name>`** sheet created beside the routine. The routine sheet is never modified.
+**`Seguimiento — <name>`** sheet created beside the routine.
+
+`updateCells` (since Jun 2026) **overwrites** the matching cell in the routine sheet when a member
+edits what they really did (kg / reps / series). The prior value is logged to `Seguimiento` first, so
+the coach's original number stays recoverable. It targets the *current* routine sheet only and only
+the cell for the field/week the member changed.
+
+`records` tab gains a `wc` column (bodyweight category). Both auto-handle existing data.
+
+## Updating to a new app version (re-deploy)
+When you pull new backend code (`Code.gs`), the Web App must be re-published for it to take effect:
+**Deploy → Manage deployments → (edit ✏️ the existing Web App) → Version: New version → Deploy.**
+Editing the *existing* deployment keeps the **same `/exec` URL**, so `VITE_FORCE_API` doesn't change.
+(Creating a brand-new deployment instead would mint a new URL and you'd have to update the secret.)
