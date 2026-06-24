@@ -2,6 +2,7 @@ import type { ExerciseRow } from '../lib/types'
 import { BottomSheet } from '../components/ui'
 import { TechniqueChips, setsReps, loadText } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
+import { isDeadliftName } from '../lib/plates'
 import { ExerciseMedia } from '../components/ExerciseMedia'
 import { PATTERN_LABEL } from '../lib/media'
 import { resolveWeek } from '../lib/week'
@@ -31,7 +32,7 @@ export function ExerciseSheet({ ex, week = 1, onClose }: {
           <TechniqueChips ex={ex} />
 
           {load && load.value != null && load.perSide && (
-            <div className="mt-4"><PlateCalc perSideKg={load.value} /></div>
+            <div className="mt-4"><PlateCalc perSideKg={load.value} deadlift={isDeadliftName(ex.name)} /></div>
           )}
 
           {ex.notes && (

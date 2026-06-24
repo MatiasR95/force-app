@@ -8,6 +8,7 @@ import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
 import { Dashboard } from './screens/Dashboard'
 import { Records } from './screens/Records'
+import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
 import { CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
@@ -21,6 +22,7 @@ export default function App() {
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [askGender, setAskGender] = useState(!getGender())
+  const [intro, setIntro] = useState(true)
 
   useEffect(() => {
     // capture the magic-link token (?t=...) once, then clean the URL
@@ -101,7 +103,8 @@ export default function App() {
         />
       )}
 
-      {askGender && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
+      {askGender && !intro && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
+      {intro && <Intro onStart={() => setIntro(false)} />}
     </div>
   )
 }

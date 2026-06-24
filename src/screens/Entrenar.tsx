@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
-import { setsReps, loadText, TechniqueChips } from '../components/TechniqueChips'
+import { setsReps, loadText, repsText, TechniqueChips } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
+import { isDeadliftName } from '../lib/plates'
 import { RestTimer } from '../components/RestTimer'
 import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
 import { logSet, logSession, localDate, getNote, saveNote, getGender, getClientName, getMyRecords, addMyRecord, getToken } from '../lib/store'
-import { matchRecordLift, recordKg, bestOf, liftLabel } from '../lib/records'
+import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight } from '../lib/records'
 import { submitRecord } from '../lib/api'
 import { Celebration } from '../components/Celebration'
-import { X, ChevronLeft, Check, Repeat, ArrowRight, MessageSquarePlus, Trophy, Megaphone } from 'lucide-react'
+import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -57,7 +58,6 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const key = item.type === 'single' ? item.ex.id : `c-${item.block.tag}`
   const target = unitsOf(item, week)
   const doneCount = done[key] ?? 0
-  const allDone = doneCount >= target
   const isLast = i === items.length - 1
 
   // Auto-capture a record when a record-eligible lift is completed (a PR vs the
@@ -69,7 +69,10 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const r = resolveWeek(ex, week)
     const reps = r.reps ?? ex.reps ?? 0
     if (r.load.value == null || reps <= 0) return
-    const kg = recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell')
+    // if the member noted a different weight ("bajé a 25kg" / "subí a 30kg"),
+    // record what they actually lifted, not the prescription.
+    const used = noteWeight(getNote(ex.id)) ?? r.load.value
+    const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
     if (kg <= 0) return
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
@@ -81,7 +84,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     window.setTimeout(() => setPr(null), 3600)
   }
 
-  const mark = () => {
+  const skip = () => setI((n) => Math.min(items.length - 1, n + 1))
+
+  // One gold button: mark this set/round done, and auto-advance when the
+  // exercise/round count is complete (no separate "Siguiente" press).
+  const onPrimary = () => {
     const n = Math.min(target, doneCount + 1)
     setDone((d) => ({ ...d, [key]: n }))
     setFlash(n - 1); window.setTimeout(() => setFlash(-1), 420)
@@ -92,15 +99,19 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     } else if (n >= target) {
       item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); captureRecord(ex) })
     }
+    if (n >= target) {
+      if (isLast) window.setTimeout(() => setFinishing(true), 260)
+      else window.setTimeout(skip, 260)
+    }
   }
-  const go = () => setI((n) => Math.min(items.length - 1, n + 1))
 
   const markWord = item.type === 'circuit' && item.block.tag !== 'big' ? 'vuelta' : 'serie'
-  const primary = !allDone
-    ? { label: isTimed ? 'Finalizado' : `Marcar ${markWord} ${doneCount + 1}`, onClick: mark, icon: <Check size={18} /> }
-    : isLast
-      ? { label: 'Finalizar', onClick: () => setFinishing(true), icon: <ArrowRight size={18} /> }
-      : { label: 'Siguiente', onClick: go, icon: <ArrowRight size={18} /> }
+  const remaining = target - doneCount
+  const primary = {
+    label: isTimed ? 'Finalizado' : remaining <= 1 ? `Marcar ${markWord} hecha` : `Marcar ${markWord} (${doneCount + 1}/${target})`,
+    onClick: onPrimary,
+    icon: <Check size={18} />,
+  }
 
   return (
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
@@ -123,15 +134,14 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
           : <CircuitView block={item.block} dayId={day.id} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
 
         <button onClick={primary.onClick}
-          className={`mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.98]
-            ${allDone || isTimed ? 'bg-gold-fill text-ink btn-glow' : 'bg-white/10 text-white border border-gold/30'}`}>
+          className="mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow">
           {primary.icon} {primary.label}
         </button>
 
         {!isTimed && <div className="mt-4"><RestTimer /></div>}
 
         {item.type === 'single' && singleLoad(item.ex, week) && (
-          <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} /></div>
+          <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)} /></div>
         )}
         <div className="h-4" />
       </div>
@@ -140,7 +150,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
         <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0}
           className="p-3 rounded-full bg-white/5 text-white/70 disabled:opacity-30"><ChevronLeft size={20} /></button>
         {!isLast && (
-          <button onClick={go} className="text-white/45 text-sm font-bold px-3 py-2 ml-auto">Saltar →</button>
+          <button onClick={skip} className="text-white/45 text-sm font-bold px-3 py-2 ml-auto">Saltar →</button>
         )}
       </div>
     </div>
@@ -252,10 +262,8 @@ function CircuitView({ block, dayId, week, round, rounds, flash, timed }: {
 }
 
 function repsCol(ex: ExerciseRow, week: number): string {
-  if (ex.timeSec != null) return `${ex.timeSec} s`
-  const s = setsReps(ex, week)
-  const m = s.match(/×\s*(.+)$/)
-  return m ? `${m[1]} reps` : s
+  const r = repsText(ex, week)
+  return ex.timeSec != null ? r : `${r} reps`
 }
 
 // ---- finish: session RPE + note ------------------------------------------

@@ -1,6 +1,6 @@
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { Spine } from './ui'
-import { setsReps, loadText } from './TechniqueChips'
+import { setsReps, loadText, repsText } from './TechniqueChips'
 import { AnimatedExercise } from './AnimatedExercise'
 import { circuitRounds } from '../lib/week'
 import { Flame, ChevronRight, Repeat, Layers, Zap } from 'lucide-react'
@@ -127,8 +127,6 @@ const showLoad = (ex: ExerciseRow) => ex.load.value != null || !!ex.load.band
 
 // In a circuit the round count is shown once on the header; per-row we show reps only.
 function repsOnly(ex: ExerciseRow, week: number): string {
-  if (ex.timeSec != null) return `${ex.timeSec} s`
-  const s = setsReps(ex, week)
-  const m = s.match(/×\s*(.+)$/)
-  return m ? m[1] : s
+  const r = repsText(ex, week)
+  return ex.timeSec != null ? r : `${r} reps`
 }

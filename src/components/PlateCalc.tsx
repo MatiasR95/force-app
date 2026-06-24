@@ -1,14 +1,16 @@
-import { planPlates, groupPlates, DEFAULT_BAR_KG } from '../lib/plates'
+import { planPlates, groupPlates, DEFAULT_BAR_KG, DEFAULT_PLATES_KG, DEADLIFT_PLATES_KG } from '../lib/plates'
 
 // Plate sizes → a color, loosely matching IPF/competition plates so the visual
-// reads fast on the gym floor.
+// reads fast on the gym floor. Micro plates (≤2kg) render small and gold.
 const PLATE_COLOR: Record<number, string> = {
   25: '#C0392B', 20: '#2C6FB5', 15: '#E0A92B', 10: '#3B7A3B',
-  5: '#E8E6E2', 2.5: '#1A1916', 1.25: '#8A6A38',
+  5: '#E8E6E2', 2.5: '#1A1916', 2: '#C6AE78', 1.5: '#C6AE78', 1.25: '#8A6A38', 1: '#8A6A38', 0.5: '#EADEB4',
 }
 
-export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG }: { perSideKg: number; barKg?: number }) {
-  const plan = planPlates(perSideKg, barKg)
+export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false }: {
+  perSideKg: number; barKg?: number; deadlift?: boolean
+}) {
+  const plan = planPlates(perSideKg, barKg, deadlift ? DEADLIFT_PLATES_KG : DEFAULT_PLATES_KG)
   const groups = groupPlates(plan.plates)
 
   return (

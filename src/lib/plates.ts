@@ -12,7 +12,16 @@ export interface PlatePlan {
 }
 
 export const DEFAULT_BAR_KG = 20
-export const DEFAULT_PLATES_KG = [25, 20, 15, 10, 5, 2.5, 1.25]
+// FORCE disc inventory: 25kg plates are only used for deadlifts. Everything else
+// loads off a 20/15 base, then 10/5/2.5/1.25, plus micro plates (2/1.5/1/0.5)
+// available per side for fine jumps.
+export const DEFAULT_PLATES_KG = [20, 15, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+export const DEADLIFT_PLATES_KG = [25, 20, 15, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+
+export const isDeadliftName = (name: string): boolean =>
+  /peso\s*muerto|deadlift|\brdl\b|hex|sumo/i.test(
+    name.normalize('NFD').replace(/[̀-ͯ]/g, ''),
+  )
 
 /**
  * Greedy plate decomposition for one side.

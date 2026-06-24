@@ -79,3 +79,17 @@ export function recordKg(value: number, perSide: boolean, isBarbell: boolean, ba
   if (!perSide) return value
   return value * 2 + (isBarbell ? barKg : 0)
 }
+
+/**
+ * Read the weight the member actually used from their observación, if they
+ * mentioned one (e.g. "bajé a 25kg", "subí a 30kg", "lo hice con 27,5kg").
+ * Used to correct the auto-record up OR down to what they really lifted.
+ */
+export function noteWeight(note: string): number | null {
+  if (!note) return null
+  const s = deburr(note)
+  const m =
+    s.match(/(?:baj\w*\s*a|sub\w*\s*a|hice\s*(?:con)?|lo hice con|con|us\w*|qued\w*\s*en|termin\w*\s*con|a)\s*(\d+(?:[.,]\d+)?)\s*kg/) ||
+    s.match(/(\d+(?:[.,]\d+)?)\s*kg/)
+  return m ? parseFloat(m[1].replace(',', '.')) : null
+}
