@@ -213,7 +213,11 @@ function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week
   const [open, setOpen] = useState(() => !!saved)
   const [kg, setKg] = useState(() => saved?.kg ?? r.load.value ?? 0)
   const [reps, setReps] = useState(() => saved?.reps ?? r.reps ?? 0)
-  const commit = (nk: number, nr: number) => { setKg(nk); setReps(nr); saveActual(ex.id, dayId, { kg: nk, reps: nr }) }
+  const [sets, setSets] = useState(() => saved?.sets ?? r.sets ?? 0)
+  const commit = (a: { kg?: number; reps?: number; sets?: number }) => {
+    if (a.kg != null) setKg(a.kg); if (a.reps != null) setReps(a.reps); if (a.sets != null) setSets(a.sets)
+    saveActual(ex.id, dayId, { kg, reps, sets, ...a })
+  }
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="mt-3 flex items-center gap-2 text-white/55 text-sm font-bold">
@@ -224,11 +228,12 @@ function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week
   return (
     <div className="mt-3 rounded-card bg-white/5 border border-white/10 p-3">
       <div className="kicker mb-2">Lo que hiciste de verdad</div>
-      <div className="grid grid-cols-2 gap-3">
-        <Stepper label={r.load.perSide ? 'Peso x lado (kg)' : 'Peso (kg)'} value={kg} step={1.25} onChange={(v) => commit(v, reps)} />
-        <Stepper label="Reps" value={reps} step={1} onChange={(v) => commit(kg, v)} />
+      <div className="grid grid-cols-3 gap-2.5">
+        <Stepper label={r.load.perSide ? 'Kg x lado' : 'Kg'} value={kg} step={1.25} onChange={(v) => commit({ kg: v })} />
+        <Stepper label="Reps" value={reps} step={1} onChange={(v) => commit({ reps: v })} />
+        <Stepper label="Series" value={sets} step={1} onChange={(v) => commit({ sets: v })} />
       </div>
-      <p className="text-[0.62rem] text-white/40 mt-2">Se guarda para tu récord y tu progreso, y lo ve el coach.</p>
+      <p className="text-[0.62rem] text-white/40 mt-2">Esto manda. Se usa para tu récord y progreso, y lo ve el coach.</p>
     </div>
   )
 }
@@ -236,11 +241,11 @@ function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week
 function Stepper({ label, value, step, onChange }: { label: string; value: number; step: number; onChange: (v: number) => void }) {
   return (
     <div>
-      <div className="text-[0.55rem] uppercase tracking-micro text-white/45 font-bold mb-1.5">{label}</div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => onChange(Math.max(0, Math.round((value - step) * 100) / 100))} className="h-8 w-8 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Minus size={15} /></button>
-        <div className="flex-1 text-center text-gold text-xl font-black tabular-nums">{value}</div>
-        <button onClick={() => onChange(Math.round((value + step) * 100) / 100)} className="h-8 w-8 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={15} /></button>
+      <div className="text-[0.52rem] uppercase tracking-micro text-white/45 font-bold mb-1.5 truncate">{label}</div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onChange(Math.max(0, Math.round((value - step) * 100) / 100))} className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Minus size={13} /></button>
+        <div className="flex-1 text-center text-gold text-base font-black tabular-nums">{value}</div>
+        <button onClick={() => onChange(Math.round((value + step) * 100) / 100)} className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={13} /></button>
       </div>
     </div>
   )

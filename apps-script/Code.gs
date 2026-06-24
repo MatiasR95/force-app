@@ -31,6 +31,7 @@ function doGet(e) {
     if (action === 'getRoutine') return json(getRoutine_(e.parameter.token))
     if (action === 'getHistory') return json(getHistory_(e.parameter.token))
     if (action === 'getRecords') return json(getRecords_(e.parameter.token))
+    if (action === 'getStreaks') return json(getStreaks_(e.parameter.token))
     if (action === 'ping') return json({ ok: true })
     return json({ error: 'unknown action: ' + action }, 400)
   } catch (err) {
@@ -43,6 +44,7 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents)
     if (body.action === 'logInput') return json(logInput_(body.token, body.items))
     if (body.action === 'postRecord') return json(postRecord_(body.token, body.entry))
+    if (body.action === 'postStreak') return json(postStreak_(body.token, body.entry))
     return json({ error: 'unknown action' }, 400)
   } catch (err) {
     return json({ error: String(err) }, 500)
@@ -163,6 +165,41 @@ function postRecord_(token, entry) {
     entry.id || Utilities.getUuid(), entry.client, entry.gender, entry.lift,
     entry.kg, entry.reps, entry.ts || new Date().toISOString(),
   ])
+  return { ok: true }
+}
+
+// ---- streak board (gym-wide, weeks) ---------------------------------------
+// Stored in a "rachas" tab of CONFIG: client | weeks | max | ts (one row/client).
+function streaksSheet_() {
+  var ss = SpreadsheetApp.openById(CONFIG_SHEET_ID)
+  var sh = ss.getSheetByName('rachas')
+  if (!sh) { sh = ss.insertSheet('rachas'); sh.appendRow(['client', 'weeks', 'max', 'ts']) }
+  return sh
+}
+
+function getStreaks_(token) {
+  clientFor_(token)
+  var rows = streaksSheet_().getDataRange().getValues()
+  var out = []
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    out.push({ client: rows[i][0], weeks: Number(rows[i][1]), max: Number(rows[i][2]) })
+  }
+  return out
+}
+
+function postStreak_(token, entry) {
+  clientFor_(token)
+  if (!entry) return { error: 'invalid' }
+  var sh = streaksSheet_()
+  var rows = sh.getDataRange().getValues()
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === entry.client) { // upsert: keep the best historical max
+      sh.getRange(i + 1, 2, 1, 3).setValues([[entry.weeks, Math.max(Number(rows[i][2]) || 0, entry.max), new Date().toISOString()]])
+      return { ok: true }
+    }
+  }
+  sh.appendRow([entry.client, entry.weeks, entry.max, new Date().toISOString()])
   return { ok: true }
 }
 

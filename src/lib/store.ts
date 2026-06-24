@@ -43,6 +43,7 @@ const KEYS = {
   myRecords: 'force.myRecords',
   notes: 'force.notes',
   actuals: 'force.actuals',
+  maxStreak: 'force.maxStreak',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -120,6 +121,14 @@ export function lastSession(): SessionLog | null {
   return [...all].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(-1)[0]
 }
 
+// ---- streak history (personal best racha, in weeks) -----------------------
+export const getMaxStreak = (): number => read<number>(KEYS.maxStreak, 0)
+export function bumpMaxStreak(current: number): number {
+  const max = Math.max(getMaxStreak(), current)
+  write(KEYS.maxStreak, max)
+  return max
+}
+
 // ---- rest-timer preference (client-controlled pause length) ---------------
 const DEFAULT_REST = 120
 export const getRestPref = (): number => {
@@ -153,8 +162,8 @@ export function saveNote(exerciseId: string, dayId: string, text: string): void 
   enqueue('note', { exerciseId, dayId, note: t, date: localDate() })
 }
 
-// ---- actuals (client-edited weight/reps for what they really did) ----------
-export interface Actual { kg?: number; reps?: number } // kg = per-side as written
+// ---- actuals (client-edited weight/reps/series for what they really did) ----
+export interface Actual { kg?: number; reps?: number; sets?: number } // kg = per-side as written
 type ActualMap = Record<string, Actual>
 export const getActual = (exerciseId: string): Actual | undefined =>
   read<ActualMap>(KEYS.actuals, {})[exerciseId]
@@ -162,7 +171,7 @@ export function saveActual(exerciseId: string, dayId: string, a: Actual): void {
   const m = read<ActualMap>(KEYS.actuals, {})
   m[exerciseId] = { ...m[exerciseId], ...a }
   write(KEYS.actuals, m)
-  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, date: localDate() })
+  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate() })
 }
 
 // ---- offline outbox -------------------------------------------------------

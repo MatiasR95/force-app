@@ -106,25 +106,13 @@ body::before {
     -webkit-backdrop-filter: blur(12px) saturate(120%);
   }
 
-  /* welcome hero — glass + animated gold gradient edge */
+  /* welcome hero — glass with a subtle, static gold edge (no moving hairline) */
   .hero-card {
     position: relative;
-    background: linear-gradient(180deg, rgba(198,174,120,0.10), rgba(255,255,255,0.02));
-    border: 1px solid transparent;
-    background-clip: padding-box;
+    background: linear-gradient(180deg, rgba(198,174,120,0.12), rgba(255,255,255,0.02));
+    border: 1px solid rgba(198,174,120,0.28);
     backdrop-filter: blur(10px);
-    overflow: hidden;
   }
-  .hero-card::before {
-    content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
-    background: linear-gradient(120deg, rgba(198,174,120,0.7), rgba(198,174,120,0) 40%, rgba(198,174,120,0) 60%, rgba(198,174,120,0.5));
-    background-size: 200% 100%;
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude;
-    animation: sheen 6s linear infinite;
-    pointer-events: none;
-  }
-  @keyframes sheen { to { background-position: -200% 0; } }
 
   /* gold glow + sheen sweep on primary CTAs */
   .btn-glow {

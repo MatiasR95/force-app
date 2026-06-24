@@ -1,16 +1,13 @@
 import type { MovementPattern } from '../lib/types'
 import { deburr } from '../lib/normalize'
 
-// Looping, brand-on-dark animated demos of common lifts. Pure SVG (SMIL), no
-// assets, tiny. A minimalist athlete performs the rep with the CORRECT implement
-// (barbell / dumbbell / kettlebell / cable / band / bodyweight), mapped by the
-// exercise name → movement, then by movement pattern. Per-slug curated gifs can
-// still override these via media.ts when produced.
+// Static, on-brand exercise icons (gold line-art on the dark stage). Each shows a
+// recognizable pose of the movement with the CORRECT implement (barbell /
+// dumbbell / kettlebell / cable / band / bodyweight / fitball), mapped first by
+// exercise name, then by movement pattern. No animation — clean and accurate.
+// Per-slug real images can still override these via media.ts when produced.
 
 const GOLD = '#C6AE78'
-const DUR = '2.4s'
-const SP = '0.45 0 0.55 1'
-const ss = `${SP};${SP}`
 const stroke = { stroke: GOLD, strokeWidth: 3.2, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 const thin = { stroke: GOLD, strokeWidth: 2, fill: 'none', strokeLinecap: 'round' as const }
 
@@ -18,229 +15,180 @@ type Impl = 'barbell' | 'dumbbell' | 'kettlebell' | 'cable' | 'band' | 'bodyweig
 
 const Head = ({ cx, cy }: { cx: number; cy: number }) => <circle cx={cx} cy={cy} r="6.5" {...stroke} />
 const Ground = () => <line x1="14" y1="90" x2="86" y2="90" stroke={GOLD} strokeWidth="2" opacity="0.3" />
-
-// A single dumbbell centered at (cx,y)
 const Bell = ({ cx, y }: { cx: number; y: number }) => (
-  <g>
-    <rect x={cx - 7} y={y - 5} width="3.5" height="10" rx="1" fill={GOLD} />
-    <rect x={cx + 3.5} y={y - 5} width="3.5" height="10" rx="1" fill={GOLD} />
-    <line x1={cx - 4} y1={y} x2={cx + 4} y2={y} {...stroke} />
-  </g>
+  <g><rect x={cx - 7} y={y - 5} width="3.5" height="10" rx="1" fill={GOLD} /><rect x={cx + 3.5} y={y - 5} width="3.5" height="10" rx="1" fill={GOLD} /><line x1={cx - 4} y1={y} x2={cx + 4} y2={y} {...stroke} /></g>
 )
 const Kettlebell = ({ cx, y }: { cx: number; y: number }) => (
-  <g>
-    <path d={`M${cx - 3},${y - 2} q3,-6 6,0`} {...thin} />
-    <circle cx={cx} cy={y + 4} r="5.5" fill={GOLD} />
-  </g>
+  <g><path d={`M${cx - 3},${y - 2} q3,-6 6,0`} {...thin} /><circle cx={cx} cy={y + 4} r="5.5" fill={GOLD} /></g>
 )
-
-// The load element at the hands (x1,x2) and height y — drawn per implement.
 function Load({ impl, x1, x2, y }: { impl: Impl; x1: number; x2: number; y: number }) {
   const mid = (x1 + x2) / 2
   switch (impl) {
-    case 'dumbbell':
-      return <><Bell cx={x1} y={y} /><Bell cx={x2} y={y} /></>
-    case 'kettlebell':
-      return <Kettlebell cx={mid} y={y} />
-    case 'band':
-      return <line x1={x1 - 4} y1={y} x2={x2 + 4} y2={y} stroke={GOLD} strokeWidth="2.4" strokeDasharray="3 3" />
-    case 'cable':
-      return <><line x1={x1} y1={y} x2={x2} y2={y} {...stroke} /></>
-    case 'bodyweight':
-      return null
-    default: // barbell
-      return <>
-        <line x1={x1 - 9} y1={y} x2={x2 + 9} y2={y} {...stroke} />
-        <rect x={x1 - 11} y={y - 7} width="4" height="14" rx="1" fill={GOLD} />
-        <rect x={x2 + 7} y={y - 7} width="4" height="14" rx="1" fill={GOLD} />
-      </>
+    case 'dumbbell': return <><Bell cx={x1} y={y} /><Bell cx={x2} y={y} /></>
+    case 'kettlebell': return <Kettlebell cx={mid} y={y} />
+    case 'band': return <line x1={x1 - 4} y1={y} x2={x2 + 4} y2={y} stroke={GOLD} strokeWidth="2.4" strokeDasharray="3 3" />
+    case 'cable': return <line x1={x1} y1={y} x2={x2} y2={y} {...stroke} />
+    case 'bodyweight': return null
+    default: return <><line x1={x1 - 9} y1={y} x2={x2 + 9} y2={y} {...stroke} /><rect x={x1 - 11} y={y - 7} width="4" height="14" rx="1" fill={GOLD} /><rect x={x2 + 7} y={y - 7} width="4" height="14" rx="1" fill={GOLD} /></>
   }
 }
+const wrap = (c: React.ReactNode) => <svg viewBox="0 0 100 100" className="h-full w-full">{c}</svg>
 
-const wrap = (children: React.ReactNode) => (
-  <svg viewBox="0 0 100 100" className="h-full w-full">{children}</svg>
-)
-const tr = (values: string, dur = DUR) => (
-  <animateTransform attributeName="transform" type="translate" dur={dur} repeatCount="indefinite"
-    calcMode="spline" keyTimes="0;0.5;1" keySplines={ss} values={values} />
-)
-const rot = (values: string, dur = DUR) => (
-  <animateTransform attributeName="transform" type="rotate" dur={dur} repeatCount="indefinite"
-    calcMode="spline" keyTimes="0;0.5;1" keySplines={ss} values={values} />
-)
-const morph = (values: string, dur = DUR) => (
-  <animate attributeName="d" dur={dur} repeatCount="indefinite" calcMode="spline" keyTimes="0;0.5;1"
-    keySplines={ss} values={values} />
-)
-
-// ---- movements (each takes the resolved implement) -----------------------
+// ---- static poses --------------------------------------------------------
 
 const Squat = (impl: Impl) => wrap(<>
   <Ground />
-  <path {...stroke}>{morph(
-    'M38,88 L40,66 L50,50 M62,88 L60,66 L50,50;M38,88 L33,70 L50,64 M62,88 L67,70 L50,64;M38,88 L40,66 L50,50 M62,88 L60,66 L50,50')}</path>
-  <g>{tr('0 0;0 14;0 0')}
-    <line x1="50" y1="50" x2="50" y2="38" {...stroke} /><Head cx={50} cy={31} />
-    {impl === 'kettlebell'
-      ? <Kettlebell cx={50} y={46} /> /* goblet */
-      : <Load impl={impl} x1={38} x2={62} y={impl === 'barbell' ? 40 : 44} />}
-  </g>
+  {/* deep squat, bar on back */}
+  <path d="M37,90 L33,70 L50,64 M63,90 L67,70 L50,64" {...stroke} />
+  <line x1="50" y1="64" x2="50" y2="52" {...stroke} /><Head cx={50} cy={45} />
+  {impl === 'kettlebell' ? <Kettlebell cx={50} y={58} /> : <Load impl={impl} x1={38} x2={62} y={54} />}
 </>)
 
-// Conventional deadlift: knees bend, hips lower, bar travels to the floor and
-// the lifter stands up (distinct from a stiff-legged RDL).
 const Deadlift = (impl: Impl) => wrap(<>
   <Ground />
-  {/* legs+back: bent-over with bent knees (bottom) → standing tall (top) → bottom */}
-  <path {...stroke}>{morph(
-    'M40,90 L42,74 L50,68 L66,56 M60,90 L58,74 L50,68;' +
-    'M40,90 L44,72 L50,62 L50,40 M60,90 L56,72 L50,62;' +
-    'M40,90 L42,74 L50,68 L66,56 M60,90 L58,74 L50,68')}</path>
-  <g>{tr('21 20;0 0;21 20')}<Head cx={50} cy={33} /></g>
-  {/* arms hang from the shoulder to the bar */}
-  <path {...stroke}>{morph('M66,56 L66,78;M50,44 L50,60;M66,56 L66,78')}</path>
-  <g>{tr('16 20;0 0;16 20')}<Load impl={impl} x1={42} x2={58} y={60} /></g>
+  {/* hinge, bar at the shins */}
+  <path d="M40,90 L42,72 L50,66 L64,54 M60,90 L58,72 L50,66" {...stroke} />
+  <Head cx={68} cy={50} />
+  <line x1="64" y1="56" x2="64" y2="80" {...stroke} />
+  <Load impl={impl} x1={56} x2={72} y={82} />
 </>)
 
 const HipThrust = (impl: Impl) => wrap(<>
   <Ground />
-  <line x1="20" y1="58" x2="30" y2="58" {...thin} />
-  <line x1="74" y1="90" x2="74" y2="74" {...stroke} />
-  <g>{rot('22 26 60;-2 26 60;22 26 60')}
-    <Head cx={24} cy={56} />
-    <line x1="28" y1="60" x2="64" y2="74" {...stroke} />
-    <line x1="58" y1="72" x2="74" y2="74" {...stroke} />
-    <Load impl={impl} x1={48} x2={62} y={62} />
-  </g>
+  <line x1="18" y1="60" x2="30" y2="60" {...thin} />{/* bench */}
+  {/* hips up at the top */}
+  <Head cx={24} cy={56} />
+  <line x1="28" y1="60" x2="56" y2="58" {...stroke} />{/* shoulders→hips (flat/up) */}
+  <line x1="56" y1="58" x2="72" y2="80" {...stroke} />{/* hip→knee→foot */}
+  <line x1="72" y1="80" x2="72" y2="90" {...stroke} />
+  <Load impl={impl} x1={48} x2={62} y={54} />
 </>)
 
 const Bench = (impl: Impl) => wrap(<>
-  <line x1="26" y1="68" x2="70" y2="68" {...thin} />
-  <line x1="30" y1="68" x2="30" y2="78" {...thin} /><line x1="66" y1="68" x2="66" y2="78" {...thin} />
-  <Head cx={34} cy={60} />
-  <line x1="40" y1="63" x2="68" y2="63" {...stroke} />
-  <line x1="68" y1="63" x2="76" y2="56" {...stroke} /><line x1="76" y1="56" x2="78" y2="68" {...stroke} />
-  <path {...stroke}>{morph('M52,62 L52,52 L60,52 M58,62 L58,52;M52,62 L52,40 L60,40 M58,62 L58,40;M52,62 L52,52 L60,52 M58,62 L58,52')}</path>
-  <g>{tr('0 0;0 -12;0 0')}<Load impl={impl} x1={46} x2={64} y={52} /></g>
+  <line x1="24" y1="66" x2="70" y2="66" {...thin} /><line x1="30" y1="66" x2="30" y2="78" {...thin} /><line x1="64" y1="66" x2="64" y2="78" {...thin} />
+  <Head cx={32} cy={58} />
+  <line x1="38" y1="61" x2="66" y2="61" {...stroke} />{/* torso on bench */}
+  <line x1="66" y1="61" x2="74" y2="54" {...stroke} /><line x1="74" y1="54" x2="76" y2="66" {...stroke} />{/* legs */}
+  {/* arms pressed up over chest */}
+  <path d="M50,60 L50,42 M58,60 L58,42" {...stroke} />
+  <Load impl={impl} x1={46} x2={62} y={40} />
 </>)
 
 const Overhead = (impl: Impl) => wrap(<>
-  <path d="M40,88 L44,64 L50,52 M60,88 L56,64 L50,52" {...stroke} />
-  <line x1="50" y1="52" x2="50" y2="40" {...stroke} /><Head cx={50} cy={33} />
-  <path {...stroke}>{morph('M44,41 L40,40 L60,40 L56,41;M44,41 L47,26 L53,26 L56,41;M44,41 L40,40 L60,40 L56,41')}</path>
-  <g>{tr('0 0;0 -16;0 0')}<Load impl={impl} x1={40} x2={60} y={40} /></g>
+  <path d="M40,90 L44,66 L50,54 M60,90 L56,66 L50,54" {...stroke} />
+  <line x1="50" y1="54" x2="50" y2="42" {...stroke} /><Head cx={50} cy={35} />
+  {/* arms locked out overhead */}
+  <path d="M45,44 L47,26 M55,44 L53,26" {...stroke} />
+  <Load impl={impl} x1={40} x2={60} y={24} />
 </>)
 
 const Row = (impl: Impl) => wrap(<>
   <Ground />
   <path d="M40,90 L44,66 M60,90 L56,66" {...stroke} />
   <line x1="50" y1="66" x2="72" y2="46" {...stroke} /><Head cx={76} cy={41} />
-  <g>{tr('0 0;0 -15;0 0')}
-    <line x1="52" y1="60" x2="55" y2="72" {...stroke} />
-    <Load impl={impl} x1={46} x2={62} y={74} />
-  </g>
+  {/* bar pulled up to the torso */}
+  <path d="M53,60 L57,70" {...stroke} />
+  <Load impl={impl} x1={46} x2={62} y={70} />
 </>)
 
 const Pulldown = (impl: Impl) => wrap(<>
   {impl === 'cable'
-    ? <><line x1="50" y1="14" x2="50" y2="20" {...thin} /><line x1="30" y1="20" x2="70" y2="20" {...stroke} /></>
-    : <Load impl="barbell" x1={32} x2={68} y={20} />}
-  <g>{tr('0 0;0 -10;0 0')}
-    <Head cx={50} cy={50} />
-    <line x1="50" y1="56" x2="50" y2="74" {...stroke} />
-    <line x1="50" y1="74" x2="44" y2="88" {...stroke} /><line x1="50" y1="74" x2="56" y2="88" {...stroke} />
-    <path {...stroke}>{morph('M44,50 L40,20 M56,50 L60,20;M44,50 L46,20 M56,50 L54,20;M44,50 L40,20 M56,50 L60,20')}</path>
-  </g>
+    ? <><line x1="50" y1="14" x2="50" y2="22" {...thin} /><line x1="32" y1="22" x2="68" y2="22" {...stroke} /></>
+    : <Load impl="barbell" x1={34} x2={66} y={22} />}
+  {/* hanging at the top of a pull-up, chin near the bar */}
+  <path d="M44,24 L46,40 M56,24 L54,40" {...stroke} />
+  <Head cx={50} cy={46} />
+  <line x1="50" y1="52" x2="50" y2="70" {...stroke} />
+  <path d="M50,70 L44,86 M50,70 L56,86" {...stroke} />
 </>)
 
 const Curl = (impl: Impl) => wrap(<>
-  <path d="M40,88 L44,64 L50,52 M60,88 L56,64 L50,52" {...stroke} />
-  <line x1="50" y1="52" x2="50" y2="40" {...stroke} /><Head cx={50} cy={33} />
-  <line x1="44" y1="46" x2="42" y2="62" {...stroke} /><line x1="56" y1="46" x2="58" y2="62" {...stroke} />
-  <g>{rot('0 50 62;-115 50 62;0 50 62')}
-    <line x1="42" y1="62" x2="42" y2="80" {...stroke} /><line x1="58" y1="62" x2="58" y2="80" {...stroke} />
-    <Load impl={impl === 'barbell' || impl === 'band' ? impl : 'dumbbell'} x1={42} x2={58} y={80} />
-  </g>
+  <path d="M40,90 L44,66 L50,54 M60,90 L56,66 L50,54" {...stroke} />
+  <line x1="50" y1="54" x2="50" y2="42" {...stroke} /><Head cx={50} cy={35} />
+  {/* upper arms down, forearms curled up (contracted) */}
+  <line x1="44" y1="48" x2="42" y2="62" {...stroke} /><line x1="56" y1="48" x2="58" y2="62" {...stroke} />
+  <path d="M42,62 L46,50 M58,62 L54,50" {...stroke} />
+  <Load impl={impl === 'barbell' || impl === 'band' ? impl : 'dumbbell'} x1={46} x2={54} y={48} />
 </>)
 
 const Pushdown = () => wrap(<>
-  <line x1="36" y1="16" x2="64" y2="16" {...thin} />
-  <line x1="50" y1="16" x2="50" y2="30" {...thin} />
-  <path d="M40,88 L44,64 L50,52 M60,88 L56,64 L50,52" {...stroke} />
-  <line x1="50" y1="52" x2="50" y2="40" {...stroke} /><Head cx={50} cy={33} />
-  <line x1="44" y1="46" x2="44" y2="58" {...stroke} /><line x1="56" y1="46" x2="56" y2="58" {...stroke} />
-  <g>{rot('-40 50 58;6 50 58;-40 50 58')}
-    <line x1="44" y1="58" x2="44" y2="74" {...stroke} /><line x1="56" y1="58" x2="56" y2="74" {...stroke} />
-    <line x1="42" y1="74" x2="58" y2="74" {...stroke} />
-  </g>
+  <line x1="36" y1="16" x2="64" y2="16" {...thin} /><line x1="50" y1="16" x2="50" y2="30" {...thin} />
+  <path d="M40,90 L44,66 L50,54 M60,90 L56,66 L50,54" {...stroke} />
+  <line x1="50" y1="54" x2="50" y2="42" {...stroke} /><Head cx={50} cy={35} />
+  {/* arms extended down (triceps pushdown finish) */}
+  <line x1="44" y1="48" x2="44" y2="62" {...stroke} /><line x1="56" y1="48" x2="56" y2="62" {...stroke} />
+  <line x1="44" y1="62" x2="44" y2="74" {...stroke} /><line x1="56" y1="62" x2="56" y2="74" {...stroke} />
+  <line x1="42" y1="74" x2="58" y2="74" {...stroke} />
 </>)
 
 const Lunge = (impl: Impl) => wrap(<>
   <Ground />
-  <path {...stroke}>{morph('M34,90 L40,68 L50,58 M66,90 L60,72 L50,58;M34,90 L40,74 L50,66 M66,90 L58,78 L50,66;M34,90 L40,68 L50,58 M66,90 L60,72 L50,58')}</path>
-  <g>{tr('0 0;0 8;0 0')}
-    <line x1="50" y1="58" x2="50" y2="44" {...stroke} /><Head cx={50} cy={37} />
-    {impl === 'bodyweight'
-      ? <><line x1="44" y1="46" x2="40" y2="58" {...stroke} /><line x1="56" y1="46" x2="60" y2="58" {...stroke} /></>
-      : <Load impl={impl} x1={38} x2={62} y={impl === 'barbell' ? 44 : 56} />}
-  </g>
+  {/* split stance, bottom of the lunge */}
+  <path d="M34,90 L40,74 L50,66 M66,90 L58,78 L50,66" {...stroke} />
+  <line x1="50" y1="66" x2="50" y2="54" {...stroke} /><Head cx={50} cy={47} />
+  {impl === 'bodyweight'
+    ? <path d="M45,56 L41,68 M55,56 L59,68" {...stroke} />
+    : <Load impl={impl} x1={38} x2={62} y={impl === 'barbell' ? 56 : 64} />}
 </>)
 
 const Plank = () => wrap(<>
   <Ground />
-  <g>{tr('0 0;0 -3;0 0', '2.8s')}
-    <line x1="22" y1="74" x2="78" y2="62" {...stroke} /><Head cx={82} cy={60} />
-    <line x1="32" y1="72" x2="32" y2="88" {...stroke} /><line x1="60" y1="68" x2="64" y2="88" {...stroke} />
-  </g>
-</>)
-
-// Crunch / sit-up for abdominales — torso curls up off the floor.
-const Crunch = () => wrap(<>
-  <Ground />
-  <path d="M58,88 L50,74 L40,80" {...stroke} />{/* foot → knee → hip */}
-  <g>{rot('0 40 80;-40 40 80;0 40 80')}
-    <line x1="40" y1="80" x2="22" y2="82" {...stroke} /><Head cx={17} cy={82} />
-  </g>
-</>)
-
-// Ab-wheel rollout — kneel, wheel rolls forward and back.
-const Rollout = () => wrap(<>
-  <Ground />
-  <Head cx={24} cy={62} />
-  <line x1="28" y1="66" x2="34" y2="82" {...stroke} />{/* torso → knee */}
-  <g>{tr('0 0;22 6;0 0')}
-    <line x1="34" y1="72" x2="50" y2="82" {...stroke} />
-    <circle cx="55" cy="84" r="5" {...stroke} />
-    <line x1="55" y1="80" x2="55" y2="88" {...thin} />
-  </g>
+  <line x1="22" y1="74" x2="78" y2="62" {...stroke} /><Head cx={82} cy={60} />
+  <line x1="32" y1="72" x2="32" y2="88" {...stroke} /><line x1="60" y1="68" x2="64" y2="88" {...stroke} />
 </>)
 
 const Pushup = () => wrap(<>
   <Ground />
-  <g>{tr('0 0;0 6;0 0')}
-    <line x1="24" y1="70" x2="76" y2="58" {...stroke} /><Head cx={80} cy={56} />
-    <line x1="64" y1="62" x2="66" y2="88" {...stroke} />
-  </g>
-  <line x1="34" y1="64" x2="34" y2="88" {...stroke} />
+  <line x1="24" y1="72" x2="76" y2="60" {...stroke} /><Head cx={80} cy={58} />
+  <line x1="34" y1="68" x2="34" y2="88" {...stroke} /><line x1="64" y1="62" x2="66" y2="88" {...stroke} />
 </>)
 
-const Generic = (impl: Impl) => wrap(
-  <g>{tr('0 -3;0 3;0 -3', '2.6s')}
-    <Load impl={impl === 'bodyweight' ? 'barbell' : impl} x1={34} x2={66} y={50} />
-  </g>,
-)
+const Crunch = () => wrap(<>
+  <Ground />
+  <path d="M58,88 L50,74 L40,80" {...stroke} />{/* knees up */}
+  {/* torso curled up toward the knees */}
+  <line x1="40" y1="80" x2="30" y2="70" {...stroke} /><Head cx={27} cy={66} />
+</>)
+
+const Rollout = () => wrap(<>
+  <Ground />
+  <Head cx={26} cy={60} />
+  <line x1="30" y1="64" x2="34" y2="82" {...stroke} />{/* torso → knees on floor */}
+  {/* arms extended forward to the wheel */}
+  <line x1="34" y1="70" x2="54" y2="82" {...stroke} />
+  <circle cx="60" cy="84" r="5" {...stroke} /><line x1="60" y1="80" x2="60" y2="88" {...thin} />
+</>)
+
+// Batir la olla / stir the pot: kneeling, forearms on a big fitball, hips braced.
+const StirPot = () => wrap(<>
+  <Ground />
+  <circle cx="58" cy="66" r="17" {...stroke} />{/* fit-ball */}
+  <line x1="40" y1="78" x2="62" y2="76" {...thin} opacity={0.5} />
+  {/* kneeling athlete, forearms resting on top of the ball */}
+  <Head cx={22} cy={50} />
+  <line x1="26" y1="54" x2="30" y2="72" {...stroke} />{/* torso */}
+  <line x1="30" y1="72" x2="44" y2="86" {...stroke} />{/* thigh to knee on floor */}
+  <line x1="28" y1="58" x2="46" y2="52" {...stroke} />{/* arms reaching the ball top */}
+  {/* stir hint: a small circular arrow above the ball */}
+  <path d="M50,46 a6,6 0 1 1 -3,2" {...thin} />
+  <path d="M47,48 l1.5,2 l2,-1.5" {...thin} />
+</>)
+
+const Generic = (impl: Impl) => wrap(<g>
+  <Load impl={impl === 'bodyweight' ? 'barbell' : impl} x1={34} x2={66} y={52} />
+</g>)
 
 type Mv = (impl: Impl) => React.ReactElement
 const MOVES: Record<string, Mv> = {
   squat: Squat, deadlift: Deadlift, hipthrust: HipThrust, bench: Bench, overhead: Overhead,
   row: Row, pulldown: Pulldown, curl: Curl, pushdown: Pushdown, lunge: Lunge, plank: Plank,
-  crunch: Crunch, rollout: Rollout, pushup: Pushup, generic: Generic,
+  crunch: Crunch, rollout: Rollout, pushup: Pushup, stirpot: StirPot, generic: Generic,
 }
 
-// keyword → movement (first match wins)
 const NAME_RULES: Array<[RegExp, string]> = [
-  [/rueda|ruedita|rollout|ab ?wheel|bolita/, 'rollout'],
-  [/abdominal|crunch|olla|sit ?up|encogimiento|elevacion de piernas|elevaciones de piernas/, 'crunch'],
+  [/batir|olla|stir/, 'stirpot'],
+  [/rueda|ruedita|rollout|ab ?wheel/, 'rollout'],
+  [/abdominal|crunch|bolita|sit ?up|encogimiento|elevacion de piernas|elevaciones de piernas/, 'crunch'],
   [/plancha|\bcore\b|hollow|pallof|isometr|bird ?dog|dead ?bug|colgad|inf\. colgad/, 'plank'],
   [/flexion|push ?up|fondo/, 'pushup'],
   [/hip thrust|puente|gluteo|elevacion de cadera/, 'hipthrust'],
@@ -271,10 +219,11 @@ export function detectImpl(name: string): Impl {
   if (/\bkb\b|kettlebell|rusa|pesa rusa|goblet/.test(s)) return 'kettlebell'
   if (/polea|cable|soga|cruce/.test(s)) return 'cable'
   if (/banda|band\b|gomas?/.test(s)) return 'band'
-  if (/dominada|pull ?up|chin ?up|flexion|fondo|plancha|abdominal|colgad|pc\b|peso corporal|libre/.test(s)) return 'bodyweight'
+  if (/dominada|pull ?up|chin ?up|flexion|fondo|plancha|abdominal|colgad|pc\b|peso corporal|libre|olla|batir|rueda/.test(s)) return 'bodyweight'
   return 'barbell'
 }
 
+// Name kept for compatibility; renders a static icon.
 export function AnimatedExercise({ name, pattern, size = 'full' }: {
   name: string; pattern: MovementPattern; size?: 'full' | 'thumb'
 }) {
@@ -285,10 +234,8 @@ export function AnimatedExercise({ name, pattern, size = 'full' }: {
   }
   return (
     <div className="relative h-full w-full bg-dark-stage overflow-hidden grid place-items-center">
-      <div className="absolute inset-0 opacity-[0.06]" style={{
-        backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '16px 16px',
-      }} />
-      <div className="h-44 w-44">{move(impl)}</div>
+      <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+      <div className="h-40 w-40">{move(impl)}</div>
     </div>
   )
 }

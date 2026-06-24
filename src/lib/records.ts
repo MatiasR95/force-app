@@ -38,6 +38,13 @@ export interface RecordEntry {
   ts: string        // ISO
 }
 
+// Streak leaderboard (gym-wide, weeks). `weeks` = current streak, `max` = personal best.
+export interface StreakEntry {
+  client: string
+  weeks: number
+  max: number
+}
+
 export const epley1RM = (kg: number, reps: number): number =>
   kg <= 0 || reps <= 0 ? 0 : Math.round(kg * (1 + reps / 30) * 10) / 10
 

@@ -14,9 +14,10 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
   const [running, setRunning] = useState(false)
   const ref = useRef<number | null>(null)
 
-  // start/reset the pause whenever the member marks a set done
+  // RESET the pause to "ready" whenever the member marks a set done — it does
+  // NOT auto-start; the member taps Iniciar when they actually begin resting.
   useEffect(() => {
-    if (startSignal > 0) { setSecs(pref); setRunning(true) }
+    if (startSignal > 0) { setSecs(null); setRunning(false) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSignal])
 
