@@ -168,8 +168,8 @@ c.showPage()
 bg()
 emblem(M, H-M-30, 30)
 kicker(M+40, H-M-20, "MI RUTINA · GUÍA RÁPIDA")
-y = H-M-46
-rule(y+8); y += 2
+rule(H-M-42)
+y = H-M-66
 
 y = section(y, "LA APP", "Las 5 pestañas (abajo)")
 for name, desc in [
@@ -208,14 +208,16 @@ for t in [
     c.setFillColorRGB(*GOLD); c.circle(M+3, y-3, 2, fill=1, stroke=0)
     y = para(M+14, y, t, 9.5, SOFT, maxw=W-2*M-14) - 4
 
-by = 78
+by = 72; bh = 66
 c.setFillColorRGB(*GOLD); c.setFillAlpha(0.10)
-c.roundRect(M, by-8, W-2*M, 48, 10, fill=1, stroke=0); c.setFillAlpha(1)
-c.setStrokeColorRGB(*GOLD); c.setStrokeAlpha(0.3); c.roundRect(M, by-8, W-2*M, 48, 10, fill=0, stroke=1); c.setStrokeAlpha(1)
+c.roundRect(M, by, W-2*M, bh, 10, fill=1, stroke=0); c.setFillAlpha(1)
+c.setStrokeColorRGB(*GOLD); c.setStrokeAlpha(0.3); c.roundRect(M, by, W-2*M, bh, 10, fill=0, stroke=1); c.setStrokeAlpha(1)
 t1 = "NOS VEMOS EN LA SALA. A MOVER HIERRO."
-text(W/2-sw(t1, 12.5, True)/2, by+21, t1, 12.5, WHITE, bold=True)
-t2 = "FORCE — La Plata   ·   #TrustTheProcess"
-text(W/2-sw(t2, 8.5)/2, by+6, t2, 8.5, GOLD)
+text(W/2-sw(t1, 12, True)/2, by+44, t1, 12, WHITE, bold=True)
+t2 = "Lo mejor está por venir."
+text(W/2-sw(t2, 14, True)/2, by+24, t2, 14, GOLD, bold=True)
+t3 = "FORCE — La Plata   ·   #TrustTheProcess"
+text(W/2-sw(t3, 8)/2, by+9, t3, 8, GOLD_DEEP)
 
 c.showPage()
 c.save()
