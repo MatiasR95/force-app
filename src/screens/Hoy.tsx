@@ -37,7 +37,7 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   const [checked, setChecked] = useState(hasCheckedInToday())
   const [weather, setWeather] = useState<Weather | null>(null)
   const [quote] = useState(() => nextQuote())
-  const day = routine.days[dayIdx]
+  const day = routine.days[dayIdx] ?? routine.days[0]
   const name = getClientName()
   const weekly = routine.style === 'weekly'
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable

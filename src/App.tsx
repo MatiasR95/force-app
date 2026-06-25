@@ -11,6 +11,7 @@ import { Dashboard } from './screens/Dashboard'
 import { Records } from './screens/Records'
 import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
@@ -76,13 +77,15 @@ export default function App() {
         </div>
       )}
 
-      <div key={tab} className="screen-in">
-        {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
-        {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
-        {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
-        {tab === 'panel' && <Dashboard routine={routine} />}
-        {tab === 'records' && <Records />}
-      </div>
+      <ErrorBoundary key={tab}>
+        <div className="screen-in">
+          {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
+          {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+          {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
+          {tab === 'panel' && <Dashboard routine={routine} />}
+          {tab === 'records' && <Records />}
+        </div>
+      </ErrorBoundary>
 
       {/* bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto
@@ -97,13 +100,15 @@ export default function App() {
         </div>
       </nav>
 
-      {training != null && (
-        <Entrenar
-          day={routine.days[training.dayIdx]}
-          week={training.week}
-          lastWeek={routine.totalWeeks > 1 && training.week >= routine.totalWeeks}
-          onClose={() => setTraining(null)}
-        />
+      {training != null && routine.days[training.dayIdx] && (
+        <ErrorBoundary onReset={() => setTraining(null)}>
+          <Entrenar
+            day={routine.days[training.dayIdx]}
+            week={training.week}
+            lastWeek={routine.totalWeeks > 1 && training.week >= routine.totalWeeks}
+            onClose={() => setTraining(null)}
+          />
+        </ErrorBoundary>
       )}
 
       {askGender && !intro && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}

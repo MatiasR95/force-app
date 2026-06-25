@@ -31,6 +31,7 @@ return {
       },
       workbox: {
         // Cache the app shell; the routine JSON is cached in IndexedDB by the API layer.
+        cleanupOutdatedCaches: true, // drop stale precaches so old chunks can't be served
         globPatterns: ['**/*.{js,css,html,svg,png,ttf,woff2}'],
         runtimeCaching: [
           {

@@ -8,6 +8,26 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>FORCE — Mi Rutina</title>
+    <script>
+      // Self-heal a stale PWA cache. If an app asset (script/style) fails to load
+      // — e.g. an old service worker serving a now-missing chunk after a deploy —
+      // React never mounts and the in-app error boundary can't run, leaving a
+      // blank screen. Detect that, clear the SW + caches, and reload ONCE.
+      (function () {
+        window.addEventListener('error', function (e) {
+          var t = e && e.target
+          if (!t || (t.tagName !== 'SCRIPT' && t.tagName !== 'LINK')) return
+          try { if (sessionStorage.getItem('force.healed')) return; sessionStorage.setItem('force.healed', '1') } catch (_) {}
+          Promise.resolve()
+            .then(function () { return 'serviceWorker' in navigator ? navigator.serviceWorker.getRegistrations() : [] })
+            .then(function (rs) { return Promise.all((rs || []).map(function (r) { return r.unregister() })) })
+            .then(function () { return 'caches' in window ? caches.keys() : [] })
+            .then(function (ks) { return Promise.all((ks || []).map(function (k) { return caches.delete(k) })) })
+            .catch(function () {})
+            .then(function () { location.reload() })
+        }, true) // capture: asset-load errors don't bubble
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

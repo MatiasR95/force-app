@@ -177,8 +177,10 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     block.exercises.push(row)
   }
 
-  for (let r = 0; r < rows.length; r++) {
-    const cells = rows[r]
+  const safeRows: string[][] = Array.isArray(rows) ? rows : []
+  for (let r = 0; r < safeRows.length; r++) {
+   try {
+    const cells = Array.isArray(safeRows[r]) ? safeRows[r] : []
     const a = norm(cells[0])
     const c = norm(cells[2])
     const dCol = norm(cells[3])
@@ -231,6 +233,10 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
 
     if (norm(cells[1])) pushExercise(cells, r)
     else if (a && !info) warnings.push(`Fila sin estructura clara: "${a}"`)
+   } catch {
+    // a single malformed row must never abort the whole parse
+    warnings.push(`No se pudo leer la fila ${r + 1}.`)
+   }
   }
 
   // finalize blocks: circuits (done in rounds), the alternating Big One pair, HIIT timing

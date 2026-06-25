@@ -27,7 +27,9 @@ export async function fetchRoutine(token: string | null): Promise<Routine> {
     // demo: the real Enero 2026 sheet, surfaced as the current cycle
     return parseRoutine(ENERO_2026, 'Mi Rutina · Demo')
   }
-  const raw = await call<RawRoutine>('getRoutine', { token })
+  const raw = await call<RawRoutine & { error?: string }>('getRoutine', { token })
+  if (raw?.error) throw new Error(raw.error)
+  if (!raw || !Array.isArray(raw.values)) throw new Error('La rutina llegó vacía o con un formato inesperado.')
   return parseRoutine(raw.values, raw.title)
 }
 

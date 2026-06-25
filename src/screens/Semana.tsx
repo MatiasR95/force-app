@@ -14,7 +14,7 @@ export function Semana({ routine, week, setWeek }: {
   const [dayIdx, setDayIdx] = useState(0)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [history, setHistory] = useState<Array<{ id: string; title: string }>>([])
-  const day = routine.days[dayIdx]
+  const day = routine.days[dayIdx] ?? routine.days[0]
   const effWeek = (day.weeks.length > 1 ? day.weeks : routine.weeksAvailable).includes(week) ? week : 1
 
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])
