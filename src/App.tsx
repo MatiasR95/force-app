@@ -59,6 +59,10 @@ export default function App() {
 
   if (error) return <Splash sub={`No pudimos cargar tu rutina.\n${error}`} />
   if (!routine) return <Splash sub="Cargando tu rutina…" />
+  // empty plan (no days parsed): show a calm, on-brand message instead of letting
+  // a day-indexing screen crash. The nav/screens below all assume routine.days[0].
+  if (routine.days.length === 0)
+    return <Splash sub={'Tu rutina todavía no tiene días cargados.\nAvisale a tu coach y volvé a entrar. 💪'} />
 
   // current week: from the plan's start date, but let the client override it
   const wk = week ?? currentWeek(routine.meta.startDate, routine.totalWeeks)

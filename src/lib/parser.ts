@@ -42,6 +42,18 @@ const titleCase = (s: string): string =>
 
 const isDayMarker = (a: string): RegExpMatchArray | null => deburr(a).match(/^dia\s*(\d+)/)
 
+// Scan a row (from col F onward) for "Semana N" per-week column headers. These
+// can sit on the "DÍA N" marker row OR on the "EJERCICIO ..." header row,
+// depending on how the coach laid out the sheet — so we look on both.
+function scanWeekCols(cells: string[]): Array<{ week: number; col: number }> {
+  const out: Array<{ week: number; col: number }> = []
+  for (let i = 5; i < cells.length; i++) {
+    const wm = norm(cells[i]).match(/semana\s*(\d+)/i)
+    if (wm) out.push({ week: parseInt(wm[1], 10), col: i })
+  }
+  return out
+}
+
 // ---- value parsers ------------------------------------------------------
 
 const toNum = (s: string): number | null => {
@@ -203,23 +215,42 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       section = 'ramp'
       seenBig = false
       exIdx = 0
-      weekCols = []
-      for (let i = 5; i < cells.length; i++) {
-        const wm = norm(cells[i]).match(/semana\s*(\d+)/i)
-        if (wm) weekCols.push({ week: parseInt(wm[1], 10), col: i })
-      }
-      day.weeks = [1, ...weekCols.map((w) => w.week)].sort((x, y) => x - y)
+      weekCols = scanWeekCols(cells)
       continue
     }
 
-    if (!day) continue
-
     const info = tagInfo(a)
+
+    // No "DÍA N" marker has appeared yet. A sheet (or a tab whose day lives in
+    // its name, not a cell) can still carry real work — open an implicit Día 1
+    // so it renders instead of being dropped (which would leave days empty and
+    // crash the screens). Section headers seen here keep the running section.
+    if (!day) {
+      if (info && info.tag !== 'warmup') {
+        section = info.tag
+        if (info.tag === 'big') seenBig = true
+      }
+      const exCell = norm(cells[1])
+      if (deburr(exCell) === 'ejercicio') {
+        // header row before any day → remember its week columns for the implicit day
+        for (const wc of scanWeekCols(cells)) if (!weekCols.some((w) => w.col === wc.col)) weekCols.push(wc)
+        continue
+      }
+      if (!exCell) continue
+      day = { id: `d${days.length + 1}-1`, label: 'DÍA 1', index: 1, warmup: '', weeks: [1], blocks: [] }
+      days.push(day)
+      // keep the current `section`/`seenBig`/`weekCols`; no real day boundary
+    }
+
     if (info && info.tag === 'warmup') {
       day.warmup = norm(cells[1]) || c
       continue
     }
-    if (deburr(norm(cells[1])) === 'ejercicio') continue // column header row
+    if (deburr(norm(cells[1])) === 'ejercicio') {
+      // column-header row may carry the "Semana N" headers — merge them in
+      for (const wc of scanWeekCols(cells)) if (!weekCols.some((w) => w.col === wc.col)) weekCols.push(wc)
+      continue
+    }
 
     if (info) {
       section = info.tag
@@ -241,6 +272,11 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
 
   // finalize blocks: circuits (done in rounds), the alternating Big One pair, HIIT timing
   for (const dd of days) {
+    // derive the day's available weeks from the week cells actually parsed, so it's
+    // correct no matter which row the "Semana N" headers sat on (or none → just [1]).
+    const wset = new Set<number>([1])
+    for (const bl of dd.blocks) for (const ex of bl.exercises) for (const k of Object.keys(ex.weeks)) wset.add(Number(k))
+    dd.weeks = [...wset].sort((a, b) => a - b)
     for (const bl of dd.blocks) {
       // a multi-exercise THE BIG ONE is a superset done set-by-set (alternated)
       const groupable = CIRCUIT_TAGS.has(bl.tag) || bl.tag === 'big'

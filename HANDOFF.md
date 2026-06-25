@@ -104,9 +104,12 @@ Member phone (PWA, installable, offline-first)        Google (gym account forceb
 - Queued via `store.queueCellWrites` → `api.syncOutbox` posts `cell` items to **`updateCells`**.
 - Backend `updateCells_` re-reads all tabs (`allTabRows_`), maps the absolute `row` back to **(tab, localRow)**,
   overwrites that cell, and logs `antes/después` to `Seguimiento`. Frontend stays tab-agnostic.
-- **Multi-tab read:** `getRoutine_` concatenates every tab so one-day-per-tab plans show all days. **Assumes each
-  day-tab contains its own `DÍA N` text marker in column A.** If a coach relies on the *tab name* instead (no
-  in-cell marker), that day won't appear → would need a tab-name fallback (not built).
+- **Multi-tab read:** `getRoutine_` concatenates every tab so one-day-per-tab plans show all days. Each day-tab
+  ideally carries its own `DÍA N` marker in column A — but **`allTabRows_` now also handles the tab-name case**:
+  for any tab that has exercise rows but NO in-cell `DÍA N` marker, it **prepends a synthetic `DÍA N` row** (N
+  from a number in the tab name, else a running counter). Tabs with no exercises (a summary tab) are left alone
+  so their meta still flows through. `injected[]` (synthetic rows per tab) is returned so writeback subtracts it
+  before mapping the absolute row back to the real cell. **Needs the backend redeploy (§6) to take effect.**
 
 ---
 
@@ -117,6 +120,13 @@ A render/parse error used to unmount the whole app (black screen). Now hardened:
   overlay (`App.tsx`). Shows a branded "Algo no cargó bien" + **Reintentar** / **Recargar la app** (clears
   SW+caches), keeps the **nav alive**, and has a **"Detalle técnico"** expander with the error message.
 - Parser **never throws**; `fetchRoutine` validates the payload; Hoy/Semana **clamp** the day index.
+- **Empty-days crash fixed (root cause of "undefined is not an object (evaluating 'x.weeks')").** When a sheet
+  has work but no `DÍA N` marker (flat sheet, or a tab whose day is only in its name), the parser now **opens an
+  implicit `DÍA 1`** instead of returning zero days (which made `day.weeks` throw in Hoy/Semana). When a routine
+  genuinely has **zero days** (truly empty sheet), `App.tsx` renders a calm "tu rutina todavía no tiene días"
+  screen instead of mounting a day-indexing screen. Entrenar shows an `EmptyDay` (with a Volver button) if a day
+  has no exercises. **"Semana N" headers are detected on either the DÍA row OR the EJERCICIO header row**, and
+  `day.weeks` is derived from the week cells actually parsed — so per-week columns work regardless of layout.
 - **`index.html` self-heal:** if an app asset fails to load (stale PWA SW after a deploy → React can't mount,
   so the boundary can't run), it clears SW+caches and reloads **once**. `vite.config.ts` → `cleanupOutdatedCaches`.
 - Verified: forcing a render error shows the recovery UI with nav intact (no black screen).
@@ -146,9 +156,11 @@ A render/parse error used to unmount the whole app (black screen). Now hardened:
 
 ## 8. OPEN / NEXT (priority order)
 
-1. **Verify Belu (multi-tab client).** After the backend redeploy + frontend update, confirm her **5 days**
-   render (Hoy + Plan) and a weight edit lands in the **correct tab/cell**. If she sees the recovery screen,
-   read **"Detalle técnico"** — it names the exact crash to fix. (Her plan = one tab per day, powerlifting/weekly.)
+1. **Verify Belu (multi-tab client).** The empty-days crash she hit is fixed in the frontend (auto-deploys), and
+   `allTabRows_` now synthesizes a `DÍA N` per day-tab from the tab name — but that **requires the backend
+   redeploy (§6)** to render all 5 days. After redeploy, confirm her **5 days** show (Hoy + Plan) and a weight
+   edit lands in the **correct tab/cell** (the `injected[]` shift is covered). If she still sees the recovery
+   screen, read **"Detalle técnico"** — it names the exact crash. (Her plan = one tab per day, powerlifting/weekly.)
 2. **Real device visual pass** (screenshot tool broken): Inicio layout, animated icons (esp. `StirPot`/batir la
    olla — user noted icons still "have room to improve"), 5-tab spacing, flag, the white-line fix on Récords.
 3. **Source gender / birthday / bodyweight from the gym config** for real rollout (currently local-first in

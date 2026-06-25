@@ -84,19 +84,63 @@ function getRoutine_(token) {
 /**
  * Concatenate EVERY tab of the routine spreadsheet into one 2D array. Many plans
  * (especially powerlifting) put one training day per tab, so reading only the
- * first tab would show just Día 1. Each tab carries its own "DÍA N" marker, so
- * the parser picks up every day. Also returns the row count per tab so writeback
- * can map an absolute row back to the tab it came from.
+ * first tab would show just Día 1.
+ *
+ * A day tab may carry its "DÍA N" marker in a cell (column A) OR only in its TAB
+ * NAME ("Día 1", "Lunes", "Push") with no in-cell marker — and the first tab is
+ * often a summary with no exercises at all. To make every shape render, for any
+ * tab that has real exercise rows but NO in-cell "DÍA N" marker we PREPEND a
+ * synthetic "DÍA N" row (N from the tab name, else a running counter). Tabs with
+ * no exercises (a summary) are left untouched so their meta still flows through.
+ *
+ * Returns per-tab row counts (`sizes`, INCLUDING any synthetic row) so writeback
+ * can map an absolute stitched row back to its tab, and `injected[i]` = how many
+ * synthetic rows tab i got, so the local row can be shifted back to the real cell.
  */
 function allTabRows_(fileId) {
   var sheets = SpreadsheetApp.openById(fileId).getSheets()
-  var values = [], sizes = []
+  var values = [], sizes = [], injected = []
+  var counter = 0
   for (var i = 0; i < sheets.length; i++) {
     var v = sheets[i].getLastRow() ? sheets[i].getDataRange().getValues() : []
+    var inj = 0
+    if (v.length && !hasInCellDayMarker_(v) && hasExerciseRow_(v)) {
+      counter++
+      var n = tabDayNumber_(sheets[i].getName(), counter)
+      v = [['DÍA ' + n, '', '', '', '']].concat(v)
+      inj = 1
+    } else if (hasInCellDayMarker_(v)) {
+      counter++ // keep the running counter aligned with day tabs
+    }
+    injected.push(inj)
     sizes.push(v.length)
     for (var j = 0; j < v.length; j++) values.push(v[j])
   }
-  return { values: values, sizes: sizes, sheets: sheets }
+  return { values: values, sizes: sizes, sheets: sheets, injected: injected }
+}
+
+/** True if any row carries an in-cell "DÍA N" marker in column A. */
+function hasInCellDayMarker_(rows) {
+  for (var i = 0; i < rows.length; i++) {
+    if (/^\s*d[ií]a\s*\d+/i.test(String(rows[i][0] || ''))) return true
+  }
+  return false
+}
+
+/** True if the tab has at least one exercise-like row (col B filled, not the header). */
+function hasExerciseRow_(rows) {
+  for (var i = 0; i < rows.length; i++) {
+    var b = String(rows[i][1] || '').trim()
+    if (b && b.toLowerCase() !== 'ejercicio') return true
+  }
+  return false
+}
+
+/** Day number for a tab: a number in the tab name, else the running fallback. */
+function tabDayNumber_(name, fallback) {
+  var m = String(name || '').toLowerCase().match(/d[ií]a\s*(\d+)|d[ií]a(\d+)|\bd(\d+)\b|(\d+)/)
+  if (m) return parseInt(m[1] || m[2] || m[3] || m[4], 10)
+  return fallback
 }
 
 /**
@@ -162,7 +206,7 @@ function updateCells_(token, cells) {
   var file = currentRoutineFile_(folder)
   if (!file) return { error: 'sin rutina' }
   var r = allTabRows_(file.getId())
-  var sheets = r.sheets, sizes = r.sizes
+  var sheets = r.sheets, sizes = r.sizes, injected = r.injected || []
   var log = []
   var written = 0
   ;(cells || []).forEach(function (w) {
@@ -172,6 +216,10 @@ function updateCells_(token, cells) {
     var abs = w.row, ti = 0
     while (ti < sizes.length && abs >= sizes[ti]) { abs -= sizes[ti]; ti++ }
     if (ti >= sheets.length) return
+    // shift back over any synthetic "DÍA N" row we prepended to this tab; a write
+    // that lands on the synthetic row itself isn't a real cell — skip it.
+    abs -= (injected[ti] || 0)
+    if (abs < 0) return
     var cell = sheets[ti].getRange(abs + 1, w.col + 1) // Apps Script is 1-based
     var prev = cell.getValue()
     if (String(prev) === String(w.value)) return

@@ -55,7 +55,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
   if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} onClose={onClose} />
   const item = items[i]
-  if (!item) return null
+  // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
+  // member on a blank overlay; give them a way back.
+  if (!item) return <EmptyDay day={day} onClose={onClose} />
   const isTimed = item.type === 'circuit' && item.block.timed
   const key = item.type === 'single' ? item.ex.id : `c-${item.block.tag}`
   const target = unitsOf(item, week)
@@ -319,6 +321,23 @@ function CircuitView({ block, dayId, week, round, rounds, flash, timed }: {
 function repsCol(ex: ExerciseRow, week: number): string {
   const r = repsText(ex, week)
   return ex.timeSec != null ? r : `${r} reps`
+}
+
+// A day-tab that has a warm-up (or nothing) but no logged exercises.
+function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
+      <div className="flex items-center px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
+        <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-3">
+        <h1 className="heading text-2xl text-white">{day.label.replace('DÍA', 'Día')}</h1>
+        {day.warmup && <p className="text-white/70 text-sm leading-relaxed">{day.warmup}</p>}
+        <p className="text-white/45 text-sm">Este día no tiene ejercicios cargados todavía. Avisale a tu coach.</p>
+        <button onClick={onClose} className="btn-glow mt-2 rounded-full bg-gold-fill text-ink font-black uppercase px-8 py-3">Volver</button>
+      </div>
+    </div>
+  )
 }
 
 // ---- finish: session RPE + note ------------------------------------------

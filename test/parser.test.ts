@@ -132,6 +132,78 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
   })
 })
 
+describe('parseRoutine — plan-shape robustness (never empty when there is work)', () => {
+  it('opens an implicit Día 1 when a sheet has exercises but no "DÍA N" marker', () => {
+    // e.g. a tab whose day lives in its NAME, or a flat single-day sheet
+    const r = parseRoutine([
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['', 'Sentadilla', '5', '4', '60kg'],
+      ['ACCESORIOS', 'Curl', '12', '3', '10kg'],
+    ])
+    expect(r.days).toHaveLength(1)
+    expect(r.days[0].label).toBe('DÍA 1')
+    const names = r.days[0].blocks.flatMap((b) => b.exercises).map((e) => e.name)
+    expect(names).toEqual(['Sentadilla', 'Curl'])
+    // the accessory header still files Curl under accessory, not ramp
+    expect(r.days[0].blocks.find((b) => b.tag === 'accessory')!.exercises[0].name).toBe('Curl')
+  })
+
+  it('returns zero days (no crash) for a truly empty / no-exercise sheet', () => {
+    expect(parseRoutine([]).days).toHaveLength(0)
+    expect(parseRoutine([['', 'EJERCICIO', 'REPETICIONES', 'SERIES']]).days).toHaveLength(0)
+    expect(parseRoutine([['Sin rutina']]).days).toHaveLength(0)
+  })
+
+  it('handles a small 2-day daily plan (no week columns → style daily)', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', ''],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['', 'Press', '8', '3', '40kg'],
+      ['DÍA 2', '', '', '', ''],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['', 'Remo', '10', '3', '30kg'],
+    ])
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2'])
+    expect(r.style).toBe('daily')
+    expect(r.days.every((d) => d.weeks.length === 1)).toBe(true)
+  })
+
+  it('detects "Semana N" columns when they sit on the header row, not the DÍA row', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', ''], // marker row WITHOUT the week headers
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES', 'Semana 2', 'Semana 3'],
+      ['THE BIG ONE', 'Sentadilla', '5', '4', '60kg', '6X4', '4X4 65kg'],
+    ])
+    expect(r.days[0].weeks).toEqual([1, 2, 3])
+    expect(r.style).toBe('weekly')
+    const sq = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(resolveWeek(sq, 2)).toMatchObject({ reps: 6, sets: 4 })
+    expect(resolveWeek(sq, 3).load.value).toBe(65)
+  })
+
+  it('implicit Día 1 still picks up week columns from the header row (day-in-tab-name tab)', () => {
+    const r = parseRoutine([
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES', 'Semana 2'],
+      ['THE BIG ONE', 'Press', '5', '3', '40kg', '6X3'],
+    ])
+    expect(r.days).toHaveLength(1)
+    expect(r.days[0].weeks).toEqual([1, 2])
+    const press = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(resolveWeek(press, 2)).toMatchObject({ reps: 6, sets: 3 })
+  })
+
+  it('handles a 6-day plan and keeps every day even out of order', () => {
+    const rows: string[][] = []
+    for (const n of [1, 3, 2, 6, 4, 5]) {
+      rows.push([`DÍA ${n}`, '', '', '', ''])
+      rows.push(['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'])
+      rows.push(['', `Ej${n}`, '5', '3', '50kg'])
+    }
+    const r = parseRoutine(rows)
+    expect(r.days.map((d) => d.index)).toEqual([1, 2, 3, 4, 5, 6])
+  })
+})
+
 describe('parseLoad', () => {
   it('handles per-side, plain, and band loads', () => {
     expect(parseLoad('27,5kg x lado')).toMatchObject({ value: 27.5, perSide: true })
