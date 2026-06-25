@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { weightClass, wcLabel } from '../src/lib/records'
 import { buildCellWrites, replaceKg, fmtKg } from '../src/lib/sheetWrite'
 import { nextFeriado } from '../src/lib/feriados'
+import { parseRoutine } from '../src/lib/parser'
 import type { ExerciseRow, WeekCell } from '../src/lib/types'
 
 // minimal ExerciseRow factory for writeback tests
@@ -76,6 +77,41 @@ describe('sheet writeback cell rebuild', () => {
     const cx = mkEx({ weeks: { 2: wk({ complex: true, raw: '3X1+2X3' }) } })
     expect(buildCellWrites(inh, 2, { reps: 9 })).toEqual([])
     expect(buildCellWrites(cx, 2, { reps: 9 })).toEqual([])
+  })
+})
+
+describe('multi-tab routine (tabs stitched by the backend)', () => {
+  // One training day per tab (common in powerlifting). The backend concatenates
+  // every tab into one array; each tab keeps its own "DÍA N" marker + week cols.
+  const tab1 = [
+    ['', '', 'Objetivo', 'Fuerza+hipertrofia'],
+    ['', '', 'Sesiones', '5 x semana'],
+    ['', '', 'Semanas', '8 semanas'],
+    ['DÍA 1', '', '', '', '', 'Semana 2', 'Semana 3'],
+    ['', 'EJERCICIO', 'REPS', 'SERIES', 'OBSERVACIONES'],
+    ['THE BIG ONE', '', '', '', ''],
+    ['', 'Sentadilla', '5', '4', '27,5kg x lado', '5X4', '6X4'],
+  ]
+  const tab2 = [
+    ['', '', 'Objetivo', 'Fuerza+hipertrofia'], // repeated meta header → ignored
+    ['DÍA 2', '', '', '', '', 'Semana 2', 'Semana 3'],
+    ['', 'EJERCICIO', 'REPS', 'SERIES', 'OBSERVACIONES'],
+    ['THE BIG ONE', '', '', '', ''],
+    ['', 'Press Plano', '5', '3', '40kg', '5X3', '6X3'],
+  ]
+  const r = parseRoutine([...tab1, ...tab2], 'Belu')
+
+  it('parses every day across the stitched tabs', () => {
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2'])
+    expect(r.style).toBe('weekly')
+  })
+  it('keeps absolute row + week-column indices for writeback', () => {
+    const press = r.days[1].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(press.name).toBe('Press Plano')
+    expect(press.row).toBe(11)              // absolute index in the stitched array
+    expect(press.weeks[2].col).toBe(5)      // "Semana 2" column on the DÍA 2 row
+    // a kg edit on week 1 targets that exact row's OBSERVACIONES cell (col 4)
+    expect(buildCellWrites(press, 1, { kg: 42.5 })).toEqual([{ row: 11, col: 4, value: '42,5kg' }])
   })
 })
 

@@ -75,11 +75,28 @@ function clientFor_(token) {
 function getRoutine_(token) {
   var c = clientFor_(token)
   var folder = DriveApp.getFolderById(c.folderId)
-  var sheet = currentRoutineFile_(folder)
-  if (!sheet) return { title: 'Sin rutina', values: [] }
-  var ss = SpreadsheetApp.openById(sheet.getId())
-  var values = ss.getSheets()[0].getDataRange().getValues() // first tab
-  return { title: sheet.getName(), values: values }
+  var file = currentRoutineFile_(folder)
+  if (!file) return { title: 'Sin rutina', values: [] }
+  var r = allTabRows_(file.getId())
+  return { title: file.getName(), values: r.values }
+}
+
+/**
+ * Concatenate EVERY tab of the routine spreadsheet into one 2D array. Many plans
+ * (especially powerlifting) put one training day per tab, so reading only the
+ * first tab would show just Día 1. Each tab carries its own "DÍA N" marker, so
+ * the parser picks up every day. Also returns the row count per tab so writeback
+ * can map an absolute row back to the tab it came from.
+ */
+function allTabRows_(fileId) {
+  var sheets = SpreadsheetApp.openById(fileId).getSheets()
+  var values = [], sizes = []
+  for (var i = 0; i < sheets.length; i++) {
+    var v = sheets[i].getLastRow() ? sheets[i].getDataRange().getValues() : []
+    sizes.push(v.length)
+    for (var j = 0; j < v.length; j++) values.push(v[j])
+  }
+  return { values: values, sizes: sizes, sheets: sheets }
 }
 
 /**
@@ -144,17 +161,23 @@ function updateCells_(token, cells) {
   var folder = DriveApp.getFolderById(c.folderId)
   var file = currentRoutineFile_(folder)
   if (!file) return { error: 'sin rutina' }
-  var sheet = SpreadsheetApp.openById(file.getId()).getSheets()[0]
+  var r = allTabRows_(file.getId())
+  var sheets = r.sheets, sizes = r.sizes
   var log = []
   var written = 0
   ;(cells || []).forEach(function (w) {
     if (w == null || w.row == null || w.col == null) return
-    var cell = sheet.getRange(w.row + 1, w.col + 1) // Apps Script is 1-based
+    // the app sends an absolute row across the stitched tabs — map it back to
+    // its tab + local row so we overwrite the right cell.
+    var abs = w.row, ti = 0
+    while (ti < sizes.length && abs >= sizes[ti]) { abs -= sizes[ti]; ti++ }
+    if (ti >= sheets.length) return
+    var cell = sheets[ti].getRange(abs + 1, w.col + 1) // Apps Script is 1-based
     var prev = cell.getValue()
     if (String(prev) === String(w.value)) return
     cell.setValue(w.value)
     written++
-    log.push([new Date(), 'cell', '', 'r' + w.row + 'c' + w.col, '', '', '', 'antes: "' + prev + '" → "' + w.value + '"'])
+    log.push([new Date(), 'cell', '', 't' + ti + 'r' + abs + 'c' + w.col, '', '', '', 'antes: "' + prev + '" → "' + w.value + '"'])
   })
   if (log.length) {
     try {
