@@ -148,6 +148,19 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(r.days[0].blocks.find((b) => b.tag === 'accessory')!.exercises[0].name).toBe('Curl')
   })
 
+  it('refuses to render a Seguimiento LOG sheet served as a routine', () => {
+    // reproduces the field report: the log sheet (newest in the folder) got served
+    // as the plan → rows like "set · d1-1 reps", an ISO-timestamp "warm-up", etc.
+    const log = [
+      ['timestamp', 'tipo', 'dia', 'ejercicio', 'kg_real', 'reps_real', 'rpe', 'nota'],
+      ['2026-06-25T00:52:29.082Z', 'set', 'd1-1', 'd1-1-x0', '', '', '', ''],
+      ['2026-06-25T00:52:40.000Z', 'set', 'd1-1', 'd1-1-x1', '18.75', '', '', ''],
+    ]
+    const r = parseRoutine(log, 'Seguimiento — Belu')
+    expect(r.days).toHaveLength(0)
+    expect(r.parsedWarnings.length).toBeGreaterThan(0)
+  })
+
   it('returns zero days (no crash) for a truly empty / no-exercise sheet', () => {
     expect(parseRoutine([]).days).toHaveLength(0)
     expect(parseRoutine([['', 'EJERCICIO', 'REPETICIONES', 'SERIES']]).days).toHaveLength(0)

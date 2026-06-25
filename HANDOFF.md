@@ -127,6 +127,12 @@ A render/parse error used to unmount the whole app (black screen). Now hardened:
   screen instead of mounting a day-indexing screen. Entrenar shows an `EmptyDay` (with a Volver button) if a day
   has no exercises. **"Semana N" headers are detected on either the DÍA row OR the EJERCICIO header row**, and
   `day.weeks` is derived from the week cells actually parsed — so per-week columns work regardless of layout.
+- **Wrong-sheet served fix (member saw her raw log: "set · d1-1 reps", an ISO-timestamp warm-up).** Cause:
+  `currentRoutineFile_` served the most-recently-modified sheet in the folder, and the per-client
+  `Seguimiento — …` LOG sheet (re-written on every training log) outranks the routine. Fix: backend
+  `currentRoutineFile_` now **skips `Seguimiento*`/`records`/`rachas`** (so writeback also can't target the log);
+  and the **parser rejects any sheet with the Seguimiento header signature** (`timestamp` + `kg_real`/`reps_real`/
+  `tipo`) → renders the calm empty screen. Backend half needs the redeploy (§6); the parser half ships now.
 - **`index.html` self-heal:** if an app asset fails to load (stale PWA SW after a deploy → React can't mount,
   so the boundary can't run), it clears SW+caches and reloads **once**. `vite.config.ts` → `cleanupOutdatedCaches`.
 - Verified: forcing a render error shows the recovery UI with nav intact (no black screen).

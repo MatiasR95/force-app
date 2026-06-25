@@ -127,6 +127,20 @@ export function parseTimeSec(reps: string): number | null {
   return m ? parseInt(m[1], 10) : null
 }
 
+// The per-client "Seguimiento" LOG sheet (timestamp | tipo | dia | ejercicio |
+// kg_real | reps_real | rpe | nota) can be accidentally served as the routine if
+// the backend picks the most-recently-modified sheet in the folder. Its header is
+// an unmistakable signature — never render a log as a plan (would show rows like
+// "set · d1-1 reps"). Defends the client even if the backend serves the wrong file.
+function looksLikeLogSheet(rows: string[][]): boolean {
+  for (let r = 0; r < Math.min(rows.length, 5); r++) {
+    const cells = (Array.isArray(rows[r]) ? rows[r] : []).map((c) => deburr(norm(c)))
+    if (cells.includes('timestamp') && (cells.includes('kg_real') || cells.includes('reps_real') || cells.includes('tipo')))
+      return true
+  }
+  return false
+}
+
 // ---- main ---------------------------------------------------------------
 
 /**
@@ -138,6 +152,14 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   const meta: RoutineMeta = { sessionsPerWeek: '', startDate: '', weeks: '', goal: '' }
   const days: RoutineDay[] = []
   const warnings: string[] = []
+
+  // a misrouted log/non-routine sheet must not be rendered as a plan
+  if (looksLikeLogSheet(Array.isArray(rows) ? rows : [])) {
+    return {
+      title, meta, days: [], weeksAvailable: [], totalWeeks: 1, style: 'daily',
+      parsedWarnings: ['La planilla recibida no parece una rutina (se ignoró).'],
+    }
+  }
 
   let day: RoutineDay | null = null
   let section: SectionTag = 'ramp'

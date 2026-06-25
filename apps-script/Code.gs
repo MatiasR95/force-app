@@ -146,15 +146,28 @@ function tabDayNumber_(name, fallback) {
 /**
  * The "current" routine = the single spreadsheet directly inside the client
  * folder (NOT inside Historial/). If several exist, the most recently modified.
+ *
+ * CRITICAL: the per-client "Seguimiento — …" log sheet lives in this same folder
+ * and is re-written every time the member trains, so by modified-date it would
+ * outrank the routine and get served as the plan (member then sees the raw log:
+ * rows like "set | d1-1 | …"). Skip it — and the gym-wide records/rachas sheets
+ * if they ever land here — so only an actual routine can be chosen.
  */
 function currentRoutineFile_(folder) {
   var files = folder.getFilesByType(MimeType.GOOGLE_SHEETS)
   var best = null
   while (files.hasNext()) {
     var f = files.next()
+    if (isNonRoutineFile_(f.getName())) continue
     if (!best || f.getLastUpdated() > best.getLastUpdated()) best = f
   }
   return best
+}
+
+/** App-managed sheets that must never be mistaken for a routine. */
+function isNonRoutineFile_(name) {
+  var n = String(name || '').trim().toLowerCase()
+  return n.indexOf('seguimiento') === 0 || n === 'records' || n === 'rachas'
 }
 
 function getHistory_(token) {
