@@ -7,3 +7,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# PDF guide build artifacts
+scripts/_fonts/
+docs/_preview_*.png
