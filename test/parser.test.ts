@@ -161,6 +161,18 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(r.parsedWarnings.length).toBeGreaterThan(0)
   })
 
+  it('rejects a log even if the header is missing (ISO timestamps in column A)', () => {
+    const log = [
+      ['DÍA 1', '', '', '', ''], // a synthetic marker the backend may prepend
+      ['2026-06-25T00:52:29.082Z', 'set', 'd1-1', 'd1-1-x0', ''],
+      ['2026-06-25T00:52:40.000Z', 'set', 'd1-1', 'd1-1-x1', '18.75'],
+      ['2026-06-25T00:53:01.000Z', 'set', 'd1-1', 'd1-1-x2', ''],
+      ['2026-06-25T00:53:20.000Z', 'set', 'd1-1', 'd1-1-x3', ''],
+      ['2026-06-25T00:53:55.000Z', 'set', 'd1-1', 'd1-1-x4', ''],
+    ]
+    expect(parseRoutine(log).days).toHaveLength(0)
+  })
+
   it('returns zero days (no crash) for a truly empty / no-exercise sheet', () => {
     expect(parseRoutine([]).days).toHaveLength(0)
     expect(parseRoutine([['', 'EJERCICIO', 'REPETICIONES', 'SERIES']]).days).toHaveLength(0)

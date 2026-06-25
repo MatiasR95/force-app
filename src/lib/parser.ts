@@ -133,10 +133,19 @@ export function parseTimeSec(reps: string): number | null {
 // an unmistakable signature — never render a log as a plan (would show rows like
 // "set · d1-1 reps"). Defends the client even if the backend serves the wrong file.
 function looksLikeLogSheet(rows: string[][]): boolean {
-  for (let r = 0; r < Math.min(rows.length, 5); r++) {
+  // 1) the exact Seguimiento header signature
+  for (let r = 0; r < Math.min(rows.length, 6); r++) {
     const cells = (Array.isArray(rows[r]) ? rows[r] : []).map((c) => deburr(norm(c)))
     if (cells.includes('timestamp') && (cells.includes('kg_real') || cells.includes('reps_real') || cells.includes('tipo')))
       return true
+  }
+  // 2) generic fallback: a log/export has an ISO datetime in column A on most rows
+  //    (catches it even if the header row is renamed, missing, or a marker is prepended)
+  const ISO = /^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}/
+  const dataRows = (Array.isArray(rows) ? rows : []).filter((row) => norm(row?.[0]))
+  if (dataRows.length >= 5) {
+    const iso = dataRows.filter((row) => ISO.test(deburr(norm(row[0])))).length
+    if (iso / dataRows.length > 0.6) return true
   }
   return false
 }
