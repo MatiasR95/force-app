@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay } from './lib/store'
 import type { Gender } from './lib/records'
 import { currentWeek } from './lib/week'
 import { Home } from './screens/Home'
@@ -26,6 +26,7 @@ export default function App() {
   const [askGender, setAskGender] = useState(!getGender())
   const [intro, setIntro] = useState(true)
   const [slow, setSlow] = useState(false)
+  const [askStartDay, setAskStartDay] = useState(getStartDay() == null && getSessions().length === 0)
 
   // (re)load the routine — also used by the Reintentar button on the error screen
   const load = () => {
@@ -80,7 +81,13 @@ export default function App() {
   // suggested day = next day NOT trained this week (miss a day → do the next one)
   const trainedDayIds = new Set(getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId))
   const nextUndone = routine.days.findIndex((d) => !trainedDayIds.has(d.id))
-  const suggestedDay = nextUndone >= 0 ? nextUndone : 0
+  let suggestedDay = nextUndone >= 0 ? nextUndone : 0
+  // first run (nothing trained yet): start from the day the member chose on launch
+  const startDayId = getStartDay()
+  if (startDayId && getSessions().length === 0) {
+    const idx = routine.days.findIndex((d) => d.id === startDayId)
+    if (idx >= 0) suggestedDay = idx
+  }
 
   return (
     <div className="min-h-full max-w-md mx-auto relative">
@@ -126,6 +133,12 @@ export default function App() {
       )}
 
       {askGender && !intro && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
+      {askStartDay && !askGender && !intro && routine.days.length > 1 && (
+        <StartDayGate
+          routine={routine}
+          onPick={(dayId) => { setStartDay(dayId); setAskStartDay(false); setTab('hoy') }}
+        />
+      )}
       {intro && <Intro onStart={() => setIntro(false)} />}
     </div>
   )
@@ -143,6 +156,37 @@ function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
           <button onClick={() => onPick('M')} className="rounded-card glass py-6 text-white font-black uppercase active:scale-[0.98]">Hombres</button>
         </div>
         <p className="text-white/40 text-xs mt-4">Lo usamos solo para el ranking de récords.</p>
+      </div>
+    </div>
+  )
+}
+
+// First-run: let the member tell us which day of their plan they're starting on,
+// so the app suggests the right session (instead of always Día 1).
+function StartDayGate({ routine, onPick }: { routine: Routine; onPick: (dayId: string) => void }) {
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+      <div className="w-full max-h-full overflow-y-auto py-6 text-center">
+        <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
+        <div className="kicker">Para arrancar</div>
+        <h1 className="heading text-2xl text-white mt-1 mb-1">¿Con qué día arrancás hoy?</h1>
+        <p className="text-white/45 text-xs mb-5">Después la app te va guiando sola, día a día.</p>
+        <div className="space-y-2 text-left">
+          {routine.days.map((d) => {
+            const focus = d.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
+              || d.blocks.flatMap((b) => b.exercises)[0]?.name
+            return (
+              <button key={d.id} onClick={() => onPick(d.id)}
+                className="w-full rounded-card glass px-4 py-3.5 text-left active:scale-[0.99] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-black text-white uppercase">{d.label.replace('DÍA', 'Día')}</div>
+                  {focus && <div className="text-gold/85 text-sm font-bold truncate">{focus}</div>}
+                </div>
+                <span className="text-white/30 shrink-0">›</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

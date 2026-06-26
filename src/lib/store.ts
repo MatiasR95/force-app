@@ -46,6 +46,7 @@ const KEYS = {
   maxStreak: 'force.maxStreak',
   bodyweights: 'force.bodyweights',
   birthday: 'force.birthday',
+  startDay: 'force.startDay',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -143,6 +144,13 @@ export const setRestPref = (sec: number): void =>
 // ---- records (PRs) --------------------------------------------------------
 export const getGender = (): Gender | null => read<Gender | null>(KEYS.gender, null)
 export const setGender = (g: Gender): void => write(KEYS.gender, g)
+
+// ---- first-run starting day ----------------------------------------------
+// On first launch (before any session is logged) the member tells us which day
+// of their plan they're starting on, so the app suggests the right one. After
+// that, the suggestion follows what they've actually completed. '' = skipped.
+export const getStartDay = (): string | null => read<string | null>(KEYS.startDay, null)
+export const setStartDay = (dayId: string): void => write(KEYS.startDay, dayId)
 
 export const getMyRecords = (): RecordEntry[] => read<RecordEntry[]>(KEYS.myRecords, [])
 export function addMyRecord(entry: RecordEntry): RecordEntry[] {
