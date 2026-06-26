@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, getStartWeek, setStartWeek } from './lib/store'
 import type { Gender } from './lib/records'
 import { currentWeek } from './lib/week'
 import { Home } from './screens/Home'
@@ -62,9 +62,13 @@ export default function App() {
     }
     document.addEventListener('visibilitychange', refresh)
     window.addEventListener('online', refresh)
+    // also poll every 5 min while open, so a coach's edit (weights, added weeks…)
+    // shows up even if the member never backgrounds the app.
+    const poll = window.setInterval(refresh, 5 * 60_000)
     return () => {
       document.removeEventListener('visibilitychange', refresh)
       window.removeEventListener('online', refresh)
+      window.clearInterval(poll)
     }
   }, [])
 
@@ -75,8 +79,10 @@ export default function App() {
   if (routine.days.length === 0)
     return <Splash sub={'Tu rutina todavía no tiene días cargados.\nAvisale a tu coach y volvé a entrar. 💪'} onRetry={load} retryLabel="Volver a buscar" />
 
-  // current week: from the plan's start date, but let the client override it
-  const wk = week ?? currentWeek(routine.meta.startDate, routine.totalWeeks)
+  // the member's current week: from their chosen start-week anchor (advancing each
+  // real week), else the plan's start date. `week` is a transient manual override.
+  const currentWk = memberCurrentWeek(routine)
+  const wk = week ?? currentWk
 
   // suggested day = next day NOT trained this week (miss a day → do the next one)
   const trainedDayIds = new Set(getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId))
@@ -101,7 +107,7 @@ export default function App() {
       <ErrorBoundary key={tab}>
         <div className="screen-in">
           {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
-          {tab === 'hoy' && <Hoy routine={routine} week={wk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+          {tab === 'hoy' && <Hoy routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
           {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
           {tab === 'panel' && <Dashboard routine={routine} />}
           {tab === 'records' && <Records />}
@@ -134,9 +140,14 @@ export default function App() {
 
       {askGender && !intro && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
       {askStartDay && !askGender && !intro && routine.days.length > 1 && (
-        <StartDayGate
+        <StartGate
           routine={routine}
-          onPick={(dayId) => { setStartDay(dayId); setAskStartDay(false); setTab('hoy') }}
+          defaultWeek={currentWk}
+          onPick={(dayId, startWeek) => {
+            setStartDay(dayId)
+            if (startWeek != null) { setStartWeek(startWeek); setWeek(null) }
+            setAskStartDay(false); setTab('hoy')
+          }}
         />
       )}
       {intro && <Intro onStart={() => setIntro(false)} />}
@@ -161,22 +172,37 @@ function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
   )
 }
 
-// First-run: let the member tell us which day of their plan they're starting on,
-// so the app suggests the right session (instead of always Día 1).
-function StartDayGate({ routine, onPick }: { routine: Routine; onPick: (dayId: string) => void }) {
-  return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
-      <div className="w-full max-h-full overflow-y-auto py-6 text-center">
-        <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
-        <div className="kicker">Para arrancar</div>
-        <h1 className="heading text-2xl text-white mt-1 mb-1">¿Con qué día arrancás hoy?</h1>
-        <p className="text-white/45 text-xs mb-5">Después la app te va guiando sola, día a día.</p>
+// The member's current plan week: anchored to the week they said they were on
+// (advancing one per real week), else derived from the plan's start date.
+function memberCurrentWeek(routine: Routine): number {
+  const total = Math.max(1, routine.totalWeeks || 1)
+  const a = getStartWeek()
+  if (a) {
+    const days = Math.floor((Date.parse(localDate() + 'T00:00:00') - Date.parse(a.date + 'T00:00:00')) / 86_400_000)
+    return Math.min(total, Math.max(1, a.week + Math.floor(Math.max(0, days) / 7)))
+  }
+  return currentWeek(routine.meta.startDate, total)
+}
+
+// First-run: the member picks which DAY they're starting on, and (for multi-week
+// plans) which WEEK they're on — many join mid-cycle ("arranco en la semana 5").
+function StartGate({ routine, defaultWeek, onPick }: {
+  routine: Routine; defaultWeek: number; onPick: (dayId: string, startWeek: number | null) => void
+}) {
+  const weekly = routine.style === 'weekly' && routine.totalWeeks > 1
+  const [day, setDay] = useState<string | null>(null)
+  const [wk, setWk] = useState(defaultWeek)
+
+  // step 1: choose the day
+  if (!day) {
+    return (
+      <GateShell title="¿Con qué día arrancás hoy?" sub="Después la app te va guiando sola, día a día.">
         <div className="space-y-2 text-left">
           {routine.days.map((d) => {
             const focus = d.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
               || d.blocks.flatMap((b) => b.exercises)[0]?.name
             return (
-              <button key={d.id} onClick={() => onPick(d.id)}
+              <button key={d.id} onClick={() => (weekly ? setDay(d.id) : onPick(d.id, null))}
                 className="w-full rounded-card glass px-4 py-3.5 text-left active:scale-[0.99] flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-black text-white uppercase">{d.label.replace('DÍA', 'Día')}</div>
@@ -187,6 +213,40 @@ function StartDayGate({ routine, onPick }: { routine: Routine; onPick: (dayId: s
             )
           })}
         </div>
+      </GateShell>
+    )
+  }
+
+  // step 2 (weekly plans): choose the starting week
+  return (
+    <GateShell title="¿En qué semana estás?" sub="Si arrancás el ciclo a mitad de camino, elegí tu semana. Va a avanzar sola cada semana.">
+      <div className="flex items-center justify-center gap-4 my-2">
+        <button onClick={() => setWk((w) => Math.max(1, w - 1))} disabled={wk <= 1}
+          className="h-12 w-12 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white text-2xl font-black disabled:opacity-30 active:scale-90">−</button>
+        <div className="text-center min-w-[5rem]">
+          <div className="text-gold text-4xl font-black tabular-nums leading-none">{wk}</div>
+          <div className="text-[0.6rem] uppercase tracking-micro text-white/45 font-bold mt-1">de {routine.totalWeeks}</div>
+        </div>
+        <button onClick={() => setWk((w) => Math.min(routine.totalWeeks, w + 1))} disabled={wk >= routine.totalWeeks}
+          className="h-12 w-12 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white text-2xl font-black disabled:opacity-30 active:scale-90">+</button>
+      </div>
+      <button onClick={() => onPick(day, wk)}
+        className="btn-glow w-full rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-3.5 mt-4 active:scale-[0.98]">
+        Empezar
+      </button>
+    </GateShell>
+  )
+}
+
+function GateShell({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+      <div className="w-full max-h-full overflow-y-auto py-6 text-center">
+        <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
+        <div className="kicker">Para arrancar</div>
+        <h1 className="heading text-2xl text-white mt-1 mb-1">{title}</h1>
+        <p className="text-white/45 text-xs mb-5">{sub}</p>
+        {children}
       </div>
     </div>
   )

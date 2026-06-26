@@ -47,6 +47,7 @@ const KEYS = {
   bodyweights: 'force.bodyweights',
   birthday: 'force.birthday',
   startDay: 'force.startDay',
+  startWeek: 'force.startWeek',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -151,6 +152,12 @@ export const setGender = (g: Gender): void => write(KEYS.gender, g)
 // that, the suggestion follows what they've actually completed. '' = skipped.
 export const getStartDay = (): string | null => read<string | null>(KEYS.startDay, null)
 export const setStartDay = (dayId: string): void => write(KEYS.startDay, dayId)
+
+// Members often join mid-cycle (e.g. "I start on week 5"). We anchor their week to
+// the date they told us, so it advances on its own each real week afterwards.
+export interface WeekAnchor { week: number; date: string }
+export const getStartWeek = (): WeekAnchor | null => read<WeekAnchor | null>(KEYS.startWeek, null)
+export const setStartWeek = (week: number): void => write(KEYS.startWeek, { week, date: localDate() })
 
 export const getMyRecords = (): RecordEntry[] => read<RecordEntry[]>(KEYS.myRecords, [])
 export function addMyRecord(entry: RecordEntry): RecordEntry[] {

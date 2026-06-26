@@ -7,7 +7,6 @@ import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { CheckCircle2, Dumbbell, CalendarCheck, History, Quote, TriangleAlert } from 'lucide-react'
 import { hasCheckedInToday, addCheckin, getClientName, lastSession, localDate } from '../lib/store'
-import { currentWeek } from '../lib/week'
 import { getWeather, type Weather } from '../lib/weather'
 import { nextQuote } from '../lib/quotes'
 
@@ -26,9 +25,10 @@ function relativeDay(date: string | null | undefined): string | null {
   return `hace ${Math.floor(days / 7)} semanas`
 }
 
-export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
+export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }: {
   routine: Routine
   week: number
+  currentWk: number
   setWeek: (w: number) => void
   suggestedDay: number
   onTrain: (dayIdx: number, week: number) => void
@@ -45,8 +45,8 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   const effWeek = dayWeeks.includes(week) ? week : 1
   const isLastWeek = weekly && routine.totalWeeks > 1 && week >= routine.totalWeeks
   // "Hoy te toca" only when this really is today's session: the suggested day AND
-  // (for weekly plans) the current week. Browsing ahead to Sem 5/6/7 shows "Estás viendo".
-  const onCurrentWeek = !weekly || week === currentWeek(routine.meta.startDate, routine.totalWeeks)
+  // (for weekly plans) the member's current week. Browsing other weeks → "Estás viendo".
+  const onCurrentWeek = !weekly || week === currentWk
   const isToday = dayIdx === suggestedDay && onCurrentWeek
   const bigNames = day.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
   const focus = bigNames || day.blocks.flatMap((b) => b.exercises)[0]?.name || 'Entrenamiento'

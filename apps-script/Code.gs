@@ -21,8 +21,8 @@
  */
 
 // ---- CONFIG (fill these once on the gym account) --------------------------
-var CONFIG_SHEET_ID = 'PUT_CONFIG_SPREADSHEET_ID_HERE'
-var CLIENTES_FOLDER_ID = 'PUT_CLIENTES_FOLDER_ID_HERE' // optional; for name-based fallback
+var CONFIG_SHEET_ID = '1DFbuY-IHuyt61zK6RstqtBWvou28IlXFtRI2bsLqKQQ'
+var CLIENTES_FOLDER_ID = '1-V8PAlzz4nmlPXB8IGiI1fM6ksX8D7aF' // optional; for name-based fallback
 
 // ---- routing --------------------------------------------------------------
 function doGet(e) {
