@@ -147,7 +147,7 @@ y -= 8
 y = section(y, "2 · PASO A PASO", "Tu día de entrenamiento")
 for i, (h_, b_) in enumerate([
     ("Abrí la app", "Caés en INICIO: tu saludo, el clima de La Plata, el próximo feriado y el tip del coach del día."),
-    ("Tocá \"Hoy te toca · Día X\"", "Te lleva directo a entrenar lo que corresponde hoy."),
+    ("Tocá \"Hoy te toca · Día X · Sem Y\"", "Te lleva directo a lo de hoy. La primera vez elegís con qué día y en qué semana arrancás (clave si entrás a mitad de ciclo)."),
     ("Registrá que viniste", "Suma a tu asistencia del mes y a tu racha de semanas seguidas."),
     ("Marcá cada serie", "Un ejercicio a la vez. Tocá el botón dorado \"Marcar serie hecha\" y la app avanza sola."),
     ("Ajustá lo que hiciste de verdad", "Corregí kg / reps / series: va a tu récord, tu progreso y tu planilla."),
@@ -186,7 +186,8 @@ for name, desc in [
 y -= 10
 y = section(y, "TUS DATOS", "Tu perfil")
 y = para(M, y, "Peso: actualizalo una vez por mes (la app te lo recuerda) para mantener tu categoría al día.", 9.5, SOFT)
-y = para(M, y-2, "Cumpleaños: el día de tu cumple aparecés en el tablero de Inicio.", 9.5, SOFT)
+y = para(M, y-2, "Cumpleaños: elegí día y mes; el día de tu cumple aparecés en el tablero de Inicio.", 9.5, SOFT)
+y = para(M, y-2, "Mi semana actual: en planes por semanas, ajustá tu semana del ciclo cuando quieras.", 9.5, SOFT)
 y -= 10
 hw = (W-2*M-12)/2; ch = 56
 card(M, y-ch, hw, ch); card(M+hw+12, y-ch, hw, ch)
@@ -201,23 +202,26 @@ y -= ch+18
 
 y = section(y, "TIPS", "Bueno saber")
 for t in [
-    "Funciona sin señal: entrená igual; cuando vuelve internet, se sincroniza solo.",
-    "Se actualiza sola: si tu coach cambia la rutina, la ves sin reinstalar nada.",
-    "Es gratis y es tuya. Cualquier duda con la técnica, preguntale a tu coach: la animación es solo una referencia.",
+    "Funciona sin señal: entrená igual; se sincroniza solo cuando vuelve internet.",
+    "Se actualiza sola: los cambios de tu coach aparecen al volver a abrir la app.",
+    "Un día se marca al tocar Finalizar. Si algo falla, tocá Reintentar/Recargar o avisá a tu coach.",
+    "Es gratis y es tuya. Dudas con la técnica, preguntale a tu coach (la animación es una referencia).",
 ]:
     c.setFillColorRGB(*GOLD); c.circle(M+3, y-3, 2, fill=1, stroke=0)
     y = para(M+14, y, t, 9.5, SOFT, maxw=W-2*M-14) - 4
 
-by = 72; bh = 66
+by = 60; bh = 90
 c.setFillColorRGB(*GOLD); c.setFillAlpha(0.10)
 c.roundRect(M, by, W-2*M, bh, 10, fill=1, stroke=0); c.setFillAlpha(1)
 c.setStrokeColorRGB(*GOLD); c.setStrokeAlpha(0.3); c.roundRect(M, by, W-2*M, bh, 10, fill=0, stroke=1); c.setStrokeAlpha(1)
-t1 = "NOS VEMOS EN LA SALA. A MOVER HIERRO."
-text(W/2-sw(t1, 12, True)/2, by+44, t1, 12, WHITE, bold=True)
-t2 = "Lo mejor está por venir."
-text(W/2-sw(t2, 14, True)/2, by+24, t2, 14, GOLD, bold=True)
-t3 = "FORCE — La Plata   ·   #TrustTheProcess"
-text(W/2-sw(t3, 8)/2, by+9, t3, 8, GOLD_DEEP)
+t1 = "GRACIAS POR ENTRENAR CON NOSOTROS."
+text(W/2-sw(t1, 11.5, True)/2, by+68, t1, 11.5, WHITE, bold=True)
+t2 = "Esta app la hicimos con mucho laburo y cariño, y la seguimos mejorando."
+text(W/2-sw(t2, 8.5)/2, by+50, t2, 8.5, SOFT)
+t3 = "La familia FORCE siempre merece lo mejor."
+text(W/2-sw(t3, 13.5, True)/2, by+30, t3, 13.5, GOLD, bold=True)
+t4 = "Nos vemos en la sala. Lo mejor está por venir.   ·   FORCE — La Plata"
+text(W/2-sw(t4, 8)/2, by+12, t4, 8, GOLD_DEEP)
 
 c.showPage()
 c.save()
