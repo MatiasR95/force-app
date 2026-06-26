@@ -11,3 +11,6 @@ dist-ssr
 # PDF guide build artifacts
 scripts/_fonts/
 docs/_preview_*.png
+
+# routine audit — contains client tokens, never commit
+scripts/audit-tokens.local.json

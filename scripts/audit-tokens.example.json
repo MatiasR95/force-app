@@ -1,0 +1,7 @@
+{
+  "api": "https://script.google.com/macros/s/PEGAR_TU_EXEC_AQUI/exec",
+  "clients": [
+    { "nombre": "Rodri Leuzzi", "token": "PEGAR_TOKEN" },
+    { "nombre": "Sergio Sosa", "token": "PEGAR_TOKEN" }
+  ]
+}
