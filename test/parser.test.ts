@@ -243,6 +243,26 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(bigOf(2)).toEqual(['Deadlift'])
   })
 
+  it('collapses duplicate day shells (synthetic marker + in-cell marker version skew)', () => {
+    // reproduces the warm-up misalignment: an intermediate backend prepends a
+    // synthetic "DÍA 2" while the tab also has the in-cell "DAY 2" → a phantom
+    // empty day. Parser must drop the empty shell and keep the real day's warm-up.
+    const tab = (synthetic: string | null, marker: string, warm: string, ex: string) => [
+      ...(synthetic ? [[synthetic, '', '', '', '']] : []),
+      [marker, '', '', '', '', 'Semana 2'],
+      ['WARM-UP', warm],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', ex, '3', '4', '40kg x lado', '3X5'],
+    ]
+    const r = parseRoutine([
+      ...tab(null, 'DÍA 1', 'warm 1', 'Sentadilla'),
+      ...tab('DÍA 2', 'DAY 2', 'warm 2', 'Banco'),
+      ...tab('DÍA 3', 'DAY 3', 'warm 3', 'Dominada'),
+    ])
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'DÍA 3'])
+    expect(r.days.map((d) => d.warmup)).toEqual(['warm 1', 'warm 2', 'warm 3'])
+  })
+
   it('handles a 6-day plan and keeps every day even out of order', () => {
     const rows: string[][] = []
     for (const n of [1, 3, 2, 6, 4, 5]) {
@@ -261,6 +281,25 @@ describe('parseLoad', () => {
     expect(parseLoad('15kg')).toMatchObject({ value: 15, perSide: false })
     expect(parseLoad('Gris')).toMatchObject({ value: null, band: expect.any(String) })
     expect(parseLoad('')).toMatchObject({ value: null, perSide: false })
+  })
+  it('detects per-side written in es/en variants (real coach sheets)', () => {
+    for (const s of ['25kg per side', '27,5kg per side', '6 x side', '10 e/side', '30kg por lado', '5kg p/lado']) {
+      expect(parseLoad(s).perSide, s).toBe(true)
+    }
+    expect(parseLoad('25kg').perSide).toBe(false)
+  })
+})
+
+describe('week-column header variants', () => {
+  it('detects "9 semana" (number before "semana"), not just "Semana 9"', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', '', 'Semana 8', '9 semana', '10 semana'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', 'Sentadilla', '5', '4', '40kg', '6X4', '7X4', '8X4'],
+    ])
+    const sq = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(Object.keys(sq.weeks).map(Number).sort((a, b) => a - b)).toEqual([8, 9, 10])
+    expect(resolveWeek(sq, 9)).toMatchObject({ reps: 7, sets: 4 })
   })
 })
 

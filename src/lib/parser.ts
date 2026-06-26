@@ -53,11 +53,17 @@ const dayLabel = (a: string): string => a.toUpperCase().replace(/^(?:DAY|DIA)(?=
 function scanWeekCols(cells: string[]): Array<{ week: number; col: number }> {
   const out: Array<{ week: number; col: number }> = []
   for (let i = 5; i < cells.length; i++) {
-    const wm = norm(cells[i]).match(/semana\s*(\d+)/i)
+    const cell = norm(cells[i])
+    // accept "Semana 9" and the reversed "9 semana" / "9na semana" coaches also write
+    const wm = cell.match(/semana\s*(\d+)/i) || cell.match(/(\d+)\s*(?:ª|°|na|da|er|ra)?\s*semana/i)
     if (wm) out.push({ week: parseInt(wm[1], 10), col: i })
   }
   return out
 }
+
+// "per side" loads — coaches write it many ways (es/en): "x lado", "/lado",
+// "por lado", "x side", "per side", "e/side" (each side), "p/side".
+const PER_SIDE = /x\s*lado|\/\s*lado|por\s*lado|p\/\s*lado|x\s*side|per\s*side|e\/?\s*side|p\/\s*side/i
 
 // ---- value parsers ------------------------------------------------------
 
@@ -68,7 +74,7 @@ const toNum = (s: string): number | null => {
 
 export function parseLoad(obs: string): Load {
   const raw = obs.trim()
-  const perSide = /x\s*lado/i.test(raw)
+  const perSide = PER_SIDE.test(raw)
   const bandMatch = raw.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
   const hasKg = /kg/i.test(raw) || /^\s*-?\d/.test(raw)
   const value = hasKg ? toNum(raw) : null
@@ -89,14 +95,14 @@ export function parseTechniques(name: string, reps: string, obs: string): Techni
   if (cluster) t.push({ type: 'cluster', restSeconds: cluster[1] ? parseInt(cluster[1], 10) : null })
   const band = obs.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
   if (band) t.push({ type: 'band', color: band[1] })
-  if (/x\s*lado/i.test(hay)) t.push({ type: 'perSide' })
+  if (PER_SIDE.test(hay)) t.push({ type: 'perSide' })
   if (/amrap|al\s*fallo|max/i.test(hay)) t.push({ type: 'amrap' })
   return t
 }
 
 function extractNote(obs: string, load: Load): string {
   if (load.value == null) return load.band ? '' : obs.trim()
-  return obs.replace(/-?\d+(?:[.,]\d+)?\s*kg/i, '').replace(/x\s*lado/i, '').replace(/\s+/g, ' ').trim()
+  return obs.replace(/-?\d+(?:[.,]\d+)?\s*kg/i, '').replace(PER_SIDE, '').replace(/\s+/g, ' ').trim()
 }
 
 // A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
@@ -338,14 +344,28 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     }
   }
 
-  // sort days by number (Día 3 before Día 4), stable for duplicates
-  days.sort((x, y) => x.index - y.index)
+  // Drop empty day shells: a "DÍA N" marker with no warm-up and no exercises. These
+  // appear when the backend prepends a synthetic marker AND the tab also carries an
+  // in-cell marker (version skew) — leaving a phantom day that scrambles day/warm-up
+  // alignment. Keep only days that actually have content.
+  const live = days.filter((d) => d.warmup || d.blocks.some((b) => b.exercises.length))
+  // de-dup by index, preferring the richer day (more exercises) if two share a number
+  const byIndex = new Map<number, RoutineDay>()
+  for (const d of live) {
+    const prev = byIndex.get(d.index)
+    const count = (x: RoutineDay) => x.blocks.reduce((n, b) => n + b.exercises.length, 0)
+    if (!prev || count(d) > count(prev)) byIndex.set(d.index, d)
+  }
+  const dedup = [...byIndex.values()]
 
-  const weeksAvailable = [...new Set(days.flatMap((d) => d.weeks))].sort((x, y) => x - y)
+  // sort days by number (Día 3 before Día 4)
+  dedup.sort((x, y) => x.index - y.index)
+
+  const weeksAvailable = [...new Set(dedup.flatMap((d) => d.weeks))].sort((x, y) => x - y)
   const totalWeeks = toNum(meta.weeks) ?? (weeksAvailable.length ? Math.max(...weeksAvailable) : 1)
   // weekly (powerlifting: same lifts, per-week columns) vs daily (changes day by day)
   const style: 'weekly' | 'daily' = weeksAvailable.length > 1 ? 'weekly' : 'daily'
 
-  if (!days.length) warnings.push('No se detectaron días (DÍA N) en la planilla.')
-  return { title, meta, days, weeksAvailable, totalWeeks, style, parsedWarnings: warnings }
+  if (!dedup.length) warnings.push('No se detectaron días (DÍA N) en la planilla.')
+  return { title, meta, days: dedup, weeksAvailable, totalWeeks, style, parsedWarnings: warnings }
 }
