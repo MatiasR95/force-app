@@ -48,8 +48,7 @@ export function Profile({ open, onClose }: { open: boolean; onClose: () => void 
         </Field>
 
         <Field icon={<Cake size={15} />} label="Cumpleaños">
-          <input type="date" value={bday ? `2000-${bday}` : ''} onChange={(e) => setB(e.target.value ? e.target.value.slice(5) : '')}
-            className="w-full bg-white/5 border border-white/10 rounded-card px-3 py-2.5 text-white focus:border-gold/50 outline-none [color-scheme:dark]" />
+          <BirthdayPicker value={bday} onChange={setB} />
           <p className="text-[0.62rem] text-white/40 mt-1.5">Aparecés en el tablero de cumpleaños del día. Guardamos solo día y mes.</p>
         </Field>
 
@@ -68,6 +67,33 @@ export function Profile({ open, onClose }: { open: boolean; onClose: () => void 
         </button>
       </div>
     </BottomSheet>
+  )
+}
+
+// Day + month picker (no year — we only store/use día y mes for the birthday board,
+// so a date input's year field just confused people by snapping back).
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+function BirthdayPicker({ value, onChange }: { value: string; onChange: (mmdd: string) => void }) {
+  const [mm, dd] = value ? value.split('-') : ['', '']
+  const daysInMonth = mm ? new Date(2024, parseInt(mm, 10), 0).getDate() : 31 // 2024 = leap → allows 29 Feb
+  const set = (month: string, day: string) => {
+    if (!month || !day) { onChange(''); return }
+    onChange(`${month}-${day}`)
+  }
+  const selCls = 'flex-1 bg-white/5 border border-white/10 rounded-card px-3 py-2.5 text-white focus:border-gold/50 outline-none [color-scheme:dark]'
+  return (
+    <div className="flex gap-2">
+      <select value={dd} onChange={(e) => set(mm || '01', e.target.value)} className={selCls} aria-label="Día">
+        <option value="">Día</option>
+        {Array.from({ length: daysInMonth }, (_, i) => pad2(i + 1)).map((d) => <option key={d} value={d}>{parseInt(d, 10)}</option>)}
+      </select>
+      <select value={mm} onChange={(e) => set(e.target.value, dd || '01')} className={selCls} aria-label="Mes">
+        <option value="">Mes</option>
+        {MESES.map((name, i) => <option key={name} value={pad2(i + 1)}>{name}</option>)}
+      </select>
+    </div>
   )
 }
 

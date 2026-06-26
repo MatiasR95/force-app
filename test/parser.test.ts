@@ -217,6 +217,32 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(resolveWeek(press, 2)).toMatchObject({ reps: 6, sets: 3 })
   })
 
+  it('recognizes English "DAY N" markers and normalizes the label to "DÍA N"', () => {
+    // real-world sheet (Belu): tabs labelled "DÍA 1", "DAY 2", … mixed languages.
+    // Each tab has its own THE BIG ONE; without DAY-recognition they all merged
+    // into Día 1 and the Big One showed every exercise.
+    const rows = [
+      ['DÍA 1', '', '', '', '', 'Semana 2'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', 'Sentadillas', '3', '4', '43,75kg x lado', '3X5'],
+      ['ACCESORIOS', 'Gemelos', '10', '4', 'SSB'],
+      ['DAY 2', '', '', '', '', 'Semana 2'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', 'Bench Press', '4', '4', '32,5kg x lado', '4X5'],
+      ['ACCESORIOS', 'Apertura Plana', '10', '4', '25kg'],
+      // markerless tab (day lives in the tab name) — backend prepends "DÍA 4"
+      ['DÍA 4', '', '', '', ''],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', 'Deadlift', '3', '4', '80kg x lado'],
+    ]
+    const r = parseRoutine(rows)
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'DÍA 4'])
+    const bigOf = (i: number) => r.days[i].blocks.find((b) => b.tag === 'big')!.exercises.map((e) => e.name)
+    expect(bigOf(0)).toEqual(['Sentadillas'])
+    expect(bigOf(1)).toEqual(['Bench Press']) // NOT polluted with other days' big lifts
+    expect(bigOf(2)).toEqual(['Deadlift'])
+  })
+
   it('handles a 6-day plan and keeps every day even out of order', () => {
     const rows: string[][] = []
     for (const n of [1, 3, 2, 6, 4, 5]) {

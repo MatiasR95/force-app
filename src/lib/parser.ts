@@ -26,7 +26,7 @@ function tagInfo(a: string): { tag: SectionTag; title: string } | null {
   const s = deburr(a)
   if (!s) return null
   if (!/[a-z]/.test(s)) return null // not a real label (e.g. "??!!") → let it warn
-  if (/^dia\s*\d+/.test(s)) return null
+  if (/^(?:dia|day)\s*\d+/.test(s)) return null
   if (s.includes('warm') || s.includes('entrada en calor')) return { tag: 'warmup', title: SECTION_TITLES.warmup }
   if (s.includes('big one')) return { tag: 'big', title: SECTION_TITLES.big }
   if (s.startsWith('acc')) return { tag: 'accessory', title: SECTION_TITLES.accessory }
@@ -40,7 +40,12 @@ function tagInfo(a: string): { tag: SectionTag; title: string } | null {
 const titleCase = (s: string): string =>
   s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).trim()
 
-const isDayMarker = (a: string): RegExpMatchArray | null => deburr(a).match(/^dia\s*(\d+)/)
+// A day marker in column A: "DÍA 1", "DIA 1", or the English "DAY 1" (coaches mix
+// languages). deburr lowercases + strips accents first.
+const isDayMarker = (a: string): RegExpMatchArray | null => deburr(a).match(/^(?:dia|day)\s*(\d+)/)
+
+// Canonical "DÍA N" label, preserving any trailing descriptor ("DÍA 1 - Tren sup").
+const dayLabel = (a: string): string => a.toUpperCase().replace(/^(?:DAY|DIA)(?=\s*\d)/, 'DÍA')
 
 // Scan a row (from col F onward) for "Semana N" per-week column headers. These
 // can sit on the "DÍA N" marker row OR on the "EJERCICIO ..." header row,
@@ -241,7 +246,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const dm = isDayMarker(a)
     if (dm) {
       const idx = parseInt(dm[1], 10)
-      day = { id: `d${days.length + 1}-${idx}`, label: a.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
+      day = { id: `d${days.length + 1}-${idx}`, label: dayLabel(a), index: idx, warmup: '', weeks: [1], blocks: [] }
       days.push(day)
       section = 'ramp'
       seenBig = false

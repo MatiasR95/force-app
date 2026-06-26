@@ -119,10 +119,10 @@ function allTabRows_(fileId) {
   return { values: values, sizes: sizes, sheets: sheets, injected: injected }
 }
 
-/** True if any row carries an in-cell "DÍA N" marker in column A. */
+/** True if any row carries an in-cell day marker in column A ("DÍA 1" or "DAY 1"). */
 function hasInCellDayMarker_(rows) {
   for (var i = 0; i < rows.length; i++) {
-    if (/^\s*d[ií]a\s*\d+/i.test(String(rows[i][0] || ''))) return true
+    if (/^\s*(?:d[ií]a|day)\s*\d+/i.test(String(rows[i][0] || ''))) return true
   }
   return false
 }
@@ -136,9 +136,9 @@ function hasExerciseRow_(rows) {
   return false
 }
 
-/** Day number for a tab: a number in the tab name, else the running fallback. */
+/** Day number for a tab: a number in the tab name ("Día 4", "Day 4", "D4", "4"), else fallback. */
 function tabDayNumber_(name, fallback) {
-  var m = String(name || '').toLowerCase().match(/d[ií]a\s*(\d+)|d[ií]a(\d+)|\bd(\d+)\b|(\d+)/)
+  var m = String(name || '').toLowerCase().match(/d[ií]a\s*(\d+)|day\s*(\d+)|\bd(\d+)\b|(\d+)/)
   if (m) return parseInt(m[1] || m[2] || m[3] || m[4], 10)
   return fallback
 }
