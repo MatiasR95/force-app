@@ -119,10 +119,12 @@ function allTabRows_(fileId) {
   return { values: values, sizes: sizes, sheets: sheets, injected: injected }
 }
 
-/** True if any row carries an in-cell day marker in column A ("DÍA 1" or "DAY 1"). */
+/** True if any row carries an in-cell day marker in column A: "DÍA 1"/"DAY 1" or a
+ *  weekday name ("SÁBADOS"/"LUNES"…) some coaches use instead. */
 function hasInCellDayMarker_(rows) {
+  var re = /^\s*(?:d[ií]a|day)\s*\d+|^\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bados?|domingos?)\b/i
   for (var i = 0; i < rows.length; i++) {
-    if (/^\s*(?:d[ií]a|day)\s*\d+/i.test(String(rows[i][0] || ''))) return true
+    if (re.test(String(rows[i][0] || ''))) return true
   }
   return false
 }

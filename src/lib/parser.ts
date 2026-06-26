@@ -40,9 +40,13 @@ function tagInfo(a: string): { tag: SectionTag; title: string } | null {
 const titleCase = (s: string): string =>
   s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).trim()
 
-// A day marker in column A: "DÍA 1", "DIA 1", or the English "DAY 1" (coaches mix
-// languages). deburr lowercases + strips accents first.
+// A numbered day marker in column A: "DÍA 1", "DIA 1", or English "DAY 1".
 const isDayMarker = (a: string): RegExpMatchArray | null => deburr(a).match(/^(?:dia|day)\s*(\d+)/)
+
+// A weekday-name day marker — some coaches label a day "SÁBADOS"/"LUNES" instead
+// of "DÍA N" (e.g. a Saturday session). These get a sequential day number.
+const isWeekdayMarker = (a: string): boolean =>
+  /^(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)\b/.test(deburr(a))
 
 // Canonical "DÍA N" label, preserving any trailing descriptor ("DÍA 1 - Tren sup").
 const dayLabel = (a: string): string => a.toUpperCase().replace(/^(?:DAY|DIA)(?=\s*\d)/, 'DÍA')
@@ -186,6 +190,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   let seenBig = false
   let exIdx = 0
   let weekCols: Array<{ week: number; col: number }> = []
+  let lastDayIndex = 0 // for weekday-named days, which carry no number
 
   const pushExercise = (cells: string[], rowIdx: number) => {
     if (!day) return
@@ -248,11 +253,13 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       else if (key.includes('objetivo')) meta.goal ||= dCol
     }
 
-    // new day — also scan this row for "Semana N" week columns
+    // new day — numbered ("DÍA 3"/"DAY 3") or weekday-named ("SÁBADOS"/"LUNES").
+    // Also scan this row for "Semana N" week columns.
     const dm = isDayMarker(a)
-    if (dm) {
-      const idx = parseInt(dm[1], 10)
-      day = { id: `d${days.length + 1}-${idx}`, label: dayLabel(a), index: idx, warmup: '', weeks: [1], blocks: [] }
+    if (dm || isWeekdayMarker(a)) {
+      const idx = dm ? parseInt(dm[1], 10) : lastDayIndex + 1
+      lastDayIndex = idx
+      day = { id: `d${days.length + 1}-${idx}`, label: dm ? dayLabel(a) : a.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
       days.push(day)
       section = 'ramp'
       seenBig = false

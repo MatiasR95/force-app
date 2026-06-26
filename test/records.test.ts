@@ -29,6 +29,12 @@ describe('matchRecordLift', () => {
     expect(matchRecordLift('Militar Press')).toBe('press-militar')
     expect(matchRecordLift('Sentadillas')).toBe('sentadilla')
   })
+  it('maps "Press Hombros" to the military press but excludes KB/DB variants', () => {
+    expect(matchRecordLift('Press Hombros')).toBe('press-militar')
+    expect(matchRecordLift('Press de Hombros')).toBe('press-militar')
+    expect(matchRecordLift('Press Hombros KB Sentado')).toBeNull()
+    expect(matchRecordLift('Press Hombros KB')).toBeNull()
+  })
 })
 
 describe('recordKg', () => {

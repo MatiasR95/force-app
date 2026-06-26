@@ -263,6 +263,20 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(r.days.map((d) => d.warmup)).toEqual(['warm 1', 'warm 2', 'warm 3'])
   })
 
+  it('recognizes a weekday-named day ("SÁBADOS") as its own sequential day', () => {
+    const day = (marker: string, ex: string) => [
+      [marker, '', '', '', ''],
+      ['WARM-UP', `warm ${marker}`],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', ex, '4', '4', '40kg x lado'],
+    ]
+    const r = parseRoutine([...day('DÍA 1', 'Sentadilla'), ...day('DÍA 2', 'Banco'), ...day('SÁBADOS', 'Press 1 brazo')])
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'SÁBADOS'])
+    expect(r.days.map((d) => d.index)).toEqual([1, 2, 3])
+    expect(r.days[2].warmup).toBe('warm SÁBADOS')
+    expect(r.days[2].blocks.find((b) => b.tag === 'big')!.exercises[0].name).toBe('Press 1 brazo')
+  })
+
   it('handles a 6-day plan and keeps every day even out of order', () => {
     const rows: string[][] = []
     for (const n of [1, 3, 2, 6, 4, 5]) {
