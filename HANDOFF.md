@@ -83,7 +83,13 @@ Member phone (PWA, installable, offline-first)        Google (gym account forceb
 - **Inicio (Home)** — welcome + date, animated **Argentina flag** by the emblem, today's-session CTA,
   **4-day La Plata forecast**, **próximo feriado** + days left, **coach tip** tied to the day's Big One,
   rachas snapshot, today's-birthday board, monthly bodyweight nudge, **Perfil** sheet (name/gender/birthday/bw).
-- **Hoy** — "🔥 Hoy te toca · Día X", weather, "última vez" recap, last-week advice, inline Entrenar CTA, day selector.
+- **Hoy** — "🔥 Hoy te toca · Día X" (says **"Estás viendo"** when browsing a non-current week), weather, "última
+  vez" recap, last-week advice, inline Entrenar CTA, day selector.
+- **First-run day prompt** (`StartDayGate` in `App.tsx`) — after Intro+gender, a multi-day plan asks "¿Con qué día
+  arrancás hoy?"; the choice (`store.getStartDay`) seeds the suggested day until the first session is logged, then
+  the suggestion follows completed sessions. Suggested day = first day not trained in the last 7 days.
+- **Week values** follow the gym rule: a blank week cell repeats the **last non-empty** week (weight+reps+series),
+  not week 1 (`resolveWeek`); HIIT/timed circuits carry the time+rounds forward to blank rows. See memory `force-empty-cell-rule`.
 - **Plan** — all days (one pill per `routine.days` entry), meta, history. **Panel** — attendance, streak, Big-3
   e1RM, per-lift e1RM trend, volume by pattern, RPE, tonnage.
 - **Entrenar** — "Marcar serie hecha" auto-advances; RestTimer; **AdjustField** (edit actual kg/reps/series →
