@@ -277,6 +277,21 @@ describe('parseRoutine — plan-shape robustness (never empty when there is work
     expect(r.days[2].blocks.find((b) => b.tag === 'big')!.exercises[0].name).toBe('Press 1 brazo')
   })
 
+  it('detects a day marker indented into column B/C (not just column A)', () => {
+    // some coaches indent the "DÍA N" title two columns; warm-up text also in col C
+    const r = parseRoutine([
+      ['', '', 'Sesiones semanales', '4x Semana'],
+      ['', '', 'DÍA 1', '', 'TRUE', 'Semana 2'],
+      ['WARM-UP', '', 'movilidad y activación'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['THE BIG ONE', 'Sentadillas', '5', '3', '27,5kg x lado', '5X4'],
+    ])
+    expect(r.days).toHaveLength(1)
+    expect(r.days[0].label).toBe('DÍA 1')
+    expect(r.days[0].warmup).toBe('movilidad y activación')
+    expect(r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0].name).toBe('Sentadillas')
+  })
+
   it('handles a 6-day plan and keeps every day even out of order', () => {
     const rows: string[][] = []
     for (const n of [1, 3, 2, 6, 4, 5]) {

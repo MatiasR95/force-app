@@ -254,12 +254,14 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     }
 
     // new day — numbered ("DÍA 3"/"DAY 3") or weekday-named ("SÁBADOS"/"LUNES").
-    // Also scan this row for "Semana N" week columns.
-    const dm = isDayMarker(a)
-    if (dm || isWeekdayMarker(a)) {
+    // The marker is usually in col A, but some coaches indent it into col B/C, so
+    // scan the first three columns. Also scan this row for "Semana N" week columns.
+    const markerCell = [a, norm(cells[1]), norm(cells[2])].find((v) => v && (isDayMarker(v) || isWeekdayMarker(v)))
+    if (markerCell) {
+      const dm = isDayMarker(markerCell)
       const idx = dm ? parseInt(dm[1], 10) : lastDayIndex + 1
       lastDayIndex = idx
-      day = { id: `d${days.length + 1}-${idx}`, label: dm ? dayLabel(a) : a.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
+      day = { id: `d${days.length + 1}-${idx}`, label: dm ? dayLabel(markerCell) : markerCell.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
       days.push(day)
       section = 'ramp'
       seenBig = false

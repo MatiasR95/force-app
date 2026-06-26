@@ -114,7 +114,7 @@ export function matchRecordLift(name: string): string | null {
   // strict barbell military/overhead press — exclude alternated/Arnold/seated/push-press
   // and other accessory overhead variants so they don't fire a false record
   if (/press militar|militar|overhead press|press (de )?hombros?/.test(s)
-    && !/alternad|alternated|arnold|sentad|seated|inclinad|incline|push press|cubano|landmine|z press|kb|mancuerna/.test(s)) return 'press-militar'
+    && !/alternad|alternated|arnold|sentad|seated|inclinad|incline|push press|cubano|landmine|z press|kb|mancuerna|unilateral/.test(s)) return 'press-militar'
   return null
 }
 

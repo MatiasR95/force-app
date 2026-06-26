@@ -124,7 +124,10 @@ function allTabRows_(fileId) {
 function hasInCellDayMarker_(rows) {
   var re = /^\s*(?:d[ií]a|day)\s*\d+|^\s*(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bados?|domingos?)\b/i
   for (var i = 0; i < rows.length; i++) {
-    if (re.test(String(rows[i][0] || ''))) return true
+    // marker is usually in col A but some coaches indent it into col B/C
+    for (var col = 0; col < 3; col++) {
+      if (re.test(String((rows[i] && rows[i][col]) || ''))) return true
+    }
   }
   return false
 }
