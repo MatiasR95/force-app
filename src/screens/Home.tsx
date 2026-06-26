@@ -149,7 +149,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
         </button>
       )}
 
-      <Profile open={profile} onClose={() => setProfile(false)} />
+      <Profile open={profile} onClose={() => setProfile(false)} routine={routine} />
     </div>
   )
 }

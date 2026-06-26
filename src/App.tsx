@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, getStartWeek, setStartWeek } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek } from './lib/store'
 import type { Gender } from './lib/records'
-import { currentWeek } from './lib/week'
+import { memberCurrentWeek } from './lib/week'
 import { Home } from './screens/Home'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
@@ -170,18 +170,6 @@ function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
       </div>
     </div>
   )
-}
-
-// The member's current plan week: anchored to the week they said they were on
-// (advancing one per real week), else derived from the plan's start date.
-function memberCurrentWeek(routine: Routine): number {
-  const total = Math.max(1, routine.totalWeeks || 1)
-  const a = getStartWeek()
-  if (a) {
-    const days = Math.floor((Date.parse(localDate() + 'T00:00:00') - Date.parse(a.date + 'T00:00:00')) / 86_400_000)
-    return Math.min(total, Math.max(1, a.week + Math.floor(Math.max(0, days) / 7)))
-  }
-  return currentWeek(routine.meta.startDate, total)
 }
 
 // First-run: the member picks which DAY they're starting on, and (for multi-week

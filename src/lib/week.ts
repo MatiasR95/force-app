@@ -1,4 +1,5 @@
-import type { ExerciseRow, Block, Load } from './types'
+import type { ExerciseRow, Block, Load, Routine } from './types'
+import { getStartWeek, localDate } from './store'
 
 // Resolve an exercise's effective prescription for a given week. Week 1 = base
 // fields; weeks 2+ use the "Semana N" override, falling back to base where the
@@ -73,4 +74,18 @@ export function currentWeek(startRaw: string, totalWeeks: number, now = new Date
   const days = Math.floor((now.getTime() - start.getTime()) / 86_400_000)
   if (days < 0) return 1
   return Math.min(totalWeeks || 1, Math.floor(days / 7) + 1)
+}
+
+/**
+ * The member's current plan week: anchored to the week they told us they were on
+ * (advancing one per real week since), else derived from the plan's start date.
+ */
+export function memberCurrentWeek(routine: Routine): number {
+  const total = Math.max(1, routine.totalWeeks || 1)
+  const a = getStartWeek()
+  if (a) {
+    const days = Math.floor((Date.parse(localDate() + 'T00:00:00') - Date.parse(a.date + 'T00:00:00')) / 86_400_000)
+    return Math.min(total, Math.max(1, a.week + Math.floor(Math.max(0, days) / 7)))
+  }
+  return currentWeek(routine.meta.startDate, total)
 }

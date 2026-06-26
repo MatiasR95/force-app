@@ -2,19 +2,24 @@ import { useState } from 'react'
 import { BottomSheet } from './ui'
 import {
   getClientName, setClientName, getGender, setGender,
-  getBirthday, setBirthday, getBodyweight, addBodyweight,
+  getBirthday, setBirthday, getBodyweight, addBodyweight, setStartWeek,
 } from '../lib/store'
 import type { Gender } from '../lib/records'
 import { weightClass } from '../lib/records'
-import { User, Cake, Scale, Check } from 'lucide-react'
+import { memberCurrentWeek } from '../lib/week'
+import type { Routine } from '../lib/types'
+import { User, Cake, Scale, Check, CalendarRange, Minus, Plus } from 'lucide-react'
 
-// Member profile: name, gender (record categories), birthday (cumpleaños board)
-// and current bodyweight (record weight class + monthly nudge). All local-first.
-export function Profile({ open, onClose }: { open: boolean; onClose: () => void }) {
+// Member profile: name, gender (record categories), birthday (cumpleaños board),
+// current bodyweight (record weight class + monthly nudge) and — for weekly plans —
+// "mi semana actual" so a member who joined mid-cycle can fix their week. All local-first.
+export function Profile({ open, onClose, routine }: { open: boolean; onClose: () => void; routine?: Routine }) {
   const [name, setName] = useState(getClientName() ?? '')
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [bday, setB] = useState(getBirthday() ?? '') // MM-DD
   const [bw, setBw] = useState(getBodyweight()?.toString() ?? '')
+  const weekly = !!routine && routine.style === 'weekly' && routine.totalWeeks > 1
+  const [week, setWk] = useState(() => (routine ? memberCurrentWeek(routine) : 1))
   const [saved, setSaved] = useState(false)
 
   const wc = weightClass(gender, parseFloat(bw) || null)
@@ -25,6 +30,7 @@ export function Profile({ open, onClose }: { open: boolean; onClose: () => void 
     if (bday) setBirthday(bday)
     const n = parseFloat(bw.replace(',', '.'))
     if (n > 0 && n !== getBodyweight()) addBodyweight(n)
+    if (weekly && routine && week !== memberCurrentWeek(routine)) setStartWeek(week) // re-anchor only if changed
     setSaved(true)
     window.setTimeout(() => { setSaved(false); onClose() }, 650)
   }
@@ -60,6 +66,22 @@ export function Profile({ open, onClose }: { open: boolean; onClose: () => void 
             Actualizalo una vez por mes para clasificar bien tus récords.
           </p>
         </Field>
+
+        {weekly && routine && (
+          <Field icon={<CalendarRange size={15} />} label="Mi semana actual">
+            <div className="flex items-center justify-between rounded-card bg-white/5 border border-white/10 px-3 py-2">
+              <button onClick={() => setWk((w) => Math.max(1, w - 1))} disabled={week <= 1}
+                className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white disabled:opacity-30 active:scale-90"><Minus size={16} /></button>
+              <div className="text-center">
+                <span className="text-gold text-2xl font-black tabular-nums">{week}</span>
+                <span className="text-white/35 text-sm font-bold"> / {routine.totalWeeks}</span>
+              </div>
+              <button onClick={() => setWk((w) => Math.min(routine.totalWeeks, w + 1))} disabled={week >= routine.totalWeeks}
+                className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white disabled:opacity-30 active:scale-90"><Plus size={16} /></button>
+            </div>
+            <p className="text-[0.62rem] text-white/40 mt-1.5">Avanza sola cada semana. Ajustala solo si arrancaste el ciclo a mitad de camino.</p>
+          </Field>
+        )}
 
         <button onClick={save}
           className="btn-glow w-full flex items-center justify-center gap-2 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-3.5 mt-2 active:scale-[0.98]">
