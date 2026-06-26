@@ -41,6 +41,37 @@ where possible, grounded in respected sources.
 4. **Exercise ↔ record mapping.** Keep `matchRecordLift` (`src/lib/records.ts`) correct:
    which exercises count as records and which variations are excluded.
 
+5. **Sheet format audit / normalization.** Coaches keep planning freely in Google Sheets; the app
+   reads whatever they write via `src/lib/parser.ts`. When a coach's sheet renders wrong (a day
+   missing, exercises piled into one day, a "Big One" showing every lift), check it against the
+   **format contract below** and tell the coach the smallest change to make it parse — never demand
+   a rewrite of their workflow. The parser is deliberately tolerant; prefer widening the parser
+   (flag to the main dev) over forcing coaches into a rigid template, but these are the rules it
+   currently relies on:
+
+   **Routine sheet format contract** (what the parser expects)
+   - **Days.** Either one day per tab, or several days in one tab. Each day starts with a marker in
+     **column A**: `DÍA N` / `DIA N` / `DAY N` (+ optional descriptor, e.g. `DÍA 1 - Tren inferior`).
+     A tab with exercises but **no in-cell marker** gets its day number from the **tab name** (it must
+     contain a number, e.g. tab named `Día 4`); otherwise the backend can't place it.
+   - **Meta** (optional). A row with **column C** = `Sesiones semanales` / `Fecha de Inicio` /
+     `Semanas` / `Objetivo` and the value in **column D**. (`Semanas` may be free text; week count
+     then comes from the per-week columns.)
+   - **Section headers** in column A: `WARM-UP`, `THE BIG ONE` (or `THE BIG ONES`), `ACCESORIOS`/`ACCS`,
+     `FINISHERS`, `CORE`/`ZONA MEDIA`, `HIIT`/`METABÓLICO`. Any other label becomes its own section.
+   - **Column header row**: column B = `EJERCICIO`, then `REPETICIONES`, `SERIES`, `OBSERVACIONES`.
+   - **Exercise rows**: B = name, C = reps (`8`, `8 x lado`, `30''`/`30"` for timed), D = series
+     (`4`, or ramp ordinals `1°`/`2°`/`3°`), E = observaciones (load `27,5kg x lado`, bands `Naranja`,
+     free notes — all preserved).
+   - **Per-week columns**: from **column F** onward, headers `Semana 2`, `Semana 3`, … (may sit on the
+     DÍA row OR the EJERCICIO header row). Cell formats: `6X4` (reps×series), `4X4 30kg x lado` (with
+     load), `3X1+2X3` / `8-8-6-6` (complex → shown as-is), `Mismo semana ant.` (inherit). **An empty
+     week cell = repeat the last non-empty week** (load + reps + series). HIIT/timed circuits may write
+     the `30″ × N` scheme once on the first row; blanks below inherit it.
+   - **Gotchas:** the routine sheet must be the newest non-`Seguimiento`/`records`/`rachas` sheet in the
+     client folder; mixed Spanish/English day labels are fine; a sheet whose header looks like the
+     Seguimiento log (`timestamp`+`kg_real`…) is rejected as "not a routine".
+
 ## How you work
 - Read the relevant source files first; reuse existing utilities (`pickMove`/`detectImpl` in
   AnimatedExercise, `classifyPattern`/`slugify` in normalize, `matchRecordLift` in records).
