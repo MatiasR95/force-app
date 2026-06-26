@@ -19,6 +19,16 @@ describe('matchRecordLift', () => {
     expect(matchRecordLift('Peso Muerto Rumano')).toBeNull()
     expect(matchRecordLift('Face Pull')).toBeNull()
   })
+  it('excludes front squats and accessory overhead presses (real-sheet false records)', () => {
+    expect(matchRecordLift('Front Squats')).toBeNull()
+    expect(matchRecordLift('Sentadillas Frontales')).toBeNull()
+    expect(matchRecordLift('Alternated Overhead press')).toBeNull()
+    expect(matchRecordLift('Press Arnold Arrodillado')).toBeNull()
+    expect(matchRecordLift('Press Hombros Sentado')).toBeNull()
+    // the real records still match
+    expect(matchRecordLift('Militar Press')).toBe('press-militar')
+    expect(matchRecordLift('Sentadillas')).toBe('sentadilla')
+  })
 })
 
 describe('recordKg', () => {

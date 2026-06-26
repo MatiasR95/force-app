@@ -99,8 +99,9 @@ export function bestOf(entries: RecordEntry[], client: string): RecordEntry | nu
  */
 export function matchRecordLift(name: string): string | null {
   const s = deburr(name)
-  // squats: any squat variation EXCEPT bulgarian/split/sissy/pistol/hack/leg-press/lunges
-  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal kb|goblet/.test(s)) return 'sentadilla'
+  // squats: the back squat only — EXCLUDE bulgarian/split/sissy/pistol/hack/leg-press/
+  // lunges/hatfield/FRONT squat/goblet (front squat is a different lift, not the record)
+  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal|\bfront\b|goblet/.test(s)) return 'sentadilla'
   if (/hex/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-hex'
   if (/sumo/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-sumo'
   // conventional deadlift only (exclude romanian / RDL / good-morning)
@@ -110,7 +111,10 @@ export function matchRecordLift(name: string): string | null {
   // flat barbell bench only (exclude incline)
   if (/press plano|press (de )?banca|press banca|bench press|\bbanca\b/.test(s) && !/inclinad|incline/.test(s)) return 'press-banca'
   if (/dominada|pull ?up|chin ?up/.test(s)) return 'dominadas'
-  if (/press militar|militar|overhead press|press de hombro/.test(s)) return 'press-militar'
+  // strict barbell military/overhead press — exclude alternated/Arnold/seated/push-press
+  // and other accessory overhead variants so they don't fire a false record
+  if (/press militar|militar|overhead press|press de hombro/.test(s)
+    && !/alternad|alternated|arnold|sentad|seated|inclinad|incline|push press|cubano|landmine|z press/.test(s)) return 'press-militar'
   return null
 }
 
