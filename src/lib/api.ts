@@ -12,13 +12,24 @@ interface RawRoutine { title: string; values: string[][] }
 
 export const isDemo = (): boolean => !API_BASE
 
-async function call<T>(action: string, params: Record<string, string> = {}): Promise<T> {
+async function call<T>(action: string, params: Record<string, string> = {}, timeoutMs = 25_000): Promise<T> {
   const url = new URL(API_BASE)
   url.searchParams.set('action', action)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
-  const res = await fetch(url.toString())
-  if (!res.ok) throw new Error(`API ${action} → ${res.status}`)
-  return res.json() as Promise<T>
+  // never hang forever: a slow/unreachable Apps Script must fail into the
+  // recovery UI (with Reintentar), not leave the app stuck on "Cargando…".
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url.toString(), { signal: ctrl.signal })
+    if (!res.ok) throw new Error(`API ${action} → ${res.status}`)
+    return await (res.json() as Promise<T>)
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new Error(`La conexión con el servidor tardó demasiado (${action}). Revisá tu conexión y probá de nuevo.`)
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Current routine for the signed-in client. */

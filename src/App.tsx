@@ -25,6 +25,18 @@ export default function App() {
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [askGender, setAskGender] = useState(!getGender())
   const [intro, setIntro] = useState(true)
+  const [slow, setSlow] = useState(false)
+
+  // (re)load the routine — also used by the Reintentar button on the error screen
+  const load = () => {
+    setError(null); setRoutine(null); setSlow(false)
+    const slowTimer = setTimeout(() => setSlow(true), 9_000)
+    const token = getToken()
+    fetchRoutine(token)
+      .then((r) => { setRoutine(r); clearTimeout(slowTimer) })
+      .catch((e) => { setError(String(e?.message ?? e)); clearTimeout(slowTimer) })
+    syncOutbox(token).catch(() => {})
+  }
 
   useEffect(() => {
     // capture the magic-link token (?t=...) once, then clean the URL
@@ -35,9 +47,7 @@ export default function App() {
     }
     // demo: seed a friendly client name so the greeting feels real
     if (!getClientName() && isDemo()) setClientName('Agu Rivera')
-    const token = getToken()
-    fetchRoutine(token).then(setRoutine).catch((e) => setError(String(e)))
-    syncOutbox(token).catch(() => {})
+    load()
 
     // Keep the routine fresh: re-read the live sheet whenever the app regains
     // focus (so a coach's edit appears without a restart), and flush the offline
@@ -57,12 +67,12 @@ export default function App() {
     }
   }, [])
 
-  if (error) return <Splash sub={`No pudimos cargar tu rutina.\n${error}`} />
-  if (!routine) return <Splash sub="Cargando tu rutina…" />
+  if (error) return <LoadError detail={error} onRetry={load} />
+  if (!routine) return <Loading slow={slow} onRetry={load} />
   // empty plan (no days parsed): show a calm, on-brand message instead of letting
   // a day-indexing screen crash. The nav/screens below all assume routine.days[0].
   if (routine.days.length === 0)
-    return <Splash sub={'Tu rutina todavía no tiene días cargados.\nAvisale a tu coach y volvé a entrar. 💪'} />
+    return <Splash sub={'Tu rutina todavía no tiene días cargados.\nAvisale a tu coach y volvé a entrar. 💪'} onRetry={load} retryLabel="Volver a buscar" />
 
   // current week: from the plan's start date, but let the client override it
   const wk = week ?? currentWeek(routine.meta.startDate, routine.totalWeeks)
@@ -157,12 +167,67 @@ function NavBtn({ active, onClick, icon, label }: {
   )
 }
 
-function Splash({ sub }: { sub: string }) {
+function Splash({ sub, onRetry, retryLabel = 'Reintentar', pulse = true }: {
+  sub: string; onRetry?: () => void; retryLabel?: string; pulse?: boolean
+}) {
+  return (
+    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+      <img src={emblem} alt="FORCE" className={`h-16 w-16 object-contain ${pulse ? 'animate-pulse' : ''}`} />
+      <div className="heading text-xl text-white">FORCE</div>
+      <p className="text-white/50 text-sm whitespace-pre-line">{sub}</p>
+      {onRetry && (
+        <button onClick={onRetry}
+          className="btn-glow mt-1 inline-flex items-center gap-2 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide px-7 py-3 active:scale-[0.98]">
+          {retryLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Loading: after ~9s with no response, offer a way out so a slow/stuck backend
+// never traps the member on an endless spinner.
+function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
+  if (!slow) return <Splash sub="Cargando tu rutina…" />
   return (
     <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain animate-pulse" />
       <div className="heading text-xl text-white">FORCE</div>
-      <p className="text-white/50 text-sm whitespace-pre-line">{sub}</p>
+      <p className="text-white/50 text-sm">Está tardando más de lo normal…</p>
+      <div className="flex flex-col gap-2 w-full max-w-xs">
+        <button onClick={onRetry}
+          className="btn-glow inline-flex items-center justify-center gap-2 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide px-7 py-3 active:scale-[0.98]">
+          Reintentar
+        </button>
+        <button onClick={() => location.reload()}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 text-white/80 font-bold px-7 py-3 active:scale-[0.98]">
+          Recargar la app
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LoadError({ detail, onRetry }: { detail: string; onRetry: () => void }) {
+  return (
+    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+      <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
+      <div className="heading text-xl text-white">No pudimos cargar tu rutina</div>
+      <p className="text-white/50 text-sm">Probá de nuevo; si sigue pasando, recargá la app o avisale a tu coach.</p>
+      <div className="flex flex-col gap-2 w-full max-w-xs">
+        <button onClick={onRetry}
+          className="btn-glow inline-flex items-center justify-center gap-2 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide px-7 py-3 active:scale-[0.98]">
+          Reintentar
+        </button>
+        <button onClick={() => location.reload()}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 border border-white/10 text-white/80 font-bold px-7 py-3 active:scale-[0.98]">
+          Recargar la app
+        </button>
+      </div>
+      <details className="mt-1 text-left max-w-xs w-full">
+        <summary className="text-white/30 text-[0.65rem] uppercase tracking-micro font-bold cursor-pointer">Detalle técnico</summary>
+        <p className="mt-1 text-white/40 text-xs font-mono break-words">{detail}</p>
+      </details>
     </div>
   )
 }
