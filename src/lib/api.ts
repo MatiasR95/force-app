@@ -34,10 +34,11 @@ async function call<T>(action: string, params: Record<string, string> = {}, time
 
 /** Current routine for the signed-in client. */
 export async function fetchRoutine(token: string | null): Promise<Routine> {
-  if (isDemo() || !token) {
-    // demo: the real Enero 2026 sheet, surfaced as the current cycle
-    return parseRoutine(ENERO_2026, 'Mi Rutina · Demo')
-  }
+  // demo build (no backend configured): show the bundled sample routine.
+  if (isDemo()) return parseRoutine(ENERO_2026, 'Mi Rutina · Demo')
+  // live build but no token (e.g. iOS home-screen app opened without the link):
+  // never silently show the demo — surface a clear, actionable error.
+  if (!token) throw new Error('Abrí tu link de acceso de FORCE (el que te pasó tu coach) para ver tu rutina.')
   const raw = await call<RawRoutine & { error?: string }>('getRoutine', { token })
   if (raw?.error) throw new Error(raw.error)
   if (!raw || !Array.isArray(raw.values)) throw new Error('La rutina llegó vacía o con un formato inesperado.')

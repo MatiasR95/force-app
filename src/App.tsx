@@ -17,6 +17,25 @@ import emblem from './assets/logo/emblem_gold_t.png'
 
 type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
 
+// Capture the magic-link token (?t=…) synchronously, before React renders, so the
+// "need link" guard below is correct on first paint. CRITICAL for iOS: an installed
+// PWA has its OWN storage (it can't read the token Safari saved), and it launches at
+// the URL baked into the home-screen icon. So we KEEP ?t= in the URL while in the
+// browser — that way "Agregar a inicio" bakes the token into the icon and the
+// installed app launches with it. Only clean the URL once already running standalone
+// (no address bar there anyway).
+function captureToken() {
+  try {
+    const t = new URLSearchParams(location.search).get('t')
+    if (!t) return
+    setToken(t)
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+      || (navigator as unknown as { standalone?: boolean }).standalone
+    if (standalone) history.replaceState(null, '', location.pathname)
+  } catch { /* no-op */ }
+}
+captureToken()
+
 export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -40,12 +59,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    // capture the magic-link token (?t=...) once, then clean the URL
-    const t = new URLSearchParams(location.search).get('t')
-    if (t) {
-      setToken(t)
-      history.replaceState(null, '', location.pathname)
-    }
     // demo: seed a friendly client name so the greeting feels real
     if (!getClientName() && isDemo()) setClientName('Agu Rivera')
     load()
@@ -72,6 +85,9 @@ export default function App() {
     }
   }, [])
 
+  // live build but no access token (e.g. the iOS home-screen app was opened without
+  // the magic link): guide the member to open their link instead of showing the demo.
+  if (!isDemo() && !getToken()) return <NeedLink />
   if (error) return <LoadError detail={error} onRetry={load} />
   if (!routine) return <Loading slow={slow} onRetry={load} />
   // empty plan (no days parsed): show a calm, on-brand message instead of letting
@@ -273,6 +289,24 @@ function Splash({ sub, onRetry, retryLabel = 'Reintentar', pulse = true }: {
           {retryLabel}
         </button>
       )}
+    </div>
+  )
+}
+
+// No access token in a live build — most often the iOS home-screen app was opened
+// without the magic link. Guide the member instead of silently showing the demo.
+function NeedLink() {
+  return (
+    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+      <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
+      <div className="heading text-xl text-white">Activá tu acceso</div>
+      <p className="text-white/60 text-sm leading-relaxed max-w-xs">
+        Abrí el <b className="text-white">link de acceso</b> que te pasó FORCE para ver tu rutina.
+      </p>
+      <p className="text-white/40 text-xs leading-relaxed max-w-xs">
+        💡 En iPhone: abrí tu link en Safari y, <b className="text-white/70">desde esa misma pantalla</b>,
+        tocá Compartir → <b className="text-white/70">Agregar a inicio</b>. Así la app queda con tu acceso.
+      </p>
     </div>
   )
 }
