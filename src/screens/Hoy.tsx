@@ -7,6 +7,7 @@ import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { CheckCircle2, Dumbbell, CalendarCheck, History, Quote, TriangleAlert } from 'lucide-react'
 import { hasCheckedInToday, addCheckin, getClientName, lastSession, localDate } from '../lib/store'
+import { currentWeek } from '../lib/week'
 import { getWeather, type Weather } from '../lib/weather'
 import { nextQuote } from '../lib/quotes'
 
@@ -43,7 +44,10 @@ export function Hoy({ routine, week, setWeek, suggestedDay, onTrain }: {
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
   const effWeek = dayWeeks.includes(week) ? week : 1
   const isLastWeek = weekly && routine.totalWeeks > 1 && week >= routine.totalWeeks
-  const isToday = dayIdx === suggestedDay
+  // "Hoy te toca" only when this really is today's session: the suggested day AND
+  // (for weekly plans) the current week. Browsing ahead to Sem 5/6/7 shows "Estás viendo".
+  const onCurrentWeek = !weekly || week === currentWeek(routine.meta.startDate, routine.totalWeeks)
+  const isToday = dayIdx === suggestedDay && onCurrentWeek
   const bigNames = day.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
   const focus = bigNames || day.blocks.flatMap((b) => b.exercises)[0]?.name || 'Entrenamiento'
 

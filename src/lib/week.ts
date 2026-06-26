@@ -20,17 +20,24 @@ export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
   }
   if (week <= 1) return base
   const w = ex.weeks[week]
-  if (!w) return base // blank week cell → same as week 1
+  // GYM RULE: a blank/missing week cell means "repeat the PREVIOUS week" (load,
+  // series and reps) — not "fall back to week 1". So weeks past the last defined
+  // column (e.g. weeks 4–8 of an 8-week plan that only lists Semana 2/3) inherit
+  // the last week that WAS defined, walking back one week at a time.
+  if (!w) return resolveWeek(ex, week - 1)
   if (w.inherit) return resolveWeek(ex, week - 1) // "Mismo semana ant."
+  const prev = resolveWeek(ex, week - 1)
   if (w.complex) {
-    return { ...base, load: w.load ?? ex.load, complexRaw: w.raw }
+    return { ...prev, load: w.load ?? prev.load, complexRaw: w.raw }
   }
+  // a partial cell (e.g. "5X4" with no weight) inherits the missing fields from
+  // the previous week, again per the repeat-previous rule.
   return {
-    reps: w.reps ?? ex.reps,
-    sets: w.sets ?? ex.sets,
-    repsRaw: w.reps != null ? String(w.reps) : ex.repsRaw,
-    setsRaw: w.sets != null ? String(w.sets) : ex.setsRaw,
-    load: w.load ?? ex.load,
+    reps: w.reps ?? prev.reps,
+    sets: w.sets ?? prev.sets,
+    repsRaw: w.reps != null ? String(w.reps) : prev.repsRaw,
+    setsRaw: w.sets != null ? String(w.sets) : prev.setsRaw,
+    load: w.load ?? prev.load,
     complexRaw: null,
   }
 }

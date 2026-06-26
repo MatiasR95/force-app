@@ -279,4 +279,44 @@ describe('resolveWeek inheritance', () => {
     // week 3 inherits week 2 = 12 reps × 3 sets
     expect(resolveWeek(remo, 3)).toMatchObject({ reps: 12, sets: 3 })
   })
+
+  it('a blank week repeats the PREVIOUS week, not week 1 (gym rule)', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', '', 'Semana 2', 'Semana 3'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      // 8-week plan but only Semana 2/3 are listed; weeks 4-8 are blank
+      ['THE BIG ONE', 'Sentadilla', '5', '4', '60kg', '6X4', '4X4 70kg'],
+    ])
+    const sq = r.days[0].blocks.find((b) => b.tag === 'big')!.exercises[0]
+    expect(resolveWeek(sq, 3)).toMatchObject({ reps: 4, sets: 4 })
+    expect(resolveWeek(sq, 3).load.value).toBe(70)
+    // weeks 4-8 have no column → repeat week 3 (NOT week 1's 5×4 @ 60)
+    expect(resolveWeek(sq, 5)).toMatchObject({ reps: 4, sets: 4 })
+    expect(resolveWeek(sq, 8).load.value).toBe(70)
+  })
+
+  it('a partial later-week cell inherits its missing fields from the previous week', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', '', 'Semana 2', 'Semana 3'],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      // week 3 "6X4" changes reps/sets but not weight → weight inherits week 2 (65)
+      ['THE BIG ONE', 'Banco', '5', '4', '60kg', '5X4 65kg', '6X4'],
+    ])
+    const b = r.days[0].blocks.find((bl) => bl.tag === 'big')!.exercises[0]
+    expect(resolveWeek(b, 3)).toMatchObject({ reps: 6, sets: 4 })
+    expect(resolveWeek(b, 3).load.value).toBe(65)
+  })
+
+  it('carries the HIIT time + rounds forward to blank circuit rows', () => {
+    const r = parseRoutine([
+      ['DÍA 1', '', '', '', ''],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'OBSERVACIONES'],
+      ['HIIT', 'Burpees', "30''", '4', ''],
+      ['', 'Mountain Climbers', '', '', ''], // blank → inherits 30″ × 4
+      ['', 'Descanso', '', '', ''],
+    ])
+    const hiit = r.days[0].blocks.find((b) => b.tag === 'hiit')!
+    expect(hiit.exercises.map((e) => e.timeSec)).toEqual([30, 30, 30])
+    expect(hiit.exercises.map((e) => e.sets)).toEqual([4, 4, 4])
+  })
 })

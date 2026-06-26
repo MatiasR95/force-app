@@ -317,6 +317,19 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
         bl.rounds = setCounts.length ? Math.max(...setCounts) : null
       }
       bl.timed = bl.tag === 'hiit' || bl.exercises.some((x) => x.timeSec != null)
+
+      // HIIT/timed circuit: the coach usually writes the "30″ × 4" scheme once on
+      // the first row and leaves the rest blank (they share it). Carry the work
+      // time + round count forward so every row shows it instead of a "—".
+      if (bl.timed && bl.exercises.length > 1) {
+        let lastTime: number | null = null, lastSets: number | null = null, lastTimeRaw = ''
+        for (const ex of bl.exercises) {
+          if (ex.timeSec != null) { lastTime = ex.timeSec; lastTimeRaw = ex.repsRaw }
+          else if (lastTime != null) { ex.timeSec = lastTime; if (!ex.repsRaw) ex.repsRaw = lastTimeRaw }
+          if (ex.sets != null) lastSets = ex.sets
+          else if (lastSets != null) ex.sets = lastSets
+        }
+      }
     }
   }
 

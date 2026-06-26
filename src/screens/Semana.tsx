@@ -77,7 +77,7 @@ function Meta({ icon, label, value }: { icon: React.ReactNode; label: string; va
       <div className="flex items-center gap-1 text-gold/80 mb-1">{icon}
         <span className="text-[0.55rem] uppercase tracking-micro font-bold text-white/45">{label}</span>
       </div>
-      <div className="text-white text-xs font-bold leading-tight">{value}</div>
+      <div className="text-white text-xs font-bold leading-tight break-words hyphens-auto">{value}</div>
     </div>
   )
 }

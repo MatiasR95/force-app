@@ -42,6 +42,9 @@ export function replaceKg(text: string, kg: number): string {
  */
 export function buildCellWrites(ex: ExerciseRow, week: number, edit: ActualEdit): CellWrite[] {
   const w = week > 1 ? ex.weeks[week] : undefined
+  // week > 1 with no cell of its own = an inherited ("repeat previous") week —
+  // there's no single cell that owns this value, so don't guess; log only.
+  if (week > 1 && !w) return []
   if (w && (w.inherit || w.complex)) return [] // ambiguous — skip writeback
   const writes: CellWrite[] = []
   const hasWeekCol = !!w && w.col >= 0
