@@ -148,6 +148,20 @@ body::before {
   @keyframes screenin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 }
 
+/* generic "pop" (toast / icon acknowledgement) */
+@keyframes pop {
+  0% { transform: scale(.7); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* rest-timer "time's up" attention flash — pulses the card a few times */
+.rest-done { animation: restflash 1s ease-in-out 3; }
+@keyframes restflash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(198,174,120,0); }
+  50% { box-shadow: 0 0 22px 2px rgba(198,174,120,0.55); }
+}
+
 /* ---- Exercise-icon rep animation (translate-only; iOS-safe, no SMIL) ----
    Each pose wraps its moving segment in `.exm.exm-<kind>`. The figure loops one
    slow rep: load/limb travels to the working position and returns. */

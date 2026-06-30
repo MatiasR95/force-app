@@ -13,20 +13,24 @@ import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass }
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
 import { Celebration } from '../components/Celebration'
-import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus } from 'lucide-react'
+import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
 
 type Item =
+  | { type: 'warmup'; text: string }
   | { type: 'single'; ex: ExerciseRow; section: SectionTag }
   | { type: 'circuit'; block: Block }
 
 function buildItems(day: RoutineDay): Item[] {
+  const items: Item[] = []
+  // the day's entrada en calor is the first step — same as Hoy/Plan, so it's never
+  // skipped just because the member jumped straight into "Entrenar".
+  if (day.warmup) items.push({ type: 'warmup', text: day.warmup })
   const blocks = [...day.blocks]
     .filter((b) => b.exercises.length)
     .sort((a, b) => ORDER.indexOf(a.tag) - ORDER.indexOf(b.tag))
-  const items: Item[] = []
   for (const b of blocks) {
     if (b.circuit) items.push({ type: 'circuit', block: b })
     else for (const ex of b.exercises) items.push({ type: 'single', ex, section: b.tag })
@@ -59,7 +63,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   // member on a blank overlay; give them a way back.
   if (!item) return <EmptyDay day={day} onClose={onClose} />
   const isTimed = item.type === 'circuit' && item.block.timed
-  const key = item.type === 'single' ? item.ex.id : `c-${item.block.tag}`
+  const key = item.type === 'single' ? item.ex.id : item.type === 'warmup' ? 'warmup' : `c-${item.block.tag}`
   const target = unitsOf(item, week)
   const doneCount = done[key] ?? 0
   const isLast = i === items.length - 1
@@ -94,6 +98,13 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   // One gold button: mark this set/round done, and auto-advance when the
   // exercise/round count is complete (no separate "Siguiente" press).
   const onPrimary = () => {
+    // warm-up is just a "done, let's go" step — no sets, records or rest timer.
+    if (item.type === 'warmup') {
+      try { navigator.vibrate?.(25) } catch { /* no-op */ }
+      if (isLast) window.setTimeout(() => setFinishing(true), 200)
+      else skip()
+      return
+    }
     const n = Math.min(target, doneCount + 1)
     setDone((d) => ({ ...d, [key]: n }))
     setFlash(n - 1); window.setTimeout(() => setFlash(-1), 420)
@@ -114,9 +125,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const markWord = item.type === 'circuit' && item.block.tag !== 'big' ? 'vuelta' : 'serie'
   const remaining = target - doneCount
   const primary = {
-    label: isTimed ? 'Finalizado' : remaining <= 1 ? `Marcar ${markWord} hecha` : `Marcar ${markWord} (${doneCount + 1}/${target})`,
+    label: item.type === 'warmup' ? 'Calentamiento listo' : isTimed ? 'Finalizado' : remaining <= 1 ? `Marcar ${markWord} hecha` : `Marcar ${markWord} (${doneCount + 1}/${target})`,
     onClick: onPrimary,
-    icon: <Check size={18} />,
+    icon: item.type === 'warmup' ? <Flame size={18} /> : <Check size={18} />,
   }
 
   return (
@@ -137,14 +148,16 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       <div className="flex-1 overflow-y-auto px-5">
         {item.type === 'single'
           ? <SingleView ex={item.ex} dayId={day.id} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
-          : <CircuitView block={item.block} dayId={day.id} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
+          : item.type === 'warmup'
+            ? <WarmupView text={item.text} />
+            : <CircuitView block={item.block} dayId={day.id} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
 
         <button onClick={primary.onClick}
           className="mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow">
           {primary.icon} {primary.label}
         </button>
 
-        {!isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
+        {item.type !== 'warmup' && !isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
 
         {item.type === 'single' && singleLoad(item.ex, week) && (
           <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)} /></div>
@@ -164,6 +177,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 }
 
 function unitsOf(it: Item, week: number): number {
+  if (it.type === 'warmup') return 1
   if (it.type === 'single') return resolveWeek(it.ex, week).sets ?? 1
   if (it.block.timed) return 1 // HIIT: one "Finalizado", not round-by-round
   return circuitRounds(it.block, week) ?? 1
@@ -256,6 +270,27 @@ function Stepper({ label, value, step, onChange }: { label: string; value: numbe
         <button onClick={() => onChange(Math.round((value + step) * 100) / 100)} className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={13} /></button>
       </div>
     </div>
+  )
+}
+
+// The day's entrada en calor as the opening step. Split the "A + B + C" line the
+// coach writes into a short checklist so it reads clearly before the first lift.
+function WarmupView({ text }: { text: string }) {
+  const parts = text.split('+').map((s) => s.trim()).filter(Boolean)
+  return (
+    <>
+      <div className="kicker flex items-center gap-1.5"><Flame size={13} className="text-gold" /> Entrada en calor</div>
+      <h1 className="heading text-3xl text-white mt-1 mb-1">Calentamiento</h1>
+      <p className="text-white/50 text-sm mb-4">Activá antes de la primera serie. Hacelo completo, sin apuro.</p>
+      <div className="space-y-2">
+        {(parts.length ? parts : [text]).map((p, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-card bg-white/[0.04] border border-white/10 p-3">
+            {parts.length > 1 && <span className="text-gold/70 font-black text-sm w-3 shrink-0">{i + 1}</span>}
+            <div className="text-white/85 text-sm leading-snug">{p}</div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 
