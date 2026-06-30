@@ -24,6 +24,7 @@ export interface WeekCell {
   complex: boolean    // couldn't be cleanly split into reps×sets (e.g. "3X1+2X3")
   inherit: boolean    // "Mismo semana ant." → use the previous week's prescription
   col: number         // 0-based sheet column of this "Semana N" cell (for writeback)
+  plan?: number[]     // non-linear per-series reps: "4X1+3X3"→[4,3,3,3]; "10-10-8-8"→[10,10,8,8]
 }
 
 export type MovementPattern =

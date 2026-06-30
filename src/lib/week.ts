@@ -13,12 +13,20 @@ export interface Resolved {
   setsRaw: string
   load: Load
   complexRaw: string | null // set when the week cell couldn't be split (show as-is)
+  plan: number[] | null     // non-linear per-series reps ("4X1+3X3" → [4,3,3,3])
 }
 
 // Merge one "Semana N" cell onto the previous week's resolved prescription.
 function applyCell(w: WeekCell, prev: Resolved): Resolved {
   if (w.inherit) return prev // "Mismo semana ant."
-  if (w.complex) return { ...prev, load: w.load ?? prev.load, complexRaw: w.raw }
+  if (w.complex) {
+    // a non-linear per-series plan ("4X1+3X3"): the series count IS the plan length,
+    // and the raw scheme stays as the label.
+    if (w.plan && w.plan.length) {
+      return { ...prev, sets: w.plan.length, plan: w.plan, load: w.load ?? prev.load, complexRaw: w.raw }
+    }
+    return { ...prev, load: w.load ?? prev.load, complexRaw: w.raw }
+  }
   // a partial cell (e.g. "5X4" with no weight) inherits the missing fields from
   // the previous week, per the repeat-previous rule.
   return {
@@ -28,13 +36,14 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
     setsRaw: w.sets != null ? String(w.sets) : prev.setsRaw,
     load: w.load ?? prev.load,
     complexRaw: null,
+    plan: null,
   }
 }
 
 function resolveRaw(ex: ExerciseRow, week: number): Resolved {
   const base: Resolved = {
     reps: ex.reps, sets: ex.sets, repsRaw: ex.repsRaw, setsRaw: ex.setsRaw,
-    load: ex.load, complexRaw: null,
+    load: ex.load, complexRaw: null, plan: null,
   }
   if (week <= 1) {
     // some coaches put week 1 in an explicit "Semana 1" column instead of the

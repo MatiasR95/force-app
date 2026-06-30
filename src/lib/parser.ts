@@ -109,6 +109,35 @@ function extractNote(obs: string, load: Load): string {
   return obs.replace(/-?\d+(?:[.,]\d+)?\s*kg/i, '').replace(PER_SIDE, '').replace(/\s+/g, ' ').trim()
 }
 
+// Non-linear per-series rep plans some athletes use instead of a flat reps×sets
+// (controlled wave/volume loading). Two notations:
+//   "4X1+3X3"    → one set of 4 + three sets of 3  → [4,3,3,3]
+//   "10-10-8-8"  → reps per set, listed            → [10,10,8,8]
+// Returns the expanded per-series reps + any trailing text (a weight/band).
+export function parseSeriesPlan(raw: string): { plan: number[]; rest: string } | null {
+  const s = raw.trim()
+  // plus/X form (≥2 segments joined by "+")
+  const plus = s.match(/^(\d+\s*[xX]\s*\d+(?:\s*\+\s*\d+\s*[xX]\s*\d+)+)(.*)$/)
+  if (plus) {
+    const plan: number[] = []
+    for (const seg of plus[1].split('+')) {
+      const m = seg.match(/(\d+)\s*[xX]\s*(\d+)/)
+      if (!m) return null
+      const reps = parseInt(m[1], 10), sets = parseInt(m[2], 10)
+      for (let k = 0; k < sets; k++) plan.push(reps)
+    }
+    return plan.length ? { plan, rest: plus[2].trim() } : null
+  }
+  // dash form — require ≥3 numbers so a 2-number rep range ("8-12") isn't mistaken
+  // for a 2-set plan.
+  const dash = s.match(/^(\d+(?:\s*-\s*\d+){2,})(.*)$/)
+  if (dash) {
+    const plan = dash[1].split('-').map((n) => parseInt(n.trim(), 10)).filter((n) => !Number.isNaN(n))
+    if (plan.length >= 3) return { plan, rest: dash[2].trim() }
+  }
+  return null
+}
+
 // A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
 // "Mismo semana ant." (inherit previous week).
 export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | null {
@@ -130,6 +159,12 @@ export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | n
       inherit: false,
       col,
     }
+  }
+  // a non-linear per-series plan ("4X1+3X3", "10-10-8-8") → expand to per-set reps
+  const sp = parseSeriesPlan(s)
+  if (sp) {
+    const load = /kg|banda|gris|verde|roja|negra|azul|amarill|violet|naranj/i.test(sp.rest) ? parseLoad(sp.rest) : null
+    return { week, reps: null, sets: sp.plan.length, load, raw: s, complex: true, inherit: false, col, plan: sp.plan }
   }
   // couldn't cleanly split → keep raw, surface any weight
   const load = /kg/i.test(s) ? parseLoad(s) : null

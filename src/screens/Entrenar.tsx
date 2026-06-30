@@ -297,14 +297,24 @@ function WarmupView({ text }: { text: string }) {
 function SingleView({ ex, dayId, section, week, done, target, flash }: {
   ex: ExerciseRow; dayId: string; section: SectionTag; week: number; done: number; target: number; flash: number
 }) {
+  // non-linear weeks (e.g. "4X1+3X3") carry a per-series rep plan — show the reps
+  // for each series and mark the current one so it's trainable, not just raw text.
+  const plan = resolveWeek(ex, week).plan
   return (
     <>
       <div className="kicker">{SECTION_LABEL[section]}</div>
       <h1 className="heading text-3xl text-white mt-1 mb-1">{ex.name || '—'}</h1>
       <div className="text-gold text-lg font-black">{setsReps(ex, week)} · {loadText(ex, week)}</div>
+      {plan && plan.length > 1 && (
+        <div className="text-white/60 text-sm font-bold mt-1">
+          {plan.length} series · reps {plan.join(' · ')}
+        </div>
+      )}
       <TechniqueChips ex={ex} />
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
-      <Dots n={target} done={done} flash={flash} />
+      {plan && plan.length > 1
+        ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
+        : <Dots n={target} done={done} flash={flash} />}
       <NoteField id={ex.id} dayId={dayId} />
       {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} week={week} />}
     </>
