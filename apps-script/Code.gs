@@ -323,6 +323,30 @@ function clearRecordsFor() {
   return 'removed ' + removed + ' record(s)'
 }
 
+/** Delete specific records by their id (surgical). Edit IDS, then Run.
+ *  Pre-filled with the accidental "Vos / Mujeres" test entries (Matías captured
+ *  while the device had no name and gender set to Mujeres). The first is the
+ *  women's-squat one; the other two are the same mistake (deadlift + press). */
+function deleteRecordsById() {
+  var IDS = [
+    'r-mqzpfd5p-tab0', // Vos | F | sentadilla 72,5 — the women's-squat entry
+    'r-mqvcx644-1eq13', // Vos | F | peso-muerto 30
+    'r-mqvcx644-1eq14', // Vos | F | press-militar 36
+  ]
+  var sh = recordsSheet_()
+  var rows = sh.getDataRange().getValues()
+  var kept = [rows[0]]
+  var removed = 0
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    if (IDS.indexOf(String(rows[i][0])) >= 0) { removed++; continue }
+    kept.push(rows[i])
+  }
+  sh.clearContents()
+  sh.getRange(1, 1, kept.length, kept[0].length).setValues(kept)
+  return 'removed ' + removed + ' record(s)'
+}
+
 // ---- streak board (gym-wide, weeks) ---------------------------------------
 // Stored in a "rachas" tab of CONFIG: client | weeks | max | ts (one row/client).
 function streaksSheet_() {

@@ -57,7 +57,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const totalUnits = items.reduce((a, it) => a + unitsOf(it, week), 0)
   const totalDone = Object.values(done).reduce((a, b) => a + b, 0)
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} onClose={onClose} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -386,8 +386,8 @@ function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
 }
 
 // ---- finish: session RPE + note ------------------------------------------
-function Finish({ day, week, lastWeek, onClose }: {
-  day: RoutineDay; week: number; lastWeek?: boolean; onClose: () => void
+function Finish({ day, week, lastWeek, onClose, onBack }: {
+  day: RoutineDay; week: number; lastWeek?: boolean; onClose: () => void; onBack: () => void
 }) {
   const [rpe, setRpe] = useState(7)
   const [note, setNote] = useState('')
@@ -396,10 +396,15 @@ function Finish({ day, week, lastWeek, onClose }: {
   // reaching this screen means the whole day is done → register attendance
   // automatically (no manual "Registrar que viniste hoy" button anymore).
   useEffect(() => { if (!hasCheckedInToday()) addCheckin() }, [])
-  const save = () => {
-    logSession({ date: localDate(), dayId: day.id, rpe, note: note.trim() || undefined, week, dayLabel: day.label, bigOne })
-    setCelebrating(true)
-  }
+  // record the completed session. The RPE/note are optional enrichment — "Saltar"
+  // still saves the session (without them) so the day is NEVER lost; only the
+  // rating is skipped.
+  const persist = (withRpe: boolean) => logSession({
+    date: localDate(), dayId: day.id, week, dayLabel: day.label, bigOne,
+    ...(withRpe ? { rpe, note: note.trim() || undefined } : {}),
+  })
+  const save = () => { persist(true); setCelebrating(true) }
+  const skip = () => { persist(false); setCelebrating(true) }
   if (celebrating) {
     return (
       <Celebration
@@ -410,7 +415,10 @@ function Finish({ day, week, lastWeek, onClose }: {
     )
   }
   return (
-    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+2rem)] max-w-md mx-auto">
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto">
+      <button onClick={onBack} className="flex items-center gap-1 text-white/55 text-sm font-bold -ml-1 mb-3 self-start">
+        <ChevronLeft size={18} /> Volver al entrenamiento
+      </button>
       <div className="kicker">{day.label.replace('DÍA', 'Día')} completado</div>
       <h1 className="heading text-3xl text-white mt-1 mb-6">¿Cómo te fue?</h1>
 
@@ -432,7 +440,7 @@ function Finish({ day, week, lastWeek, onClose }: {
           placeholder:text-white/30 focus:border-gold/40 outline-none resize-none" />
 
       <div className="mt-auto mb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-6 flex gap-3">
-        <button onClick={onClose} className="px-5 rounded-full bg-white/5 text-white/60 font-bold py-4">Saltar</button>
+        <button onClick={skip} className="px-5 rounded-full bg-white/5 text-white/60 font-bold py-4">Saltar</button>
         <button onClick={save} className="btn-glow flex-1 rounded-full bg-gold-fill text-ink font-black uppercase py-4">
           Guardar y cerrar
         </button>
