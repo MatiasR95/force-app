@@ -49,6 +49,7 @@ const KEYS = {
   startDay: 'force.startDay',
   startWeek: 'force.startWeek',
   introSeen: 'force.introSeen',
+  lastDone: 'force.lastDone',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -69,6 +70,16 @@ export function localDate(d = new Date()): string {
 }
 const rid = (): string =>
   `${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
+
+/** "hoy" / "ayer" / "hace N días" / "hace N semanas" for a YYYY-MM-DD date. */
+export function relDay(date: string): string {
+  const days = Math.round((Date.parse(localDate() + 'T00:00:00') - Date.parse(date + 'T00:00:00')) / 86_400_000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 7) return `hace ${days} días`
+  if (days < 14) return 'hace 1 semana'
+  return `hace ${Math.floor(days / 7)} semanas`
+}
 
 // ---- identity -------------------------------------------------------------
 export const getToken = () => read<string | null>(KEYS.token, null)
@@ -242,6 +253,19 @@ export function saveActual(exerciseId: string, dayId: string, a: Actual): void {
   m[exerciseId] = { ...m[exerciseId], ...a }
   write(KEYS.actuals, m)
   enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate() })
+}
+
+// ---- "última vez" per exercise (a light memory aid for progressive overload) ----
+// Snapshotted when a working set is completed, read next session to show what the
+// member did last time for this exact exercise slot. Purely local (display only).
+export interface LastDone { kg: number | null; reps: number | null; perSide: boolean; date: string }
+type LastDoneMap = Record<string, LastDone>
+export const getLastDone = (exerciseId: string): LastDone | undefined =>
+  read<LastDoneMap>(KEYS.lastDone, {})[exerciseId]
+export function setLastDone(exerciseId: string, v: LastDone): void {
+  const m = read<LastDoneMap>(KEYS.lastDone, {})
+  m[exerciseId] = v
+  write(KEYS.lastDone, m)
 }
 
 // ---- routine sheet writeback (overwrite prescription cells) ---------------

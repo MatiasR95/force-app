@@ -5,10 +5,11 @@ import { PlateCalc } from '../components/PlateCalc'
 import { isDeadliftName } from '../lib/plates'
 import { RestTimer } from '../components/RestTimer'
 import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
+import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone } from '../lib/store'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass } from '../lib/records'
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
@@ -93,6 +94,16 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     window.setTimeout(() => setPr(null), 3600)
   }
 
+  // snapshot what was done for this exercise, to show as "la vez pasada" next time
+  const recordLastDone = (ex: ExerciseRow) => {
+    const r = resolveWeek(ex, week)
+    const act = getActual(ex.id)
+    const kg = act?.kg ?? r.load.value ?? null
+    const reps = act?.reps ?? r.reps ?? null
+    if (kg == null && reps == null) return
+    setLastDone(ex.id, { kg, reps, perSide: r.load.perSide, date: localDate() })
+  }
+
   const skip = () => setI((n) => Math.min(items.length - 1, n + 1))
 
   // One gold button: mark this set/round done, and auto-advance when the
@@ -112,9 +123,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
     if (item.type === 'single') {
       logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
-      if (n >= target && item.section !== 'ramp') captureRecord(item.ex)
+      if (n >= target && item.section !== 'ramp') { captureRecord(item.ex); recordLastDone(item.ex) }
     } else if (n >= target) {
-      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); captureRecord(ex) })
+      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); captureRecord(ex); recordLastDone(ex) })
     }
     if (n >= target) {
       if (isLast) window.setTimeout(() => setFinishing(true), 260)
@@ -310,6 +321,7 @@ function SingleView({ ex, dayId, section, week, done, target, flash }: {
           {plan.length} series · reps {plan.join(' · ')}
         </div>
       )}
+      {section !== 'ramp' && <div><LastTime exId={ex.id} /></div>}
       <TechniqueChips ex={ex} />
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       {plan && plan.length > 1

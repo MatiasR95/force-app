@@ -76,9 +76,11 @@ function getRoutine_(token) {
   var c = clientFor_(token)
   var folder = DriveApp.getFolderById(c.folderId)
   var file = currentRoutineFile_(folder)
-  if (!file) return { title: 'Sin rutina', values: [] }
+  // include the client's canonical name so the app can greet them and attribute
+  // their records to the real name (not the "Vos" fallback).
+  if (!file) return { title: 'Sin rutina', values: [], nombre: c.nombre }
   var r = allTabRows_(file.getId())
-  return { title: file.getName(), values: r.values }
+  return { title: file.getName(), values: r.values, nombre: c.nombre }
 }
 
 /**

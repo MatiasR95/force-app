@@ -2,13 +2,13 @@ import type { Routine } from './types'
 import type { RecordEntry, StreakEntry } from './records'
 import { parseRoutine } from './parser'
 import { ENERO_2026 } from '../data/fixtureEnero2026'
-import { getOutbox, clearOutbox, getMyRecords } from './store'
+import { getOutbox, clearOutbox, getMyRecords, getClientName, setClientName } from './store'
 
 // The Apps Script Web App URL (gym account). Empty in demo → use local fixture.
 // Set via Vite env: VITE_FORCE_API=https://script.google.com/macros/s/XXXX/exec
 const API_BASE = import.meta.env.VITE_FORCE_API ?? ''
 
-interface RawRoutine { title: string; values: string[][] }
+interface RawRoutine { title: string; values: string[][]; nombre?: string }
 
 export const isDemo = (): boolean => !API_BASE
 
@@ -42,6 +42,10 @@ export async function fetchRoutine(token: string | null): Promise<Routine> {
   const raw = await call<RawRoutine & { error?: string }>('getRoutine', { token })
   if (raw?.error) throw new Error(raw.error)
   if (!raw || !Array.isArray(raw.values)) throw new Error('La rutina llegó vacía o con un formato inesperado.')
+  // adopt the canonical name from the backend so the greeting + records show the
+  // real client (not the "Vos" fallback). Only overwrite when it actually changed.
+  const nombre = raw.nombre?.trim()
+  if (nombre && nombre !== getClientName()) setClientName(nombre)
   return parseRoutine(raw.values, raw.title)
 }
 
