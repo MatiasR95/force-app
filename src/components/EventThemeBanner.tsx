@@ -17,6 +17,7 @@ export function EventThemeBanner() {
           <div className="kicker text-white/70">{t.title}</div>
           <div className="text-white font-bold text-sm leading-snug mt-0.5">{t.greeting}</div>
           <p className="text-white/55 text-xs leading-snug mt-1">{t.blurb}</p>
+          <p className="text-white/70 text-xs italic leading-snug mt-1.5">“{t.quote}”</p>
         </div>
       </div>
     )
@@ -33,6 +34,7 @@ export function EventThemeBanner() {
           <div className={`kicker ${patria ? 'text-[#9bc4ea]' : 'text-gold'}`}>{t.title}</div>
           <div className="text-white font-black text-base leading-tight mt-0.5">{t.greeting}</div>
           <p className="text-white/60 text-xs leading-snug mt-1">{t.blurb}</p>
+          <p className="text-white/75 text-xs italic leading-snug mt-1.5">“{t.quote}”</p>
         </div>
         {patria && <div className="ml-auto shrink-0 opacity-90"><ArgentinaFlag h={22} /></div>}
       </div>

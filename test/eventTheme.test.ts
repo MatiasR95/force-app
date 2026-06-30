@@ -25,10 +25,16 @@ describe('currentEventTheme — date-driven event themes', () => {
     expect(currentEventTheme(on(11, 20))!.id).toBe('soberania')
   })
 
-  it('covers the whole window around a date, not just the day', () => {
-    expect(currentEventTheme(on(7, 7))!.id).toBe('independencia')
-    expect(currentEventTheme(on(7, 10))!.id).toBe('independencia')
-    expect(currentEventTheme(on(7, 11))).toBeNull()
+  it('opens 7 days before the date and closes on the day', () => {
+    expect(currentEventTheme(on(7, 1))).toBeNull()       // 8 days before
+    expect(currentEventTheme(on(7, 2))!.id).toBe('independencia') // 7 days before
+    expect(currentEventTheme(on(7, 9))!.id).toBe('independencia') // the day
+    expect(currentEventTheme(on(7, 10))).toBeNull()      // day after
+  })
+
+  it('every theme carries a motivational quote', () => {
+    expect(currentEventTheme(on(7, 9))!.quote.length).toBeGreaterThan(0)
+    expect(currentEventTheme(on(12, 25))!.quote.length).toBeGreaterThan(0)
   })
 
   it('Navidad and fin de año (wrapping into Jan 1) are festive', () => {
