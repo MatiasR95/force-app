@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Routine } from '../lib/types'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { ArgentinaFlag } from '../components/ArgentinaFlag'
+import { EventThemeBanner } from '../components/EventThemeBanner'
 import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
 import { nextFeriado } from '../lib/feriados'
@@ -59,6 +60,9 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
         </h1>
         <div className="text-white/45 text-sm mt-1 capitalize">{TODAY_LONG()}</div>
       </div>
+
+      {/* event-aware banner (patrias, Navidad, fin de año, Malvinas) — date-driven */}
+      <EventThemeBanner />
 
       {/* birthday board (only today) */}
       {isBirthdayToday() && (
