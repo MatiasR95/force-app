@@ -3,7 +3,7 @@ import type { Routine } from '../lib/types'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { ArgentinaFlag } from '../components/ArgentinaFlag'
 import { Profile } from '../components/Profile'
-import { getForecast, type ForecastDay } from '../lib/weather'
+import { getWeather, type WeatherBundle } from '../lib/weather'
 import { nextFeriado } from '../lib/feriados'
 import { coachTip } from '../lib/coachTips'
 import { currentStreakWeeks } from '../lib/metrics'
@@ -26,7 +26,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   onTrain: (dayIdx: number, week: number) => void
   onGoRecords: () => void
 }) {
-  const [forecast, setForecast] = useState<ForecastDay[] | null>(null)
+  const [weather, setWeather] = useState<WeatherBundle | null>(null)
   const [profile, setProfile] = useState(false)
   const name = getClientName()
   const day = routine.days[suggestedDay]
@@ -38,7 +38,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   const bwAge = bodyweightAgeDays()
   const needBw = getBodyweight() == null || (bwAge != null && bwAge >= 30)
 
-  useEffect(() => { getForecast().then(setForecast) }, [])
+  useEffect(() => { getWeather().then(setWeather) }, [])
 
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
@@ -85,14 +85,37 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
         </button>
       )}
 
-      {/* weather forecast */}
-      {forecast && forecast.length > 0 && (
+      {/* weather: detailed today + next-days strip */}
+      {weather && weather.days.length > 0 && (
         <div className="card p-4 mb-4">
           <div className="kicker flex items-center gap-1.5 mb-3"><CalendarDays size={13} className="text-gold" /> La Plata · pronóstico</div>
-          <div className="grid grid-cols-4 gap-2">
-            {forecast.slice(0, 4).map((f, i) => (
+
+          {/* today, in detail */}
+          <div className="flex items-center gap-3 pb-3 mb-3 border-b border-white/10">
+            <div className="text-4xl leading-none">{weather.now.emoji}</div>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-white text-3xl font-black tabular-nums leading-none">{weather.now.tempC}°</span>
+                <span className="text-white/85 text-sm font-bold truncate">{weather.now.label}</span>
+              </div>
+              <div className="text-white/45 text-xs mt-1">
+                Sensación {weather.now.feelsC}°
+                <span className="text-white/25"> · </span>
+                Máx {weather.days[0].max}° / Mín {weather.days[0].min}°
+                {weather.days[0].rainProb >= 20 && <><span className="text-white/25"> · </span>🌧️ {weather.days[0].rainProb}%</>}
+              </div>
+            </div>
+            <div className="ml-auto text-right shrink-0">
+              <div className="text-[0.55rem] uppercase tracking-micro text-gold/80 font-bold">Ahora</div>
+              <div className="text-white/40 text-[0.6rem] capitalize">{shortDay(weather.days[0].date)}</div>
+            </div>
+          </div>
+
+          {/* next 3 days */}
+          <div className="grid grid-cols-3 gap-2">
+            {weather.days.slice(1, 4).map((f) => (
               <div key={f.date} className="text-center">
-                <div className="text-[0.6rem] uppercase tracking-micro text-white/45 font-bold">{i === 0 ? 'Hoy' : shortDay(f.date)}</div>
+                <div className="text-[0.6rem] uppercase tracking-micro text-white/45 font-bold capitalize">{shortDay(f.date)}</div>
                 <div className="text-2xl my-1">{f.emoji}</div>
                 <div className="text-white font-black text-sm tabular-nums">{f.max}°</div>
                 <div className="text-white/40 text-xs tabular-nums">{f.min}°</div>

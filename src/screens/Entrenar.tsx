@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { setsReps, loadText, repsText, TechniqueChips } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
@@ -8,7 +8,7 @@ import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday } from '../lib/store'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass } from '../lib/records'
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
@@ -383,6 +383,9 @@ function Finish({ day, week, lastWeek, onClose }: {
   const [note, setNote] = useState('')
   const [celebrating, setCelebrating] = useState(false)
   const bigOne = day.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
+  // reaching this screen means the whole day is done → register attendance
+  // automatically (no manual "Registrar que viniste hoy" button anymore).
+  useEffect(() => { if (!hasCheckedInToday()) addCheckin() }, [])
   const save = () => {
     logSession({ date: localDate(), dayId: day.id, rpe, note: note.trim() || undefined, week, dayLabel: day.label, bigOne })
     setCelebrating(true)

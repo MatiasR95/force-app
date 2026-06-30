@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Routine, ExerciseRow } from '../lib/types'
 import { DayView } from '../components/DayView'
 import { Pill } from '../components/ui'
 import { WeekBar } from '../components/WeekBar'
 import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
-import { CheckCircle2, Dumbbell, CalendarCheck, History, Quote, TriangleAlert } from 'lucide-react'
-import { hasCheckedInToday, addCheckin, getClientName, lastSession, localDate } from '../lib/store'
-import { getWeather, type Weather } from '../lib/weather'
+import { Dumbbell, History, Quote, TriangleAlert } from 'lucide-react'
+import { getClientName, lastSession, localDate } from '../lib/store'
 import { nextQuote } from '../lib/quotes'
 
 const TODAY = () =>
@@ -35,8 +34,6 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
 }) {
   const [dayIdx, setDayIdx] = useState(suggestedDay)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
-  const [checked, setChecked] = useState(hasCheckedInToday())
-  const [weather, setWeather] = useState<Weather | null>(null)
   const [quote] = useState(() => nextQuote())
   const day = routine.days[dayIdx] ?? routine.days[0]
   const name = getClientName()
@@ -58,8 +55,6 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
   const lastDay = ls ? routine.days.find((d) => d.id === ls.dayId) : null
   const lastBig = ls?.bigOne || lastDay?.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
   const lastWhen = relativeDay(ls?.date)
-
-  useEffect(() => { getWeather().then(setWeather) }, [])
 
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
@@ -85,15 +80,8 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
         </div>
       </div>
 
-      {/* weather + last session recap */}
+      {/* last session recap */}
       <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
-        {weather && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-white/75">
-            <span>{weather.emoji}</span>
-            <span className="font-bold text-white">{weather.tempC}°</span>
-            <span className="text-white/45">La Plata</span>
-          </span>
-        )}
         {lastWhen && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-white/60">
             <History size={12} className="text-gold/70" />
@@ -113,26 +101,6 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
       )}
 
       {weekly && <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>}
-
-      {/* check-in */}
-      <button
-        onClick={() => { setChecked(true); addCheckin() }}
-        disabled={checked}
-        className={`w-full flex items-center gap-3 rounded-card p-3.5 mb-5 border transition
-          ${checked ? 'bg-gold/10 border-gold/30' : 'bg-white/5 border-white/10 active:scale-[0.99]'}`}
-      >
-        {checked
-          ? <CheckCircle2 className="text-gold shrink-0" size={22} />
-          : <CalendarCheck className="text-white/70 shrink-0" size={22} />}
-        <div className="text-left flex-1">
-          <div className="font-bold text-white text-sm">
-            {checked ? '¡Entrenamiento registrado!' : 'Registrar que viniste hoy'}
-          </div>
-          <div className="text-xs text-white/50">
-            {checked ? 'Suma a tu asistencia del mes' : 'Un toque para marcar tu asistencia'}
-          </div>
-        </div>
-      </button>
 
       {/* day selector — the suggested (next undone) day is tagged HOY */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1 pt-2">
