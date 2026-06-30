@@ -290,6 +290,39 @@ function postRecord_(token, entry) {
   return { ok: true }
 }
 
+// ---- admin: clear records (run manually from the Apps Script editor) -------
+// Not exposed as a web endpoint on purpose (anyone could wipe the board). To use:
+// open the Apps Script project on the gym account, pick the function in the editor
+// toolbar and press Run.
+
+/** Wipe ALL records, keeping the header row. Use to start fresh before launch. */
+function clearRecords() {
+  var sh = recordsSheet_()
+  var last = sh.getLastRow()
+  if (last > 1) sh.getRange(2, 1, last - 1, sh.getLastColumn()).clearContent()
+  return 'records cleared'
+}
+
+/** Delete records for specific client names (case-insensitive), keeping the rest.
+ *  Edit the NAMES list below before running. Also catches the "Vos" default that a
+ *  client gets if their name wasn't set on the device. */
+function clearRecordsFor() {
+  var NAMES = ['Matias Rossi', 'Belu', 'Princesa Franco', 'Yo', 'Vos']
+  var want = NAMES.map(function (n) { return String(n).trim().toLowerCase() })
+  var sh = recordsSheet_()
+  var rows = sh.getDataRange().getValues()
+  var kept = [rows[0]] // header
+  var removed = 0
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue
+    if (want.indexOf(String(rows[i][1]).trim().toLowerCase()) >= 0) { removed++; continue }
+    kept.push(rows[i])
+  }
+  sh.clearContents()
+  sh.getRange(1, 1, kept.length, kept[0].length).setValues(kept)
+  return 'removed ' + removed + ' record(s)'
+}
+
 // ---- streak board (gym-wide, weeks) ---------------------------------------
 // Stored in a "rachas" tab of CONFIG: client | weeks | max | ts (one row/client).
 function streaksSheet_() {
