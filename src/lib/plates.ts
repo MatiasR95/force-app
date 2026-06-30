@@ -23,6 +23,15 @@ export const isDeadliftName = (name: string): boolean =>
     name.normalize('NFD').replace(/[̀-ͯ]/g, ''),
   )
 
+// Exercises whose added weight hangs from a single belt/grip — weighted pull-ups,
+// chin-ups, muscle-ups and dips. These are NEVER loaded "per side" (you add one
+// stack of plates to a belt), so any "x lado" on them is a typo or a mid-cycle
+// substitution and must not show an impossible per-side load or a plate calc.
+export const isHangingLoad = (name: string): boolean =>
+  /dominad|pull\s*up|chin\s*up|muscle\s*up|fondos|\bdips?\b/i.test(
+    name.normalize('NFD').replace(/[̀-ͯ]/g, ''),
+  )
+
 /**
  * Greedy plate decomposition for one side.
  * `perSideKg` is the per-side load as written in OBSERVACIONES ("27,5 x lado").

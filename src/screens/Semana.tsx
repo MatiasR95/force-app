@@ -15,7 +15,9 @@ export function Semana({ routine, week, setWeek }: {
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [history, setHistory] = useState<Array<{ id: string; title: string }>>([])
   const day = routine.days[dayIdx] ?? routine.days[0]
-  const effWeek = (day.weeks.length > 1 ? day.weeks : routine.weeksAvailable).includes(week) ? week : 1
+  // clamp to the day's last defined week (repeat-previous), never snap back to week 1
+  const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
+  const effWeek = Math.min(Math.max(1, week), Math.max(1, ...dayWeeks))
 
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])
 

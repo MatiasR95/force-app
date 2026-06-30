@@ -42,7 +42,9 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
   const name = getClientName()
   const weekly = routine.style === 'weekly'
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
-  const effWeek = dayWeeks.includes(week) ? week : 1
+  // clamp to the day's last DEFINED week (never snap back to week 1): if the member
+  // is on a week this day doesn't list, repeat-previous shows the last real week.
+  const effWeek = Math.min(Math.max(1, week), Math.max(1, ...dayWeeks))
   const isLastWeek = weekly && routine.totalWeeks > 1 && week >= routine.totalWeeks
   // "Hoy te toca" only when this really is today's session: the suggested day AND
   // (for weekly plans) the member's current week. Browsing other weeks → "Estás viendo".

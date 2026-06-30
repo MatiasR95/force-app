@@ -1,5 +1,6 @@
-import type { ExerciseRow, Block, Load, Routine } from './types'
+import type { ExerciseRow, Block, Load, Routine, WeekCell } from './types'
 import { getStartWeek, localDate } from './store'
+import { isHangingLoad } from './plates'
 
 // Resolve an exercise's effective prescription for a given week. Week 1 = base
 // fields; weeks 2+ use the "Semana N" override, falling back to base where the
@@ -14,25 +15,12 @@ export interface Resolved {
   complexRaw: string | null // set when the week cell couldn't be split (show as-is)
 }
 
-export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
-  const base: Resolved = {
-    reps: ex.reps, sets: ex.sets, repsRaw: ex.repsRaw, setsRaw: ex.setsRaw,
-    load: ex.load, complexRaw: null,
-  }
-  if (week <= 1) return base
-  const w = ex.weeks[week]
-  // GYM RULE: a blank/missing week cell means "repeat the PREVIOUS week" (load,
-  // series and reps) — not "fall back to week 1". So weeks past the last defined
-  // column (e.g. weeks 4–8 of an 8-week plan that only lists Semana 2/3) inherit
-  // the last week that WAS defined, walking back one week at a time.
-  if (!w) return resolveWeek(ex, week - 1)
-  if (w.inherit) return resolveWeek(ex, week - 1) // "Mismo semana ant."
-  const prev = resolveWeek(ex, week - 1)
-  if (w.complex) {
-    return { ...prev, load: w.load ?? prev.load, complexRaw: w.raw }
-  }
+// Merge one "Semana N" cell onto the previous week's resolved prescription.
+function applyCell(w: WeekCell, prev: Resolved): Resolved {
+  if (w.inherit) return prev // "Mismo semana ant."
+  if (w.complex) return { ...prev, load: w.load ?? prev.load, complexRaw: w.raw }
   // a partial cell (e.g. "5X4" with no weight) inherits the missing fields from
-  // the previous week, again per the repeat-previous rule.
+  // the previous week, per the repeat-previous rule.
   return {
     reps: w.reps ?? prev.reps,
     sets: w.sets ?? prev.sets,
@@ -41,6 +29,41 @@ export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
     load: w.load ?? prev.load,
     complexRaw: null,
   }
+}
+
+function resolveRaw(ex: ExerciseRow, week: number): Resolved {
+  const base: Resolved = {
+    reps: ex.reps, sets: ex.sets, repsRaw: ex.repsRaw, setsRaw: ex.setsRaw,
+    load: ex.load, complexRaw: null,
+  }
+  if (week <= 1) {
+    // some coaches put week 1 in an explicit "Semana 1" column instead of the
+    // base cells — honor it so week 1 isn't read from blank base columns.
+    const w1 = ex.weeks[1]
+    return w1 ? applyCell(w1, base) : base
+  }
+  const w = ex.weeks[week]
+  // GYM RULE: a blank/missing week cell means "repeat the PREVIOUS week" (load,
+  // series and reps) — not "fall back to week 1". So weeks past the last defined
+  // column (e.g. weeks 4–8 of an 8-week plan that only lists Semana 2/3) inherit
+  // the last week that WAS defined, walking back one week at a time.
+  if (!w) return resolveRaw(ex, week - 1)
+  return applyCell(w, resolveRaw(ex, week - 1))
+}
+
+export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
+  const r = resolveRaw(ex, Math.max(1, Math.floor(week)))
+  if (r.load.value == null) return r
+  // ---- normalize per-side semantics (display + records + plate calc) --------
+  const hanging = isHangingLoad(ex.name)
+  // weighted pull-ups/dips hang a single load — never "per side" (a coach typo or
+  // a mid-cycle cable swap must not show an impossible "x lado" / plate calc).
+  if (hanging && r.load.perSide) return { ...r, load: { ...r.load, perSide: false } }
+  // a week cell that gives a NEW weight but omits "x lado" keeps the exercise's
+  // per-side convention — coaches write "70kg" as shorthand for "70 x lado" when
+  // the base lift was already per side (e.g. deadlift week 4 "6X4 70kg c/bandas").
+  if (!hanging && !r.load.perSide && ex.load.perSide) return { ...r, load: { ...r.load, perSide: true } }
+  return r
 }
 
 /** Circuit rounds for a given week (max resolved set count in the block). */
@@ -58,9 +81,18 @@ const MONTHS: Record<string, number> = {
   julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
 }
 
-/** Parse "12 de enero de 2026" (rioplatense) → Date, or null. */
+/** Parse "12 de enero de 2026" (rioplatense) or an ISO date/datetime → Date, or null. */
 export function parseStartDate(raw: string): Date | null {
-  const m = raw.toLowerCase().match(/(\d{1,2})\s*de\s*([a-záéíóú]+)\s*de\s*(\d{4})/)
+  const t = raw.trim()
+  // ISO date or datetime (Sheets often stores "Fecha de Inicio" as a real date →
+  // "2026-05-30T03:00:00.000Z"). Use only the calendar day at LOCAL midnight so a
+  // UTC offset can't shift the week boundary by a day.
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    if (!Number.isNaN(d.getTime())) return d
+  }
+  const m = t.toLowerCase().match(/(\d{1,2})\s*de\s*([a-záéíóú]+)\s*de\s*(\d{4})/)
   if (!m) return null
   const month = MONTHS[m[2].normalize('NFD').replace(/[̀-ͯ]/g, '')]
   if (month == null) return null
