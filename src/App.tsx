@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek, getIntroSeen, setIntroSeen, extractToken } from './lib/store'
 import type { Gender } from './lib/records'
 import { memberCurrentWeek } from './lib/week'
 import { Home } from './screens/Home'
@@ -43,7 +43,7 @@ export default function App() {
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [askGender, setAskGender] = useState(!getGender())
-  const [intro, setIntro] = useState(true)
+  const [intro, setIntro] = useState(!getIntroSeen())
   const [slow, setSlow] = useState(false)
   const [askStartDay, setAskStartDay] = useState(getStartDay() == null && getSessions().length === 0)
 
@@ -166,7 +166,7 @@ export default function App() {
           }}
         />
       )}
-      {intro && <Intro onStart={() => setIntro(false)} />}
+      {intro && <Intro onStart={() => { setIntroSeen(); setIntro(false) }} />}
     </div>
   )
 }
@@ -294,18 +294,45 @@ function Splash({ sub, onRetry, retryLabel = 'Reintentar', pulse = true }: {
 }
 
 // No access token in a live build — most often the iOS home-screen app was opened
-// without the magic link. Guide the member instead of silently showing the demo.
+// without the magic link (its storage is isolated from Safari's). Instead of a
+// dead-end, let the member PASTE their access link right here: we pull the token
+// out, save it into THIS app's own storage and reload — so it sticks for good,
+// even if iOS relaunches the app cold. This is the reliable way out of "Activá
+// tu acceso" inside the installed app.
 function NeedLink() {
+  const [val, setVal] = useState('')
+  const [err, setErr] = useState(false)
+  const submit = () => {
+    const tok = extractToken(val)
+    if (!tok) { setErr(true); return }
+    setToken(tok)
+    location.reload()
+  }
   return (
     <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
       <div className="heading text-xl text-white">Activá tu acceso</div>
       <p className="text-white/60 text-sm leading-relaxed max-w-xs">
-        Abrí el <b className="text-white">link de acceso</b> que te pasó FORCE para ver tu rutina.
+        Pegá acá el <b className="text-white">link de acceso</b> que te pasó FORCE y entrá. Queda guardado para siempre.
       </p>
+      <div className="w-full max-w-xs flex flex-col gap-2">
+        <input
+          value={val}
+          onChange={(e) => { setVal(e.target.value); setErr(false) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+          inputMode="url" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+          placeholder="Pegá tu link de acceso acá"
+          className={`w-full rounded-card bg-white/5 border p-3 text-white text-sm text-center placeholder:text-white/30 outline-none focus:border-gold/50 ${err ? 'border-red-400/60' : 'border-white/10'}`}
+        />
+        {err && <p className="text-red-300/80 text-xs">No reconocimos ese link. Pegá el link completo que te pasó FORCE.</p>}
+        <button onClick={submit}
+          className="btn-glow rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-3 active:scale-[0.98]">
+          Entrar
+        </button>
+      </div>
       <p className="text-white/40 text-xs leading-relaxed max-w-xs">
-        💡 En iPhone: abrí tu link en Safari y, <b className="text-white/70">desde esa misma pantalla</b>,
-        tocá Compartir → <b className="text-white/70">Agregar a inicio</b>. Así la app queda con tu acceso.
+        💡 En iPhone, para que quede como app: abrí tu link en Safari y, <b className="text-white/70">desde esa pantalla</b>,
+        tocá Compartir → <b className="text-white/70">Agregar a inicio</b>.
       </p>
     </div>
   )

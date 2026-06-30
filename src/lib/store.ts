@@ -48,6 +48,7 @@ const KEYS = {
   birthday: 'force.birthday',
   startDay: 'force.startDay',
   startWeek: 'force.startWeek',
+  introSeen: 'force.introSeen',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -74,6 +75,22 @@ export const getToken = () => read<string | null>(KEYS.token, null)
 export const setToken = (t: string) => write(KEYS.token, t)
 export const getClientName = () => read<string | null>(KEYS.client, null)
 export const setClientName = (n: string) => write(KEYS.client, n)
+
+// The brand welcome (Intro) plays once, then we remember it — so an iOS PWA that
+// gets killed in the background and relaunched doesn't dump the member back on the
+// welcome screen every time (they just land on their routine).
+export const getIntroSeen = (): boolean => read<boolean>(KEYS.introSeen, false)
+export const setIntroSeen = (): void => write(KEYS.introSeen, true)
+
+/** Pull the access token out of a pasted access link (or a bare token). */
+export function extractToken(input: string): string | null {
+  const v = input.trim()
+  if (!v) return null
+  const m = v.match(/[?&]t=([^&\s]+)/) // a full link / query string
+  if (m) { try { return decodeURIComponent(m[1]) } catch { return m[1] } }
+  if (/^[A-Za-z0-9_-]{6,}$/.test(v)) return v // a bare token
+  return null
+}
 
 // ---- check-ins ------------------------------------------------------------
 export const getCheckins = (): string[] => read<string[]>(KEYS.checkins, [])
