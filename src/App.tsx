@@ -118,21 +118,21 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden" style={{ background: 'var(--grad-dark-stage)' }}>
+    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden flex flex-col" style={{ background: 'var(--grad-dark-stage)' }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge
           (incl. the iOS status-bar safe-area under the notch/Dynamic Island). We do
           NOT rely on the body background showing through: iOS clips `background-
           attachment: fixed` at the safe-area, which left a black band above the app.
           `fixed inset-0` + viewport-fit=cover makes this cover the whole screen. */}
-      {/* Pinned with `fixed inset-0` (not a height percentage/dvh) so the shell reads
-          the real viewport rect directly -- the SAME mechanism the bottom nav already
-          uses, guaranteeing they always agree on where "bottom" is. A computed height
-          (100%, 100dvh) can resolve short of the real screen at standalone-PWA launch
-          on iOS, leaving a black gap under the nav; `fixed inset-0` can't drift like
-          that. This is also why html/body are locked in index.css: the app's only
-          scrolling element is `.app-scroll` below (WebKit botches `position: fixed`
+      {/* The shell is a FLEX COLUMN: a scrolling area (flex-1) + the bottom nav
+          (shrink-0). The nav is a real flex child pinned to the shell's bottom, so it
+          can't drift above the true screen bottom the way a separately-`fixed
+          bottom-0` nav could on iOS PWA (that left a dark gap below it). `fixed
+          inset-0` (not 100%/100dvh) makes the shell read the real viewport rect, so
+          its bottom IS the screen bottom. html/body are locked in index.css so the
+          only scrolling element is `.app-scroll` (WebKit botches `position: fixed`
           once body itself scrolls). */}
-      <div className="app-scroll h-full overflow-y-auto overscroll-contain">
+      <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
         {isDemo() && (
@@ -153,8 +153,8 @@ export default function App() {
         </ErrorBoundary>
       </div>
 
-      {/* bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto
+      {/* bottom nav — a flex child pinned to the shell's real bottom (not fixed) */}
+      <nav className="shrink-0 z-30
         bg-black/80 backdrop-blur border-t border-white/10
         pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-5">
