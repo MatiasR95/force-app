@@ -12,6 +12,7 @@ import { Records } from './screens/Records'
 import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
 import { EventDecor } from './components/EventDecor'
+import { RestTimerHost } from './components/RestTimerHost'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
@@ -115,6 +116,7 @@ export default function App() {
   return (
     <div className="min-h-full max-w-md mx-auto relative">
       <EventDecor />
+      <RestTimerHost showPill={training == null} />
       {isDemo() && (
         <div className="text-center text-[0.6rem] uppercase tracking-micro font-bold text-gold/80
           bg-gold/10 border-b border-gold/20 py-1">
@@ -164,7 +166,7 @@ export default function App() {
           onPick={(dayId, startWeek) => {
             setStartDay(dayId)
             if (startWeek != null) { setStartWeek(startWeek); setWeek(null) }
-            setAskStartDay(false); setTab('hoy')
+            setAskStartDay(false); setTab('inicio')
           }}
         />
       )}

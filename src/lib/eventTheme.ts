@@ -41,7 +41,7 @@ const WINDOWS: ThemeWindow[] = [
     quote: 'Llevá tus colores con orgullo, adentro y afuera del gym.',
   },
   {
-    id: 'independencia', tone: 'patria', from: '07-02', to: '07-09', effect: 'flags', emoji: '🇦🇷',
+    id: 'independencia', tone: 'patria', from: '07-01', to: '07-10', effect: 'flags', emoji: '🇦🇷',
     title: '9 de Julio', greeting: '¡Feliz Día de la Independencia!', blurb: 'Libres desde 1816. A entrenar con orgullo.',
     quote: 'Ser libre también es elegir ser tu mejor versión. Hoy te toca a vos.',
   },

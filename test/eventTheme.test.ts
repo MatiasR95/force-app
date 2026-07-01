@@ -25,11 +25,12 @@ describe('currentEventTheme — date-driven event themes', () => {
     expect(currentEventTheme(on(11, 20))!.id).toBe('soberania')
   })
 
-  it('opens 7 days before the date and closes on the day', () => {
-    expect(currentEventTheme(on(7, 1))).toBeNull()       // 8 days before
-    expect(currentEventTheme(on(7, 2))!.id).toBe('independencia') // 7 days before
-    expect(currentEventTheme(on(7, 9))!.id).toBe('independencia') // the day
-    expect(currentEventTheme(on(7, 10))).toBeNull()      // day after
+  it('9 de Julio shows July 1–10 only', () => {
+    expect(currentEventTheme(on(6, 30))).toBeNull()
+    expect(currentEventTheme(on(7, 1))!.id).toBe('independencia')
+    expect(currentEventTheme(on(7, 9))!.id).toBe('independencia')
+    expect(currentEventTheme(on(7, 10))!.id).toBe('independencia')
+    expect(currentEventTheme(on(7, 11))).toBeNull()
   })
 
   it('every theme carries a motivational quote', () => {

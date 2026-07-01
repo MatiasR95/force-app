@@ -12,7 +12,7 @@ import {
   getClientName, getCheckins, getMaxStreak, localDate,
   isBirthdayToday, bodyweightAgeDays, getBodyweight,
 } from '../lib/store'
-import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight } from 'lucide-react'
+import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw } from 'lucide-react'
 
 const TODAY_LONG = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -29,6 +29,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 }) {
   const [weather, setWeather] = useState<WeatherBundle | null>(null)
   const [profile, setProfile] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const name = getClientName()
   const day = routine.days[suggestedDay]
   const bigOne = day?.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
@@ -50,10 +51,16 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
             <img src={emblem} alt="FORCE" className="h-11 w-11 object-contain" />
             <ArgentinaFlag h={24} />
           </div>
-          <button onClick={() => setProfile(true)} aria-label="Perfil"
-            className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
-            <UserCog size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setRefreshing(true); location.reload() }} aria-label="Actualizar"
+              className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
+              <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+            <button onClick={() => setProfile(true)} aria-label="Perfil"
+              className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
+              <UserCog size={18} />
+            </button>
+          </div>
         </div>
         <h1 className="heading text-3xl text-white mt-4 glow-text">
           {name ? <>Hola, <span className="text-gold">{name.split(' ')[0]}</span></> : 'Bienvenido a FORCE'}
