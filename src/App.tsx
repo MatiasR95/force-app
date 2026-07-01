@@ -118,10 +118,15 @@ export default function App() {
   }
 
   return (
-    <div className="h-full max-w-md mx-auto relative overflow-hidden">
-      {/* the ONLY scrolling element in the app — html/body are locked (index.css)
-          so the fixed bottom nav below never detaches mid-page on iOS (WebKit
-          botches `position: fixed` once body itself scrolls). */}
+    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden">
+      {/* Pinned with `fixed inset-0` (not a height percentage/dvh) so the shell reads
+          the real viewport rect directly -- the SAME mechanism the bottom nav already
+          uses, guaranteeing they always agree on where "bottom" is. A computed height
+          (100%, 100dvh) can resolve short of the real screen at standalone-PWA launch
+          on iOS, leaving a black gap under the nav; `fixed inset-0` can't drift like
+          that. This is also why html/body are locked in index.css: the app's only
+          scrolling element is `.app-scroll` below (WebKit botches `position: fixed`
+          once body itself scrolls). */}
       <div className="app-scroll h-full overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
@@ -292,7 +297,7 @@ function Splash({ sub, onRetry, retryLabel = 'Reintentar', pulse = true }: {
   sub: string; onRetry?: () => void; retryLabel?: string; pulse?: boolean
 }) {
   return (
-    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className={`h-16 w-16 object-contain ${pulse ? 'animate-pulse' : ''}`} />
       <div className="heading text-xl text-white">FORCE</div>
       <p className="text-white/50 text-sm whitespace-pre-line">{sub}</p>
@@ -322,7 +327,7 @@ function NeedLink() {
     location.reload()
   }
   return (
-    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
       <div className="heading text-xl text-white">Activá tu acceso</div>
       <p className="text-white/60 text-sm leading-relaxed max-w-xs">
@@ -356,7 +361,7 @@ function NeedLink() {
 function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
   if (!slow) return <Splash sub="Cargando tu rutina…" />
   return (
-    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain animate-pulse" />
       <div className="heading text-xl text-white">FORCE</div>
       <p className="text-white/50 text-sm">Está tardando más de lo normal…</p>
@@ -376,7 +381,7 @@ function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
 
 function LoadError({ detail, onRetry }: { detail: string; onRetry: () => void }) {
   return (
-    <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
       <div className="heading text-xl text-white">No pudimos cargar tu rutina</div>
       <p className="text-white/50 text-sm">Probá de nuevo; si sigue pasando, recargá la app o avisale a tu coach.</p>
