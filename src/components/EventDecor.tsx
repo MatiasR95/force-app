@@ -69,17 +69,21 @@ function Escarapela() {
   )
 }
 function Guirnalda() {
-  const N = 14, W = 400, H = 34, amp = 9
+  const N = 15, W = 400, H = 54, amp = 12
   const pts = Array.from({ length: N }, (_, i) => {
     const t = i / (N - 1)
-    return { x: 6 + t * (W - 12), y: 2 + 4 * amp * t * (1 - t) }
+    return { x: 6 + t * (W - 12), y: 4 + 4 * amp * t * (1 - t) }
   })
   const string = pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+  // Hang just below the status bar (env safe-area) so it isn't hidden behind the
+  // clock, and give it size + a gold string + drop-shadow so it reads on dark.
   return (
-    <svg className="ev-guir absolute -top-1 left-0 w-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ height: 30 }}>
-      <path d={string} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
+    <svg className="ev-guir absolute left-0 w-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+      style={{ top: 'env(safe-area-inset-top, 0px)', height: 46, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.55))' }}>
+      <path d={string} fill="none" stroke={GOLD} strokeWidth="1.6" opacity="0.85" />
       {pts.map((p, i) => (
-        <path key={i} d={`M${p.x - 7},${p.y} L${p.x + 7},${p.y} L${p.x},${p.y + 16} Z`} fill={i % 2 ? '#ffffff' : CELESTE} stroke="rgba(0,0,0,0.12)" strokeWidth="0.4" />
+        <path key={i} d={`M${p.x - 9},${p.y} L${p.x + 9},${p.y} L${p.x},${p.y + 22} Z`}
+          fill={i % 4 === 3 ? GOLD : i % 2 ? '#ffffff' : CELESTE} stroke="rgba(0,0,0,0.22)" strokeWidth="0.5" />
       ))}
     </svg>
   )

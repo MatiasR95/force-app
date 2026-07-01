@@ -30,10 +30,12 @@
      outer chrome and let the app's own inner container do the scrolling
      instead — see the `.app-scroll` wrapper in App.tsx. */
   html, body { overflow: hidden; overscroll-behavior: none; }
-  /* Solid black on the root element: iOS renders `background-attachment: fixed`
-     unreliably in the safe-area / overscroll zone, exposing a white strip (most
-     visible under shorter screens like Récords). The black floor kills it. */
-  html { background: #000; }
+  /* The root must paint the SAME dark gradient as the body (not pure black): on
+     iOS the status-bar safe-area at the very top shows the html background, and a
+     pure-black html made that strip read as a darker "black line" above the warm
+     app gradient. Using the gradient (with a #000 floor) keeps the Récords
+     white-strip fix — any non-white floor works — while matching the app edge-to-edge. */
+  html { background: var(--grad-dark-stage); background-color: #000; }
   body {
     margin: 0;
     background: var(--grad-dark-stage);
