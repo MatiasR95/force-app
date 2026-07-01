@@ -119,18 +119,23 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden flex flex-col" style={{ background: 'var(--grad-dark-stage)' }}>
+    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
+      style={{ height: 'calc(100% + env(safe-area-inset-top))', background: 'var(--grad-dark-stage)' }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge
           (incl. the iOS status-bar safe-area under the notch/Dynamic Island). We do
           NOT rely on the body background showing through: iOS clips `background-
-          attachment: fixed` at the safe-area, which left a black band above the app.
-          `fixed inset-0` + viewport-fit=cover makes this cover the whole screen. */}
-      {/* The shell is a FLEX COLUMN: a scrolling area (flex-1) + the bottom nav
-          (shrink-0). The nav is a real flex child pinned to the shell's bottom, so it
-          can't drift above the true screen bottom the way a separately-`fixed
-          bottom-0` nav could on iOS PWA (that left a dark gap below it). `fixed
-          inset-0` (not 100%/100dvh) makes the shell read the real viewport rect, so
-          its bottom IS the screen bottom. html/body are locked in index.css so the
+          attachment: fixed` at the safe-area, which left a black band above the app. */}
+      {/* CRITICAL iOS PWA height fix. In a standalone black-translucent PWA, iOS lays
+          the app out into a viewport that is SHORT by the top safe-area inset and shifts
+          it up — so `fixed inset-0` (bottom pinned to that short viewport) left the nav
+          floating ~top-inset px above the true screen bottom, with the page gradient
+          showing through below (measured on iPhone 15 Pro Max: innerHeight 873 vs screen
+          932, i.e. 59px = sa-top short). Fix: anchor to `top:0` and take height
+          `100% + env(safe-area-inset-top)` — 100% is the short viewport, adding the top
+          inset back makes the shell exactly the physical screen height. The shell is a
+          FLEX COLUMN: a scrolling area (flex-1) + the bottom nav (shrink-0), so the nav
+          is a real flex child pinned to the shell's (now correct) real bottom. html/body
+          are locked in index.css so the
           only scrolling element is `.app-scroll` (WebKit botches `position: fixed`
           once body itself scrolls). */}
       <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">

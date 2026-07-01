@@ -42,6 +42,19 @@ export function IosDiag() {
     const saBottom = cs.paddingBottom
     document.body.removeChild(probe)
 
+    // measure what candidate full-height rules actually resolve to on this device
+    const measure = (h: string) => {
+      const p = document.createElement('div')
+      p.style.cssText = `position:fixed;top:0;left:0;width:1px;visibility:hidden;pointer-events:none;height:${h};`
+      document.body.appendChild(p)
+      const px = Math.round(p.getBoundingClientRect().height)
+      document.body.removeChild(p)
+      return px
+    }
+    const hVh = measure('100vh')
+    const hDvh = measure('100dvh')
+    const hCalc = measure('calc(100% + env(safe-area-inset-top))')
+
     const shell = document.querySelector('.app-scroll')?.parentElement
     const nav = document.querySelector('nav')
     const sr = shell?.getBoundingClientRect()
@@ -59,6 +72,7 @@ export function IosDiag() {
       `visualVP.h   ${vv ? Math.round(vv.height) : '—'}  offTop ${vv ? Math.round(vv.offsetTop) : '—'}`,
       `sa-top       ${saTop}`,
       `sa-bottom    ${saBottom}`,
+      `h 100vh ${hVh}  100dvh ${hDvh}  calc ${hCalc}`,
       `shell  top ${Math.round(sr?.top ?? -1)}  bot ${Math.round(sr?.bottom ?? -1)}`,
       `nav    top ${Math.round(nr?.top ?? -1)}  bot ${Math.round(nr?.bottom ?? -1)}`,
       `gap innerH-navBot  ${Math.round(window.innerHeight - (nr?.bottom ?? 0))}`,
