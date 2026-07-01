@@ -51,6 +51,7 @@ const KEYS = {
   introSeen: 'force.introSeen',
   lastDone: 'force.lastDone',
   seenMedals: 'force.seenMedals',
+  progress: 'force.progress',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -268,6 +269,12 @@ export function setLastDone(exerciseId: string, v: LastDone): void {
   m[exerciseId] = v
   write(KEYS.lastDone, m)
 }
+
+// ---- in-progress session (so leaving Entrenar never wipes your progress) ----
+export interface SessionProgress { dayId: string; date: string; i: number; done: Record<string, number> }
+export const getSessionProgress = (): SessionProgress | null => read<SessionProgress | null>(KEYS.progress, null)
+export function saveSessionProgress(p: SessionProgress): void { write(KEYS.progress, p) }
+export function clearSessionProgress(): void { write(KEYS.progress, null) }
 
 // ---- medals already celebrated (so a new one triggers the unlock card once) ----
 export const getSeenMedals = (): string[] => read<string[]>(KEYS.seenMedals, [])
