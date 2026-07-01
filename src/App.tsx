@@ -13,6 +13,7 @@ import { Records } from './screens/Records'
 import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
 import { EventDecor } from './components/EventDecor'
+import { IosDiag } from './components/IosDiag'
 import { RestTimerHost } from './components/RestTimerHost'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
@@ -190,6 +191,7 @@ export default function App() {
         />
       )}
       {intro && <Intro onStart={() => { setIntroSeen(); setIntro(false) }} />}
+      <IosDiag />
     </div>
   )
 }
