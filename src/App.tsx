@@ -119,25 +119,17 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
-      style={{ height: 'calc(100% + env(safe-area-inset-top))', background: 'var(--grad-dark-stage)' }}>
-      {/* The app's OWN full-screen container paints the brand gradient edge-to-edge
-          (incl. the iOS status-bar safe-area under the notch/Dynamic Island). We do
-          NOT rely on the body background showing through: iOS clips `background-
-          attachment: fixed` at the safe-area, which left a black band above the app. */}
-      {/* CRITICAL iOS PWA height fix. In a standalone black-translucent PWA, iOS lays
-          the app out into a viewport that is SHORT by the top safe-area inset and shifts
-          it up — so `fixed inset-0` (bottom pinned to that short viewport) left the nav
-          floating ~top-inset px above the true screen bottom, with the page gradient
-          showing through below (measured on iPhone 15 Pro Max: innerHeight 873 vs screen
-          932, i.e. 59px = sa-top short). Fix: anchor to `top:0` and take height
-          `100% + env(safe-area-inset-top)` — 100% is the short viewport, adding the top
-          inset back makes the shell exactly the physical screen height. The shell is a
-          FLEX COLUMN: a scrolling area (flex-1) + the bottom nav (shrink-0), so the nav
-          is a real flex child pinned to the shell's (now correct) real bottom. html/body
-          are locked in index.css so the
-          only scrolling element is `.app-scroll` (WebKit botches `position: fixed`
-          once body itself scrolls). */}
+    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden flex flex-col" style={{ background: 'var(--grad-dark-stage)' }}>
+      {/* The app's OWN full-screen container paints the brand gradient edge-to-edge. */}
+      {/* iOS PWA layout: the status bar is `black` (see index.html) — NOT
+          black-translucent, which handed this device a viewport SHORT by the top
+          safe-area inset (usable 873 vs screen 932 on iPhone 15 Pro Max), leaving the
+          nav floating ~59px above the real bottom with content clipped there. With a
+          correctly-sized viewport, `fixed inset-0` reads the real rect, and the shell
+          is a FLEX COLUMN: a scrolling area (flex-1) + the bottom nav (shrink-0), so the
+          nav is a real flex child pinned to the shell's true bottom. html/body are
+          locked in index.css so the only scrolling element is `.app-scroll` (WebKit
+          botches `position: fixed` once body itself scrolls). */}
       <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
