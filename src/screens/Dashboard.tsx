@@ -7,7 +7,8 @@ import {
 import { PATTERN_LABEL } from '../lib/media'
 import { getCheckins, getSessions, getMyRecords } from '../lib/store'
 import { epley1RM, liftLabel } from '../lib/records'
-import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp } from 'lucide-react'
+import { Medallero } from '../components/Medallero'
+import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp, Award } from 'lucide-react'
 
 export function Dashboard({ routine }: { routine: Routine }) {
   const checkins = getCheckins()
@@ -38,6 +39,10 @@ export function Dashboard({ routine }: { routine: Routine }) {
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <div className="kicker">Tu progreso</div>
       <h1 className="heading text-2xl text-white mb-5">Panel</h1>
+
+      {/* personal medals (constancia ladders + strength by category) */}
+      <SectionTitle icon={<Award size={14} />}>Tus medallas</SectionTitle>
+      <div className="mb-6"><Medallero /></div>
 
       {/* attendance + streak */}
       <div className="grid grid-cols-2 gap-3 mb-6">
