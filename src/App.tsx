@@ -118,7 +118,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-dvh max-w-md mx-auto relative overflow-hidden">
+    <div className="h-full max-w-md mx-auto relative overflow-hidden">
       {/* the ONLY scrolling element in the app — html/body are locked (index.css)
           so the fixed bottom nav below never detaches mid-page on iOS (WebKit
           botches `position: fixed` once body itself scrolls). */}
