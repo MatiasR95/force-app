@@ -118,25 +118,30 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-full max-w-md mx-auto relative">
-      <EventDecor />
-      <RestTimerHost showPill={training == null} />
-      {isDemo() && (
-        <div className="text-center text-[0.6rem] uppercase tracking-micro font-bold text-gold/80
-          bg-gold/10 border-b border-gold/20 py-1">
-          Modo demo · datos de ejemplo
-        </div>
-      )}
+    <div className="h-dvh max-w-md mx-auto relative overflow-hidden">
+      {/* the ONLY scrolling element in the app — html/body are locked (index.css)
+          so the fixed bottom nav below never detaches mid-page on iOS (WebKit
+          botches `position: fixed` once body itself scrolls). */}
+      <div className="app-scroll h-full overflow-y-auto overscroll-contain">
+        <EventDecor />
+        <RestTimerHost showPill={training == null} />
+        {isDemo() && (
+          <div className="text-center text-[0.6rem] uppercase tracking-micro font-bold text-gold/80
+            bg-gold/10 border-b border-gold/20 py-1">
+            Modo demo · datos de ejemplo
+          </div>
+        )}
 
-      <ErrorBoundary key={tab}>
-        <div className="screen-in">
-          {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
-          {tab === 'hoy' && <Hoy routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
-          {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
-          {tab === 'panel' && <Dashboard routine={routine} />}
-          {tab === 'records' && <Records />}
-        </div>
-      </ErrorBoundary>
+        <ErrorBoundary key={tab}>
+          <div className="screen-in">
+            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
+            {tab === 'hoy' && <Hoy routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+            {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
+            {tab === 'panel' && <Dashboard routine={routine} />}
+            {tab === 'records' && <Records />}
+          </div>
+        </ErrorBoundary>
+      </div>
 
       {/* bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 max-w-md mx-auto

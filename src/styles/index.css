@@ -24,6 +24,12 @@
 
 @layer base {
   html, body, #root { height: 100%; min-height: 100dvh; }
+  /* iOS renders `position: fixed` unreliably once the BODY itself is the
+     scrolling element (the bottom nav visibly detaches and floats mid-page
+     after a scroll/bounce, especially in standalone PWA mode). Lock the
+     outer chrome and let the app's own inner container do the scrolling
+     instead — see the `.app-scroll` wrapper in App.tsx. */
+  html, body { overflow: hidden; overscroll-behavior: none; }
   /* Solid black on the root element: iOS renders `background-attachment: fixed`
      unreliably in the safe-area / overscroll zone, exposing a white strip (most
      visible under shorter screens like Récords). The black floor kills it. */
