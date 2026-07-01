@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
-import { fetchRoutine, isDemo, syncOutbox } from './lib/api'
+import { fetchRoutine, fetchRecords, isDemo, syncOutbox } from './lib/api'
+import { runRivalWatch } from './lib/rivalWatch'
 import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek, getIntroSeen, setIntroSeen, extractToken } from './lib/store'
 import type { Gender } from './lib/records'
 import { memberCurrentWeek } from './lib/week'
@@ -58,6 +59,8 @@ export default function App() {
       .then((r) => { setRoutine(r); clearTimeout(slowTimer) })
       .catch((e) => { setError(String(e?.message ?? e)); clearTimeout(slowTimer) })
     syncOutbox(token).catch(() => {})
+    // check the gym board: did a rival in my category take a record? (notify)
+    fetchRecords(token).then(runRivalWatch).catch(() => {})
   }
 
   useEffect(() => {
@@ -74,6 +77,7 @@ export default function App() {
       const t = getToken()
       fetchRoutine(t).then(setRoutine).catch(() => {})
       syncOutbox(t).catch(() => {})
+      fetchRecords(t).then(runRivalWatch).catch(() => {})
     }
     document.addEventListener('visibilitychange', refresh)
     window.addEventListener('online', refresh)

@@ -3,6 +3,7 @@ import type { Routine } from '../lib/types'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { ArgentinaFlag } from '../components/ArgentinaFlag'
 import { EventThemeBanner } from '../components/EventThemeBanner'
+import { getRivalPending, clearRivalPending } from '../lib/rivalWatch'
 import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
 import { nextFeriado } from '../lib/feriados'
@@ -12,7 +13,7 @@ import {
   getClientName, getCheckins, getMaxStreak, localDate,
   isBirthdayToday, bodyweightAgeDays, getBodyweight,
 } from '../lib/store'
-import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw } from 'lucide-react'
+import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X } from 'lucide-react'
 
 const TODAY_LONG = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -30,6 +31,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   const [weather, setWeather] = useState<WeatherBundle | null>(null)
   const [profile, setProfile] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [rivals, setRivals] = useState(() => getRivalPending())
   const name = getClientName()
   const day = routine.days[suggestedDay]
   const bigOne = day?.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
@@ -70,6 +72,19 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 
       {/* event-aware banner (patrias, Navidad, fin de año, Malvinas) — date-driven */}
       <EventThemeBanner />
+
+      {/* someone in your category took a record → go for the revancha */}
+      {rivals.length > 0 && (
+        <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-3.5 mb-4 flex items-start gap-3">
+          <Flame size={20} className="text-gold shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-white text-sm">¡Te pasaron un récord!</div>
+            <p className="text-white/75 text-xs mt-0.5 leading-snug">{rivals[rivals.length - 1].text} Entrená inteligente y seguí al coach — la revancha se gana con constancia. 💪</p>
+            <button onClick={onGoRecords} className="mt-2 text-gold text-xs font-black uppercase tracking-wide">Ver récords →</button>
+          </div>
+          <button onClick={() => { clearRivalPending(); setRivals([]) }} aria-label="Cerrar" className="text-white/40 shrink-0"><X size={16} /></button>
+        </div>
+      )}
 
       {/* birthday board (only today) */}
       {isBirthdayToday() && (
