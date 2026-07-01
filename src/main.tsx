@@ -22,6 +22,27 @@ registerSW({
   },
 })
 
+// iOS standalone PWAs boot with a STALE layout viewport: the document lays out short
+// (documentElement.clientHeight lags the real height) so the app paints ~top-inset px
+// short and the bottom nav floats high — until a geometry change (a device rotation)
+// forces WebKit to re-measure. `window.innerHeight` is correct even while the layout
+// viewport lags, so we pin it to a CSS var `--app-vh` and re-apply it across the first
+// second and on every geometry/visibility event. That reproduces what the rotation does
+// — the app self-corrects to the true height immediately, no user rotation needed.
+function syncAppHeight() {
+  const h = window.innerHeight
+  if (h > 0) document.documentElement.style.setProperty('--app-vh', h + 'px')
+}
+syncAppHeight()
+;[0, 50, 150, 300, 600, 1000].forEach((ms) => window.setTimeout(syncAppHeight, ms))
+requestAnimationFrame(syncAppHeight)
+window.addEventListener('resize', syncAppHeight)
+window.addEventListener('orientationchange', syncAppHeight)
+window.addEventListener('pageshow', syncAppHeight)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncAppHeight()
+})
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>

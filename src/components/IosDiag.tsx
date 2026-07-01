@@ -69,6 +69,7 @@ export function IosDiag() {
       `screen.h     ${window.screen.height}  avail ${window.screen.availHeight}`,
       `innerHeight  ${window.innerHeight}`,
       `docEl.client ${document.documentElement.clientHeight}`,
+      `--app-vh     ${getComputedStyle(document.documentElement).getPropertyValue('--app-vh').trim() || '(unset)'}`,
       `visualVP.h   ${vv ? Math.round(vv.height) : '—'}  offTop ${vv ? Math.round(vv.offsetTop) : '—'}`,
       `sa-top       ${saTop}`,
       `sa-bottom    ${saBottom}`,

@@ -119,17 +119,18 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden flex flex-col" style={{ background: 'var(--grad-dark-stage)' }}>
+    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
+      style={{ height: 'var(--app-vh, 100dvh)', background: 'var(--grad-dark-stage)' }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge. */}
-      {/* iOS PWA layout: the status bar is `black` (see index.html) — NOT
-          black-translucent, which handed this device a viewport SHORT by the top
-          safe-area inset (usable 873 vs screen 932 on iPhone 15 Pro Max), leaving the
-          nav floating ~59px above the real bottom with content clipped there. With a
-          correctly-sized viewport, `fixed inset-0` reads the real rect, and the shell
-          is a FLEX COLUMN: a scrolling area (flex-1) + the bottom nav (shrink-0), so the
-          nav is a real flex child pinned to the shell's true bottom. html/body are
-          locked in index.css so the only scrolling element is `.app-scroll` (WebKit
-          botches `position: fixed` once body itself scrolls). */}
+      {/* iOS PWA layout. Two device bugs are handled together: (1) the status bar is
+          `black` (index.html), NOT black-translucent, which handed this iPhone a viewport
+          SHORT by the top inset (873 vs 932). (2) Even then, iOS boots the layout viewport
+          STALE (documentElement.clientHeight lagged at 873 while innerHeight was 932) so
+          the app painted short until a rotation — so the shell height is driven by
+          `--app-vh` = window.innerHeight (main.tsx), re-synced over the first second. The
+          shell is a FLEX COLUMN: scroll area (flex-1) + bottom nav (shrink-0), so the nav
+          is a real flex child pinned to the shell's true bottom. html/body are locked in
+          index.css so the only scrolling element is `.app-scroll`. */}
       <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
