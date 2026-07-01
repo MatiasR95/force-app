@@ -349,6 +349,26 @@ function deleteRecordsById() {
   return 'removed ' + removed + ' record(s)'
 }
 
+/** Reset the records AND rachas boards, keeping ONLY clients whose name contains
+ *  "Alexis". Run once from the Apps Script editor to clean up test users. */
+function resetBoardsExceptAlexis() {
+  var keep = 'alexis'
+  var r = keepRowsByClient_(recordsSheet_(), 1, keep)   // records: client in col B (index 1)
+  var s = keepRowsByClient_(streaksSheet_(), 0, keep)    // rachas: client in col A (index 0)
+  return 'records kept ' + r + ', rachas kept ' + s
+}
+function keepRowsByClient_(sh, clientCol, keepSubstr) {
+  var rows = sh.getDataRange().getValues()
+  var kept = [rows[0]]
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][clientCol]) continue
+    if (String(rows[i][clientCol]).toLowerCase().indexOf(keepSubstr) >= 0) kept.push(rows[i])
+  }
+  sh.clearContents()
+  sh.getRange(1, 1, kept.length, kept[0].length).setValues(kept)
+  return kept.length - 1
+}
+
 // ---- streak board (gym-wide, weeks) ---------------------------------------
 // Stored in a "rachas" tab of CONFIG: client | weeks | max | ts (one row/client).
 function streaksSheet_() {
