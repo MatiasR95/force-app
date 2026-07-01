@@ -1,187 +1,133 @@
-# FORCE — Mi Rutina · Session Handoff
+# FORCE · Mi Rutina — Handoff
 
-A free, installable **PWA** that renders the routines FORCE coaches plan in Google Sheets, lets
-members train them, and tracks progress/records. Read this first, then `CLAUDE.md`.
-
-- **Repo:** https://github.com/MatiasR95/force-app · **Live:** https://matiasr95.github.io/force-app/
-- **Owner:** Matias (gym FORCE, La Plata). Spanish rioplatense (vos). Brand = FORCE, gold `#C6AE78`
-  on dark, Montserrat, emblem. Never say "gym"/"box" → entrenar/fuerza. No baked-in text / faces in imagery.
-- **Status (Jun 2026):** deployed and live; last commit `a756471`. Being rolled out to first real clients.
-- **Open this folder as the project root.** Everything lives here.
+Living handoff for continuing this project in a new session. Updated 2026-07-01.
 
 ---
 
-## 1. Run / build / test (portable Node — NOT on system PATH)
+## 1. What this is
 
-Node is at `C:\Users\Matia\node-portable\node-v24.16.0-win-x64`. Prefix PATH for any terminal cmd:
+FORCE "Mi Rutina" is a free, installable **PWA** for a real gym (FORCE, La Plata). It renders the
+routines coaches plan in **Google Sheets**, guides members set-by-set, calculates plates, and
+auto-captures records, medals and progress. Coaches keep planning in Sheets unchanged; members
+just train.
 
-```powershell
+- **Frontend:** React + Vite + TypeScript + Tailwind, PWA (vite-plugin-pwa, `registerType: autoUpdate`).
+  Deployed to GitHub Pages: `github.com/MatiasR95/force-app` → https://matiasr95.github.io/force-app/
+  CI: `.github/workflows/deploy.yml` (runs tests + build; needs `VITE_FORCE_API` Actions secret).
+- **Backend:** Google Apps Script on the gym account `forcebyaurus@gmail.com` (owns `Clientes/`).
+  Code in `apps-script/` (`Code.gs`, `Tokens.gs`). Config spreadsheet `CONFIG_SHEET_ID` has a
+  `clientes` tab (`token | nombre | folderId`) plus `records` and `rachas` tabs (gym-wide boards).
+- **Brand:** Spanish rioplatense (vos). Gold `#C6AE78` on dark, Montserrat, winged emblem. Never
+  say "gym/box" → "entrenar/fuerza". Logo assets in `src/assets/logo/` (use `lockup_white_t.png`
+  = gold emblem + white FORCE on dark; `emblem_gold_t.png` = emblem only).
+
+## 2. Run / test / build (portable Node — NOT on system PATH)
+
+Node lives at `C:\Users\Matia\node-portable\node-v24.16.0-win-x64`. Preview via
+`C:\Users\Matia\run-force-dev.cmd` (sets PATH, `npm run dev` on :5173). For terminal:
+```
 $env:Path = "C:\Users\Matia\node-portable\node-v24.16.0-win-x64;" + $env:Path
-npm install      # first time
-npm run dev      # demo mode on :5173 (bundled sample routine)
-npm test         # Vitest — 54 tests (parser, metrics, records, plates, streaks, features)
-npm run build    # tsc -b + vite build  (CI runs test + build)
+npm run dev      # demo mode (bundled sample routine, no backend)
+npm test         # Vitest — 106 tests (parser, week, records, medals, features, events…)
+npm run build    # typecheck (tsc, includes tests) + production build
 ```
+Verify UI changes with the **preview MCP** (`preview_start` → `run-force-dev.cmd`, then
+`preview_eval`/`preview_screenshot`). Demo mode has no backend, so records/medals need seeding
+via `localStorage` in `preview_eval`. To preview an event theme off-season, temporarily force the
+date in `currentEventTheme(date=…)` then revert.
 
-Preview server wired in `.claude/launch.json` → `C:\Users\Matia\run-force-dev.cmd`. Deploy is automatic:
-push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) runs tests+build, publishes to Pages.
-CI needs the `VITE_FORCE_API` Actions secret for live (non-demo) mode (already set).
-**Before committing:** `npx tsc -b` clean, `npm test` green, `npm run build` clean.
+## 3. Architecture / key files
 
-> **Screenshot tool STILL times out** this machine (a tooling fault, not the app). Verify via
-> `preview_eval` / `preview_snapshot` (DOM), not pixels. Eyeball real visuals on a device.
+- **Parser** `src/lib/parser.ts` — Sheet 2D values → `Routine`. Tolerant, never throws. Handles
+  DÍA/DAY/weekday markers (cols A–C), per-side loads, `Semana N` columns (+ reversed), empty-cell =
+  repeat-previous, HIIT carry-forward, day sorting/dedup, `parseSeriesPlan` (non-linear `4X1+3X3` /
+  `10-10-8-8`). `looksLikeLogSheet` rejects a misrouted Seguimiento sheet.
+- **Weeks** `src/lib/week.ts` — `resolveWeek` (per-week resolution + per-side inheritance +
+  hanging-load override + week-1 column), `parseStartDate` (ISO + rioplatense), `memberCurrentWeek`.
+- **Records** `src/lib/records.ts` — `matchRecordLift`, `recordKg`, `WEIGHT_CLASSES`/`weightClass`
+  (**4 categories/gender**), `RECORD_LIFTS`.
+- **Medals** `src/lib/medals.ts` — coach-vetted strength tiers (Bronce/Plata/Oro) per lift × gender
+  × 4 categories (Oro already final), endless Bronce→Platino ladders (streak weeks, sessions),
+  `earnedMedalIds`. See memory [[force-medals-categories]].
+- **Rest timer** `src/lib/restTimer.ts` (global wall-clock store) + `components/RestTimer.tsx`
+  (Entrenar control) + `components/RestTimerHost.tsx` (app-wide watcher + floating pill + alert).
+- **Events** `src/lib/eventTheme.ts` (date windows, 7-days-before; 9-Julio = Jul 1–10) +
+  `components/EventThemeBanner.tsx` (Inicio banner+quote) + `components/EventDecor.tsx` (app-wide
+  guirnalda/escarapelas/snow/fireworks/solemn drift).
+- **Rival watch** `src/lib/rivalWatch.ts` — notify + Inicio banner when someone in your
+  gender+category takes a record; wired in `App.tsx` load/refresh.
+- **Share** `components/ShareCard.tsx` — finish + medal-unlock cards, 1080×1920 PNG via canvas +
+  `navigator.share`/download. Uses `lockup_white_t.png`, handle `@force.ok`.
+- **Screens** `src/App.tsx` (shell, tabs, gates, load/refresh, EventDecor + RestTimerHost mounts),
+  `screens/Home.tsx` (Inicio: weather bundle, event banner, rival banner, refresh, rachas),
+  `screens/Hoy.tsx`, `screens/Semana.tsx` (Plan), `screens/Entrenar.tsx` (full-screen lifting:
+  warm-up step, overview sheet, progress persistence, PR capture, Finish→celebrate→share→medals),
+  `screens/Records.tsx` (gym boards), `screens/Dashboard.tsx` (Panel + `components/Medallero.tsx`).
+- **Store** `src/lib/store.ts` — all localStorage (token, gender, bodyweight, sessions, checkins,
+  actuals, lastDone, seenMedals, session progress, intro-seen, etc.).
+- **S&C coach agent** `.claude/agents/sc-coach.md` — owns exercise accuracy. **Standing rule from
+  Matias: always vet exercise/medal thresholds with this agent before shipping.**
 
----
+## 4. Feature state (all implemented + committed)
 
-## 2. Architecture
+Onboard to Inicio; iOS PWA token paste-recovery; intro-once; warm-up as Entrenar step 1;
+"ver toda la sesión" overview + **progress persistence** (leaving never wipes it); "la vez pasada";
+per-side/hanging-load/deadlift number fixes; non-linear progression; weather reworked (Inicio-only,
+detailed today, one fetch); auto-attendance on finish; RPE "Saltar" saves (no data loss);
+records + medals (Panel) with **4 weight categories/gender**; share cards (finish + medal-unlock,
+gold lockup); **global background rest timer** + notification; event theming (patrias + Navidad +
+fin de año + Malvinas, banner+quote+animations, 7-days-before, 9-Julio = Jul 1–10); Home refresh
+button; rival-record notifications; real-name sync (needs backend redeploy — see §5).
 
-```
-Member phone (PWA, installable, offline-first)        Google (gym account forcebyaurus@gmail.com)
-  React + Vite + TS + Tailwind                         Apps Script Web App (apps-script/Code.gs)
-  parses routine JSON client-side                       • getRoutine (reads ALL tabs of Clientes/<name>/ sheet)
-  optimistic writes + offline outbox  <-- HTTPS/JSON --> • logInput     -> Seguimiento sheet (coach reads)
-  app-wide error boundary + self-heal                   • updateCells  -> OVERWRITES routine cells (+ logs prior)
-  hosted free on GitHub Pages                           • getRecords/postRecord -> 'records' tab (+ wc column)
-                                                        • getStreaks/postStreak -> 'rachas' tab
-```
+## 5. ⚠️ Pending to go fully live (do these)
 
-- **Backend runs AS the gym account** (owns `Clientes/`). No API keys. Setup in `apps-script/SETUP.md`.
-- **The "current" routine** = the loose spreadsheet directly in `Clientes/<name>/` (newest, not in `Historial/`).
-  `getRoutine` now stitches **every tab** of that spreadsheet (powerlifting plans often use one day per tab).
-- **Routine sheet IS modified now** (Matias' decision): member kg/reps/series edits **overwrite** the matching
-  cell. The prior value is logged to `Seguimiento` first (recoverable). See §4.
-- **Access:** magic link `?t=<token>` + QR via `apps-script/Tokens.gs`. Token→client→folderId in the config
-  spreadsheet `clientes` tab.
-- **Demo mode** (no `VITE_FORCE_API` / no token): `src/data/fixtureEnero2026.ts`, inputs to localStorage only.
-  Demo is a single array (one "tab") → the multi-tab path is backend-only, covered by a parser unit test.
+1. **Push:** `git push origin main` → wait for green GitHub Actions run.
+2. **Backend redeploy** (Apps Script, gym account): paste current `apps-script/Code.gs` → Save →
+   **Deploy → Manage deployments → Edit → New version**. Needed for: real names in `getRoutine`
+   (kills the "Vos" fallback on the boards/cards). Without it the app still works.
+3. **Run admin cleanup once** (Apps Script editor → pick function → Run):
+   - `resetBoardsExceptAlexis()` — clears `records` + `rachas`, keeping only clients named "Alexis".
+   - (`clearRecords`, `clearRecordsFor`, `deleteRecordsById` also exist for finer cleanup.)
+4. **On the phone:** grant the **notification permission** (rest timer + rival alerts); set your
+   category in **Perfil**.
 
-### Key files
-- `src/lib/parser.ts` — Sheet 2D values → `Routine`. Tolerant; **never throws** (per-row try/catch). Tracks
-  each exercise's absolute sheet `row` and each `WeekCell.col` for writeback.
-- `src/lib/week.ts` — `resolveWeek(ex, week)`, `currentWeek`. `src/lib/sheetWrite.ts` — `buildCellWrites`
-  (mirrors `resolveWeek`; field-aware overwrite target). `src/lib/types.ts` — domain model.
-- `src/lib/records.ts` — record lifts, `matchRecordLift`, `recordKg`, `noteWeight`, **`weightClass`/`WEIGHT_CLASSES`**.
-- `src/lib/metrics.ts`, `src/lib/plates.ts`, `src/lib/normalize.ts`.
-- `src/lib/store.ts` — localStorage + outbox (checkins, sets, sessions, notes, actuals, records, gender,
-  restPref, maxStreak, **bodyweights, birthday**; `queueCellWrites`).
-- `src/lib/api.ts` — demo/live switch; `fetchRoutine` (validates payload), `syncOutbox` (logs→logInput,
-  `cell`→`updateCells`), records/streaks.
-- `src/lib/weather.ts` (`getWeather` + `getForecast`), `src/lib/feriados.ts` (AR 2026–27), `src/lib/coachTips.ts`.
-- `src/screens/` — `Home` (Inicio), `Intro`, `Hoy`, `Semana` (Plan), `Records`, `Dashboard` (Panel),
-  `Entrenar`, `ExerciseSheet`.
-- `src/components/` — `ErrorBoundary`, `Profile`, `ArgentinaFlag`, `AnimatedExercise` (**animated** icons),
-  `DayView`, `RestTimer`, `PlateCalc`, `Celebration`, `WeekBar`, `TechniqueChips`, `ui`.
-- `.claude/agents/sc-coach.md` — S&C coach subagent (icons, cues, plan audits).
-- `apps-script/` — `Code.gs`, `Tokens.gs`, `SETUP.md`. `docs/` — guides (see §7). `scripts/` — PDF generator.
+## 6. Known limitations / gotchas
 
----
+- **iOS PWA push:** true background delivery while the app is fully closed is restricted; the rest
+  timer/rival notifications fire reliably in foreground / on return. Wall-clock keeps the time
+  correct on resume.
+- **Old-category records:** records captured under the old 3-category `wc` keys (`m66-80`, etc.)
+  won't match the new 4-category filters, so they won't appear in the new brackets. `resetBoards…`
+  clears them; new records use the 4 keys.
+- **Movable holidays:** `feriados.ts` is a fixed 2026–27 table — refresh yearly.
+- **Client tokens are secrets.** `scripts/audit-tokens.local.json` is gitignored — NEVER commit it.
+  Don't commit `scratch-*.json` (real client data) either.
+- Empty-folder clients (Felipe Suarez, Micaela Bessolo, a duplicate Joaquin Garayzabal, Matias
+  Lafalce) correctly show "sin días cargados" — a data issue, not a bug.
 
-## 3. What's built (all live)
+## 7. Useful scripts / docs
 
-- **5-tab nav** (`src/App.tsx`): **Inicio · Hoy · Plan · Récords · Panel**; default `Inicio`. `Entrenar`
-  is the full-screen lifting overlay. `Intro` splash on launch.
-- **Inicio (Home)** — welcome + date, animated **Argentina flag** by the emblem, today's-session CTA,
-  **4-day La Plata forecast**, **próximo feriado** + days left, **coach tip** tied to the day's Big One,
-  rachas snapshot, today's-birthday board, monthly bodyweight nudge, **Perfil** sheet (name/gender/birthday/bw).
-- **Hoy** — "🔥 Hoy te toca · Día X" (says **"Estás viendo"** when browsing a non-current week), weather, "última
-  vez" recap, last-week advice, inline Entrenar CTA, day selector.
-- **First-run day prompt** (`StartDayGate` in `App.tsx`) — after Intro+gender, a multi-day plan asks "¿Con qué día
-  arrancás hoy?"; the choice (`store.getStartDay`) seeds the suggested day until the first session is logged, then
-  the suggestion follows completed sessions. Suggested day = first day not trained in the last 7 days.
-- **Week values** follow the gym rule: a blank week cell repeats the **last non-empty** week (weight+reps+series),
-  not week 1 (`resolveWeek`); HIIT/timed circuits carry the time+rounds forward to blank rows. See memory `force-empty-cell-rule`.
-- **Plan** — all days (one pill per `routine.days` entry), meta, history. **Panel** — attendance, streak, Big-3
-  e1RM, per-lift e1RM trend, volume by pattern, RPE, tonnage.
-- **Entrenar** — "Marcar serie hecha" auto-advances; RestTimer; **AdjustField** (edit actual kg/reps/series →
-  records + progress + **overwrites the routine cell**); observación; circuits/superseries; Big One alternates; HIIT.
-- **Records (Salón de la fama)** — auto-captured PRs (actual weight, gender-split), **bodyweight-category filter**
-  (M ≤65/66–80/+80 · F ≤50/51–65/+65), Top-10 rachas, gym record.
-- **Animated exercise icons** — gold line-art, one looped rep via CSS translate keyframes (no SMIL), reduced-motion aware.
-- **Crash-proof** — see §5.
+- `scripts/audit-routines.ts` (`npm run audit`) — fetches getRoutine per token from
+  `scripts/audit-tokens.local.json` (gitignored) and reports parse health across all clients.
+- `scripts/make_guide_pdf.py` (`py scripts/make_guide_pdf.py`) — builds `docs/FORCE-Guia-Cliente.pdf`
+  (3-page branded PDF; needs reportlab + PIL + `scripts/_fonts/`).
+- `docs/GUIA-CLIENTE.md` (source guide), `docs/FORCE-Guia-Cliente.pdf` (branded PDF),
+  `docs/linkedin-post.md` (LinkedIn draft).
 
----
+## 8. Apps Script admin functions (run manually from the editor; not web endpoints)
 
-## 4. Sheet writeback (OVERWRITE) + multi-tab — how it works
+`resetBoardsExceptAlexis()`, `clearRecords()`, `clearRecordsFor()`, `deleteRecordsById()`.
+Web endpoints (GET `?action=`): `getRoutine`, `getHistory`, `getRecords`, `getStreaks`, `ping`.
+POST: `logInput`, `postRecord`, `postStreak`, `updateCells`.
 
-- Parser emits an **absolute `row`** per exercise (index across the stitched tabs) and `WeekCell.col`.
-- `buildCellWrites(ex, week, edit)` (`sheetWrite.ts`) produces `{row, col, value}` overwrites, matching
-  `resolveWeek`: writes the "Semana N" cell only for fields that cell owns, else the base reps/series/OBS cell.
-  Inherited ("Mismo semana ant.") / un-splittable week cells are skipped (logged, not written).
-- Queued via `store.queueCellWrites` → `api.syncOutbox` posts `cell` items to **`updateCells`**.
-- Backend `updateCells_` re-reads all tabs (`allTabRows_`), maps the absolute `row` back to **(tab, localRow)**,
-  overwrites that cell, and logs `antes/después` to `Seguimiento`. Frontend stays tab-agnostic.
-- **Multi-tab read:** `getRoutine_` concatenates every tab so one-day-per-tab plans show all days. Each day-tab
-  ideally carries its own `DÍA N` marker in column A — but **`allTabRows_` now also handles the tab-name case**:
-  for any tab that has exercise rows but NO in-cell `DÍA N` marker, it **prepends a synthetic `DÍA N` row** (N
-  from a number in the tab name, else a running counter). Tabs with no exercises (a summary tab) are left alone
-  so their meta still flows through. `injected[]` (synthetic rows per tab) is returned so writeback subtracts it
-  before mapping the absolute row back to the real cell. **Needs the backend redeploy (§6) to take effect.**
+## 9. Memory (auto-loaded each session)
 
----
+`~/.claude/projects/.../memory/` — index in `MEMORY.md`. Notable:
+[[force-routine-formats]] (parser/format variations), [[force-empty-cell-rule]],
+[[force-empty-days-crash]], [[force-ios-pwa-access]], [[force-medals-categories]] (medals +
+4 categories + the vet-with-sc-coach rule).
 
-## 5. Crash prevention (Jun 2026 — "never blank-screen")
+## 10. Next ideas (not started)
 
-A render/parse error used to unmount the whole app (black screen). Now hardened:
-- **`src/components/ErrorBoundary.tsx`** at the root (`main.tsx`), around **each screen** and the Entrenar
-  overlay (`App.tsx`). Shows a branded "Algo no cargó bien" + **Reintentar** / **Recargar la app** (clears
-  SW+caches), keeps the **nav alive**, and has a **"Detalle técnico"** expander with the error message.
-- Parser **never throws**; `fetchRoutine` validates the payload; Hoy/Semana **clamp** the day index.
-- **Empty-days crash fixed (root cause of "undefined is not an object (evaluating 'x.weeks')").** When a sheet
-  has work but no `DÍA N` marker (flat sheet, or a tab whose day is only in its name), the parser now **opens an
-  implicit `DÍA 1`** instead of returning zero days (which made `day.weeks` throw in Hoy/Semana). When a routine
-  genuinely has **zero days** (truly empty sheet), `App.tsx` renders a calm "tu rutina todavía no tiene días"
-  screen instead of mounting a day-indexing screen. Entrenar shows an `EmptyDay` (with a Volver button) if a day
-  has no exercises. **"Semana N" headers are detected on either the DÍA row OR the EJERCICIO header row**, and
-  `day.weeks` is derived from the week cells actually parsed — so per-week columns work regardless of layout.
-- **Wrong-sheet served fix (member saw her raw log: "set · d1-1 reps", an ISO-timestamp warm-up).** Cause:
-  `currentRoutineFile_` served the most-recently-modified sheet in the folder, and the per-client
-  `Seguimiento — …` LOG sheet (re-written on every training log) outranks the routine. Fix: backend
-  `currentRoutineFile_` now **skips `Seguimiento*`/`records`/`rachas`** (so writeback also can't target the log);
-  and the **parser rejects any sheet with the Seguimiento header signature** (`timestamp` + `kg_real`/`reps_real`/
-  `tipo`) → renders the calm empty screen. Backend half needs the redeploy (§6); the parser half ships now.
-- **`index.html` self-heal:** if an app asset fails to load (stale PWA SW after a deploy → React can't mount,
-  so the boundary can't run), it clears SW+caches and reloads **once**. `vite.config.ts` → `cleanupOutdatedCaches`.
-- Verified: forcing a render error shows the recovery UI with nav intact (no black screen).
-
----
-
-## 6. Deploy / backend redeploy (IMPORTANT)
-
-- **Frontend:** push `main` → Actions builds + publishes. Installed PWAs auto-update (`registerType:'autoUpdate'`);
-  on iOS, fully close & reopen the app to pull a new version.
-- **Backend:** when `apps-script/Code.gs` changes, re-publish: Apps Script → **Deploy → Manage deployments →
-  edit (✏️) the Web App → Version: New version → Deploy** (keeps the **same `/exec`** so `VITE_FORCE_API` is unchanged).
-  The current live code needs this redeploy for **`updateCells`** (writeback) and **multi-tab `getRoutine`** to work.
-- First-time activation steps + `rebuildClientConfig`/`listMagicLinks` in `apps-script/SETUP.md`.
-  Clientes folder id = `1-V8PAlzz4nmlPXB8IGiI1fM6ksX8D7aF`. `records`/`rachas` tabs auto-create.
-
----
-
-## 7. Client-facing & owner docs
-- `docs/FORCE-Guia-Cliente.pdf` — branded 2-page client manual. Regenerate: `py scripts/_mk_fonts.py` (once)
-  then `py scripts/make_guide_pdf.py`. Needs `reportlab`, `pillow`, `fonttools`, `pymupdf` (preview) via the
-  `py` launcher. `scripts/_fonts/` and `docs/_preview_*.png` are gitignored.
-- `docs/GUIA-CLIENTE.md` (markdown source), `docs/GO-LIVE.md` (deploy checklist),
-  `docs/COMO-COMPARTIR.md` (2-min onboarding flow + WhatsApp template).
-
----
-
-## 8. OPEN / NEXT (priority order)
-
-1. **Verify Belu (multi-tab client).** The empty-days crash she hit is fixed in the frontend (auto-deploys), and
-   `allTabRows_` now synthesizes a `DÍA N` per day-tab from the tab name — but that **requires the backend
-   redeploy (§6)** to render all 5 days. After redeploy, confirm her **5 days** show (Hoy + Plan) and a weight
-   edit lands in the **correct tab/cell** (the `injected[]` shift is covered). If she still sees the recovery
-   screen, read **"Detalle técnico"** — it names the exact crash. (Her plan = one tab per day, powerlifting/weekly.)
-2. **Real device visual pass** (screenshot tool broken): Inicio layout, animated icons (esp. `StirPot`/batir la
-   olla — user noted icons still "have room to improve"), 5-tab spacing, flag, the white-line fix on Récords.
-3. **Source gender / birthday / bodyweight from the gym config** for real rollout (currently local-first in
-   `store.ts`). For a gym-wide birthday board + shared weight-class records, add columns to the config `clientes`
-   tab (Pagos sheet has `Sexo`) and return them from the backend (`getBirthdays`, bodyweight).
-4. Richer/curated exercise media can drop into `src/lib/media.ts` (`SLUG_MEDIA`); `mediaFor()` overrides the icon.
-5. Coach view of `Seguimiento`; push notification when a coach publishes a new routine.
-
-## Conventions
-- Spanish rioplatense, FORCE voice. Reuse `src/lib/` utilities before adding. `npx tsc -b` + `npm test` +
-  `npm run build` before committing. Commit messages end with the `Co-Authored-By: Claude …` line. Don't bypass hooks.
-- Commit/push only when asked. The project deploys from `main`.
+Real Web Push (VAPID + service worker) for true closed-app notifications; rival alert as a push;
+more event decor; per-exercise history charts; coach-side view.
