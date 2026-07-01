@@ -299,10 +299,21 @@ function postRecord_(token, entry) {
 
 /** Wipe ALL records, keeping the header row. Use to start fresh before launch. */
 function clearRecords() {
-  var sh = recordsSheet_()
+  return 'records cleared (' + clearSheetRows_(recordsSheet_()) + ' rows)'
+}
+
+/** Wipe ALL records AND rachas (streaks), keeping header rows. Full clean slate for
+ *  everyone -- e.g. after a weight-category change makes old records incompatible. */
+function resetAllBoards() {
+  var r = clearSheetRows_(recordsSheet_())
+  var s = clearSheetRows_(streaksSheet_())
+  return 'records cleared (' + r + '), rachas cleared (' + s + ')'
+}
+function clearSheetRows_(sh) {
   var last = sh.getLastRow()
-  if (last > 1) sh.getRange(2, 1, last - 1, sh.getLastColumn()).clearContent()
-  return 'records cleared'
+  var n = last > 1 ? last - 1 : 0
+  if (n > 0) sh.getRange(2, 1, n, sh.getLastColumn()).clearContent()
+  return n
 }
 
 /** Delete records for specific client names (case-insensitive), keeping the rest.

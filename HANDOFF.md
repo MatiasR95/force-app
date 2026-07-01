@@ -116,7 +116,8 @@ button; rival-record notifications; real-name sync (needs backend redeploy — s
 
 ## 8. Apps Script admin functions (run manually from the editor; not web endpoints)
 
-`resetBoardsExceptAlexis()`, `clearRecords()`, `clearRecordsFor()`, `deleteRecordsById()`.
+`resetAllBoards()` (full wipe, records + rachas, everyone), `resetBoardsExceptAlexis()`,
+`clearRecords()`, `clearRecordsFor()`, `deleteRecordsById()`.
 Web endpoints (GET `?action=`): `getRoutine`, `getHistory`, `getRecords`, `getStreaks`, `ping`.
 POST: `logInput`, `postRecord`, `postStreak`, `updateCells`.
 

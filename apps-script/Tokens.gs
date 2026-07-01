@@ -7,8 +7,11 @@
 var APP_URL = 'https://matiasr95.github.io/force-app/' // the deployed PWA
 
 /**
- * Scan Clientes/ and (re)build the config "clientes" tab: token | nombre | folderId.
+ * Scan Clientes/ and (re)build the config "clientes" tab:
+ * token | nombre | folderId | link | qr.
  * Existing tokens are preserved so links stay valid; new clients get a fresh token.
+ * `link` and `qr` are filled in directly so day-to-day sharing never needs the
+ * script editor — just open the Config sheet and copy/paste from the row.
  */
 function rebuildClientConfig() {
   var clientes = DriveApp.getFolderById(CLIENTES_FOLDER_ID)
@@ -20,15 +23,17 @@ function rebuildClientConfig() {
   var cur = sheet.getDataRange().getValues()
   for (var i = 1; i < cur.length; i++) existing[cur[i][2]] = cur[i][0]
 
-  var rows = [['token', 'nombre', 'folderId']]
+  var rows = [['token', 'nombre', 'folderId', 'link', 'qr']]
   var folders = clientes.getFolders()
   while (folders.hasNext()) {
     var f = folders.next()
     var token = existing[f.getId()] || newToken_()
-    rows.push([token, f.getName(), f.getId()])
+    var link = APP_URL + '?t=' + encodeURIComponent(token)
+    var qr = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=' + encodeURIComponent(link)
+    rows.push([token, f.getName(), f.getId(), link, qr])
   }
   sheet.clearContents()
-  sheet.getRange(1, 1, rows.length, 3).setValues(rows)
+  sheet.getRange(1, 1, rows.length, 5).setValues(rows)
   Logger.log('Config actualizada: ' + (rows.length - 1) + ' clientes')
 }
 

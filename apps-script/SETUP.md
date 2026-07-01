@@ -5,8 +5,8 @@ that owns the `Clientes/` folder. No API keys, no billing.
 
 ## 1. Create the config spreadsheet
 1. On the gym account, create a new Google Sheet, e.g. **"FORCE App — Config"**.
-2. Add a tab named **`clientes`** with header row: `token | nombre | folderId`.
-   (You can leave it empty; step 4 fills it automatically.)
+2. Add a tab named **`clientes`**. Leave it empty — step 4 (`rebuildClientConfig`) fills it
+   automatically, including a `link` and `qr` column per client.
 3. Copy its ID from the URL (`/spreadsheets/d/<ID>/edit`).
 
 ## 2. Get the Clientes folder ID
@@ -23,9 +23,13 @@ Open the `Clientes` folder in Drive; copy the ID from the URL
 ## 4. Build client tokens + links
 - Run **`rebuildClientConfig`** — scans `Clientes/` and fills the `clientes` tab
   (existing tokens are preserved, new clients get a fresh one). Re-run whenever you add a
-  member; the manual coach workflow is untouched.
-- Run **`listMagicLinks`** → View → Logs: each member's personal link + a QR image URL.
-  Share the QR (print at the gym / send by WhatsApp). One tap installs and remembers them.
+  member; the manual coach workflow is untouched. This is the **only** time you need the
+  script editor.
+- Day-to-day sharing needs no script run at all: open the Config sheet, find the client's
+  row, and copy their `link` cell (or the `qr` cell URL) straight into WhatsApp/print. Both
+  columns are plain values, so they also work with Sheets' filter/search to find someone fast.
+- `listMagicLinks` (Run → View → Logs) still works if you want everything dumped to one
+  place for bulk printing, but it's optional now.
 
 ## 5. Deploy the Web App
 1. **Deploy → New deployment → Web app.**
