@@ -21,22 +21,23 @@ const wk = (p: Partial<WeekCell>): WeekCell =>
   ({ week: 2, reps: 10, sets: 3, load: null, raw: '10X3', complex: false, inherit: false, col: 7, ...p })
 
 describe('weightClass', () => {
-  it('classifies men at the confirmed bands (≤65 / 66–80 / +80)', () => {
-    expect(weightClass('M', 65)?.key).toBe('m-65')
-    expect(weightClass('M', 66)?.key).toBe('m66-80')
-    expect(weightClass('M', 80)?.key).toBe('m66-80')
-    expect(weightClass('M', 80.5)?.key).toBe('m80+')
+  it('classifies men at the 4 bands (≤70 / 71–83 / 84–95 / +95)', () => {
+    expect(weightClass('M', 70)?.key).toBe('m-70')
+    expect(weightClass('M', 71)?.key).toBe('m71-83')
+    expect(weightClass('M', 83)?.key).toBe('m71-83')
+    expect(weightClass('M', 90)?.key).toBe('m84-95')
+    expect(weightClass('M', 95.5)?.key).toBe('m95+')
   })
-  it('classifies women at the confirmed bands (≤50 / 51–65 / +65)', () => {
-    expect(weightClass('F', 50)?.key).toBe('f-50')
-    expect(weightClass('F', 51)?.key).toBe('f51-65')
-    expect(weightClass('F', 65)?.key).toBe('f51-65')
-    expect(weightClass('F', 66)?.key).toBe('f65+')
+  it('classifies women at the 4 bands (≤55 / 56–65 / 66–75 / +75)', () => {
+    expect(weightClass('F', 55)?.key).toBe('f-55')
+    expect(weightClass('F', 60)?.key).toBe('f56-65')
+    expect(weightClass('F', 70)?.key).toBe('f66-75')
+    expect(weightClass('F', 80)?.key).toBe('f75+')
   })
-  it('returns null for unknown bodyweight and labels legacy keys as General', () => {
+  it('returns null for unknown bodyweight and labels categories', () => {
     expect(weightClass('M', null)).toBeNull()
     expect(weightClass('M', 0)).toBeNull()
-    expect(wcLabel('m-65')).toBe('Hasta 65 kg')
+    expect(wcLabel('m-70')).toBe('Hasta 70 kg')
     expect(wcLabel('???')).toBe('General')
   })
 })

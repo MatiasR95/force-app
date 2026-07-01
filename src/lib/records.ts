@@ -39,28 +39,31 @@ export interface RecordEntry {
   wc?: string       // bodyweight category key at the time (see weightClass)
 }
 
-// Bodyweight categories per gender (confirmed with Matias).
-//   Men:   Hasta 65 · 66–80 · +80
-//   Women: Hasta 50 · 51–65 · +65
+// Bodyweight categories per gender — 4 brackets each, tuned to Argentine averages
+// (men ~82 kg, women ~68 kg fall in the middle brackets) so it's fairer.
+//   Men:   Hasta 70 · 71–83 · 84–95 · +95
+//   Women: Hasta 55 · 56–65 · 66–75 · +75
 export interface WeightClass { key: string; label: string }
 export const WEIGHT_CLASSES: Record<Gender, WeightClass[]> = {
   M: [
-    { key: 'm-65', label: 'Hasta 65 kg' },
-    { key: 'm66-80', label: '66–80 kg' },
-    { key: 'm80+', label: '+80 kg' },
+    { key: 'm-70', label: 'Hasta 70 kg' },
+    { key: 'm71-83', label: '71–83 kg' },
+    { key: 'm84-95', label: '84–95 kg' },
+    { key: 'm95+', label: '+95 kg' },
   ],
   F: [
-    { key: 'f-50', label: 'Hasta 50 kg' },
-    { key: 'f51-65', label: '51–65 kg' },
-    { key: 'f65+', label: '+65 kg' },
+    { key: 'f-55', label: 'Hasta 55 kg' },
+    { key: 'f56-65', label: '56–65 kg' },
+    { key: 'f66-75', label: '66–75 kg' },
+    { key: 'f75+', label: '+75 kg' },
   ],
 }
 
 /** The weight category for a bodyweight, or null if bodyweight is unknown. */
 export function weightClass(gender: Gender, bw: number | null | undefined): WeightClass | null {
   if (bw == null || bw <= 0) return null
-  if (gender === 'M') return bw <= 65 ? WEIGHT_CLASSES.M[0] : bw <= 80 ? WEIGHT_CLASSES.M[1] : WEIGHT_CLASSES.M[2]
-  return bw <= 50 ? WEIGHT_CLASSES.F[0] : bw <= 65 ? WEIGHT_CLASSES.F[1] : WEIGHT_CLASSES.F[2]
+  if (gender === 'M') return bw <= 70 ? WEIGHT_CLASSES.M[0] : bw <= 83 ? WEIGHT_CLASSES.M[1] : bw <= 95 ? WEIGHT_CLASSES.M[2] : WEIGHT_CLASSES.M[3]
+  return bw <= 55 ? WEIGHT_CLASSES.F[0] : bw <= 65 ? WEIGHT_CLASSES.F[1] : bw <= 75 ? WEIGHT_CLASSES.F[2] : WEIGHT_CLASSES.F[3]
 }
 
 export const wcLabel = (key: string): string => {

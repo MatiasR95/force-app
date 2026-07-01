@@ -5,15 +5,18 @@ import {
   STREAK_LADDER, SESSION_LADDER,
 } from '../src/lib/medals'
 
-describe('strengthThresholds — Oro trimmed 5%, re-rounded to 2.5kg', () => {
-  it('keeps Bronce/Plata and lowers Oro', () => {
-    const t = strengthThresholds('sentadilla', 'F', 'f51-65')!
-    expect(t.bronce).toBe(42.5)
-    expect(t.plata).toBe(65)
-    expect(t.oro).toBe(82.5) // 87.5 * 0.95 = 83.125 → 82.5
+describe('strengthThresholds — 4 categories, final numbers', () => {
+  it('women squat 56–65', () => {
+    const t = strengthThresholds('sentadilla', 'F', 'f56-65')!
+    expect(t.bronce).toBe(45)
+    expect(t.plata).toBe(67.5)
+    expect(t.oro).toBe(90)
   })
-  it('men squat 66-80 Oro 140 → 132.5', () => {
-    expect(strengthThresholds('sentadilla', 'M', 'm66-80')!.oro).toBe(132.5)
+  it('men squat 71–83 Oro', () => {
+    expect(strengthThresholds('sentadilla', 'M', 'm71-83')!.oro).toBe(137.5)
+  })
+  it('returns null for an unknown category', () => {
+    expect(strengthThresholds('sentadilla', 'M', 'm-65' as never)).toBeNull()
   })
 })
 
@@ -47,7 +50,7 @@ describe('ladderState — endless tiers', () => {
 describe('earnedMedalIds', () => {
   const rec = (lift: string, kg: number): RecordEntry => ({ id: lift, client: 'x', gender: 'F', lift, kg, reps: 3, ts: '' })
   it('includes every tier up to the one reached, plus ladder steps', () => {
-    const ids = earnedMedalIds([rec('sentadilla', 70)], 'F', 'f51-65', 4, 12)
+    const ids = earnedMedalIds([rec('sentadilla', 70)], 'F', 'f56-65', 4, 12)
     expect(ids).toContain('str:sentadilla:bronce')
     expect(ids).toContain('str:sentadilla:plata')
     expect(ids).not.toContain('str:sentadilla:oro') // 70 < 82.5

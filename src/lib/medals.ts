@@ -10,57 +10,54 @@ export type Tier = 'bronce' | 'plata' | 'oro' | 'platino'
 export const TIER_ORDER: Tier[] = ['bronce', 'plata', 'oro', 'platino']
 export const TIER_LABEL: Record<Tier, string> = { bronce: 'Bronce', plata: 'Plata', oro: 'Oro', platino: 'Platino' }
 
-export type CatKey = 'm-65' | 'm66-80' | 'm80+' | 'f-50' | 'f51-65' | 'f65+'
+export type CatKey = 'm-70' | 'm71-83' | 'm84-95' | 'm95+' | 'f-55' | 'f56-65' | 'f66-75' | 'f75+'
 interface Tri { bronce: number; plata: number; oro: number }
 
-const round25 = (x: number) => Math.round(x / 2.5) * 2.5
-
-// Raw coach thresholds (kg). Oro is reduced 5% + re-rounded at lookup time.
+// Coach-vetted thresholds (kg) for the 4 bodyweight categories per gender. Oro is
+// already toned down ~5% and rounded to 2.5 kg — these are final, no adjustment.
 const STRENGTH: Record<string, Record<Gender, Partial<Record<CatKey, Tri>>>> = {
   sentadilla: {
-    M: { 'm-65': { bronce: 60, plata: 90, oro: 120 }, 'm66-80': { bronce: 70, plata: 105, oro: 140 }, 'm80+': { bronce: 85, plata: 125, oro: 165 } },
-    F: { 'f-50': { bronce: 35, plata: 55, oro: 75 }, 'f51-65': { bronce: 42.5, plata: 65, oro: 87.5 }, 'f65+': { bronce: 50, plata: 75, oro: 100 } },
+    M: { 'm-70': { bronce: 60, plata: 90, oro: 115 }, 'm71-83': { bronce: 72.5, plata: 107.5, oro: 137.5 }, 'm84-95': { bronce: 82.5, plata: 122.5, oro: 157.5 }, 'm95+': { bronce: 92.5, plata: 137.5, oro: 177.5 } },
+    F: { 'f-55': { bronce: 37.5, plata: 57.5, oro: 75 }, 'f56-65': { bronce: 45, plata: 67.5, oro: 90 }, 'f66-75': { bronce: 50, plata: 75, oro: 100 }, 'f75+': { bronce: 57.5, plata: 85, oro: 112.5 } },
   },
   'peso-muerto': {
-    M: { 'm-65': { bronce: 70, plata: 105, oro: 140 }, 'm66-80': { bronce: 82.5, plata: 122.5, oro: 162.5 }, 'm80+': { bronce: 100, plata: 145, oro: 190 } },
-    F: { 'f-50': { bronce: 45, plata: 67.5, oro: 90 }, 'f51-65': { bronce: 55, plata: 80, oro: 105 }, 'f65+': { bronce: 65, plata: 92.5, oro: 120 } },
+    M: { 'm-70': { bronce: 72.5, plata: 107.5, oro: 135 }, 'm71-83': { bronce: 87.5, plata: 127.5, oro: 162.5 }, 'm84-95': { bronce: 97.5, plata: 142.5, oro: 182.5 }, 'm95+': { bronce: 107.5, plata: 157.5, oro: 200 } },
+    F: { 'f-55': { bronce: 47.5, plata: 70, oro: 92.5 }, 'f56-65': { bronce: 57.5, plata: 82.5, oro: 107.5 }, 'f66-75': { bronce: 65, plata: 92.5, oro: 120 }, 'f75+': { bronce: 72.5, plata: 102.5, oro: 132.5 } },
   },
   'peso-muerto-hex': {
-    M: { 'm-65': { bronce: 75, plata: 112.5, oro: 150 }, 'm66-80': { bronce: 87.5, plata: 130, oro: 172.5 }, 'm80+': { bronce: 107.5, plata: 155, oro: 200 } },
-    F: { 'f-50': { bronce: 47.5, plata: 72.5, oro: 95 }, 'f51-65': { bronce: 57.5, plata: 85, oro: 112.5 }, 'f65+': { bronce: 70, plata: 100, oro: 127.5 } },
+    M: { 'm-70': { bronce: 77.5, plata: 115, oro: 145 }, 'm71-83': { bronce: 92.5, plata: 137.5, oro: 175 }, 'm84-95': { bronce: 105, plata: 152.5, oro: 195 }, 'm95+': { bronce: 115, plata: 167.5, oro: 215 } },
+    F: { 'f-55': { bronce: 50, plata: 75, oro: 100 }, 'f56-65': { bronce: 62.5, plata: 87.5, oro: 115 }, 'f66-75': { bronce: 70, plata: 100, oro: 127.5 }, 'f75+': { bronce: 77.5, plata: 110, oro: 142.5 } },
   },
   'peso-muerto-sumo': {
-    M: { 'm-65': { bronce: 65, plata: 97.5, oro: 130 }, 'm66-80': { bronce: 77.5, plata: 115, oro: 152.5 }, 'm80+': { bronce: 92.5, plata: 135, oro: 177.5 } },
-    F: { 'f-50': { bronce: 42.5, plata: 65, oro: 85 }, 'f51-65': { bronce: 52.5, plata: 75, oro: 100 }, 'f65+': { bronce: 62.5, plata: 87.5, oro: 112.5 } },
+    M: { 'm-70': { bronce: 67.5, plata: 100, oro: 125 }, 'm71-83': { bronce: 82.5, plata: 117.5, oro: 150 }, 'm84-95': { bronce: 90, plata: 132.5, oro: 170 }, 'm95+': { bronce: 100, plata: 145, oro: 185 } },
+    F: { 'f-55': { bronce: 44, plata: 65, oro: 85 }, 'f56-65': { bronce: 53.5, plata: 76.5, oro: 100 }, 'f66-75': { bronce: 60.5, plata: 86, oro: 111.5 }, 'f75+': { bronce: 67.5, plata: 95, oro: 123 } },
   },
   'press-banca': {
-    M: { 'm-65': { bronce: 47.5, plata: 67.5, oro: 90 }, 'm66-80': { bronce: 57.5, plata: 82.5, oro: 110 }, 'm80+': { bronce: 70, plata: 100, oro: 132.5 } },
-    F: { 'f-50': { bronce: 22.5, plata: 32.5, oro: 45 }, 'f51-65': { bronce: 27.5, plata: 40, oro: 55 }, 'f65+': { bronce: 32.5, plata: 47.5, oro: 65 } },
+    M: { 'm-70': { bronce: 47.5, plata: 67.5, oro: 87.5 }, 'm71-83': { bronce: 57.5, plata: 82.5, oro: 107.5 }, 'm84-95': { bronce: 65, plata: 95, oro: 122.5 }, 'm95+': { bronce: 72.5, plata: 105, oro: 137.5 } },
+    F: { 'f-55': { bronce: 22.5, plata: 32.5, oro: 42.5 }, 'f56-65': { bronce: 27.5, plata: 40, oro: 52.5 }, 'f66-75': { bronce: 30, plata: 45, oro: 60 }, 'f75+': { bronce: 35, plata: 50, oro: 65 } },
   },
   'press-banca-db': {
-    M: { 'm-65': { bronce: 40, plata: 60, oro: 80 }, 'm66-80': { bronce: 50, plata: 72.5, oro: 97.5 }, 'm80+': { bronce: 60, plata: 87.5, oro: 117.5 } },
-    F: { 'f-50': { bronce: 17.5, plata: 27.5, oro: 37.5 }, 'f51-65': { bronce: 22.5, plata: 32.5, oro: 45 }, 'f65+': { bronce: 27.5, plata: 40, oro: 55 } },
+    M: { 'm-70': { bronce: 40, plata: 57.5, oro: 75 }, 'm71-83': { bronce: 47.5, plata: 70, oro: 90 }, 'm84-95': { bronce: 55, plata: 80, oro: 105 }, 'm95+': { bronce: 62.5, plata: 90, oro: 117.5 } },
+    F: { 'f-55': { bronce: 17.5, plata: 27.5, oro: 35 }, 'f56-65': { bronce: 22.5, plata: 34, oro: 44.5 }, 'f66-75': { bronce: 25.5, plata: 38, oro: 51 }, 'f75+': { bronce: 30, plata: 42.5, oro: 55 } },
   },
   dominadas: {
-    M: { 'm-65': { bronce: 0, plata: 10, oro: 25 }, 'm66-80': { bronce: 0, plata: 12.5, oro: 30 }, 'm80+': { bronce: 0, plata: 15, oro: 35 } },
-    F: { 'f-50': { bronce: 0, plata: 2.5, oro: 10 }, 'f51-65': { bronce: 0, plata: 5, oro: 12.5 }, 'f65+': { bronce: 0, plata: 7.5, oro: 15 } },
+    M: { 'm-70': { bronce: 0, plata: 10, oro: 22.5 }, 'm71-83': { bronce: 0, plata: 12.5, oro: 27.5 }, 'm84-95': { bronce: 0, plata: 15, oro: 32.5 }, 'm95+': { bronce: 0, plata: 17.5, oro: 35 } },
+    F: { 'f-55': { bronce: 0, plata: 2.5, oro: 9 }, 'f56-65': { bronce: 0, plata: 5, oro: 12 }, 'f66-75': { bronce: 0, plata: 7.5, oro: 14 }, 'f75+': { bronce: 0, plata: 9, oro: 16 } },
   },
   'press-militar': {
-    M: { 'm-65': { bronce: 30, plata: 45, oro: 60 }, 'm66-80': { bronce: 35, plata: 52.5, oro: 70 }, 'm80+': { bronce: 42.5, plata: 62.5, oro: 82.5 } },
-    F: { 'f-50': { bronce: 15, plata: 22.5, oro: 30 }, 'f51-65': { bronce: 17.5, plata: 27.5, oro: 37.5 }, 'f65+': { bronce: 20, plata: 30, oro: 40 } },
+    M: { 'm-70': { bronce: 30, plata: 45, oro: 57.5 }, 'm71-83': { bronce: 35, plata: 52.5, oro: 67.5 }, 'm84-95': { bronce: 40, plata: 60, oro: 77.5 }, 'm95+': { bronce: 45, plata: 65, oro: 85 } },
+    F: { 'f-55': { bronce: 15, plata: 22.5, oro: 29 }, 'f56-65': { bronce: 17.5, plata: 27.5, oro: 35.5 }, 'f66-75': { bronce: 20, plata: 30, oro: 39 }, 'f75+': { bronce: 22.5, plata: 33, oro: 42.5 } },
   },
 }
 
 /** Default category when bodyweight is unknown (use a sensible middle bracket). */
 export function defaultCat(gender: Gender): CatKey {
-  return gender === 'M' ? 'm66-80' : 'f51-65'
+  return gender === 'M' ? 'm71-83' : 'f56-65'
 }
 
-/** Bronce/Plata/Oro thresholds (kg) for a lift, with Oro already trimmed ~5%. */
+/** Bronce/Plata/Oro thresholds (kg) for a lift × gender × category. */
 export function strengthThresholds(lift: string, gender: Gender, cat: CatKey): Tri | null {
-  const raw = STRENGTH[lift]?.[gender]?.[cat]
-  if (!raw) return null
-  return { bronce: raw.bronce, plata: raw.plata, oro: round25(raw.oro * 0.95) }
+  return STRENGTH[lift]?.[gender]?.[cat] ?? null
 }
 
 /** Highest tier (bronce/plata/oro) reached for a value, or null. */
