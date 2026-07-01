@@ -50,6 +50,7 @@ const KEYS = {
   startWeek: 'force.startWeek',
   introSeen: 'force.introSeen',
   lastDone: 'force.lastDone',
+  seenMedals: 'force.seenMedals',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -266,6 +267,13 @@ export function setLastDone(exerciseId: string, v: LastDone): void {
   const m = read<LastDoneMap>(KEYS.lastDone, {})
   m[exerciseId] = v
   write(KEYS.lastDone, m)
+}
+
+// ---- medals already celebrated (so a new one triggers the unlock card once) ----
+export const getSeenMedals = (): string[] => read<string[]>(KEYS.seenMedals, [])
+export function markMedalsSeen(ids: string[]): void {
+  if (!ids.length) return
+  write(KEYS.seenMedals, [...new Set([...getSeenMedals(), ...ids])])
 }
 
 // ---- routine sheet writeback (overwrite prescription cells) ---------------

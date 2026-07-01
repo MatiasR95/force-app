@@ -9,11 +9,16 @@ import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { Rail } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone } from '../lib/store'
-import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass } from '../lib/records'
+import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen } from '../lib/store'
+import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
+import { currentStreakWeeks } from '../lib/metrics'
+import {
+  type Tier, TIER_LABEL, defaultCat, strengthThresholds, strengthMedals, earnedMedalIds, STREAK_LADDER, SESSION_LADDER,
+} from '../lib/medals'
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
 import { Celebration } from '../components/Celebration'
+import { ShareCard, type ShareData } from '../components/ShareCard'
 import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
@@ -54,11 +59,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [pr, setPr] = useState<string | null>(null)
   const [restSignal, setRestSignal] = useState(0)
   const [finishing, setFinishing] = useState(false)
+  const [prHits, setPrHits] = useState<Set<string>>(new Set()) // exercise ids that set a PR this session
 
   const totalUnits = items.reduce((a, it) => a + unitsOf(it, week), 0)
   const totalDone = Object.values(done).reduce((a, b) => a + b, 0)
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} onClose={onClose} onBack={() => setFinishing(false)} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -90,6 +96,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const entry = { id: rid(), client, gender, lift, kg, reps, ts: new Date().toISOString(), ...(wc ? { wc } : {}) }
     addMyRecord(entry)
     submitRecord(getToken(), entry).catch(() => {})
+    setPrHits((s) => new Set(s).add(ex.id))
     setPr(`¡Récord! ${liftLabel(lift)}: ${kg} kg × ${reps}`)
     window.setTimeout(() => setPr(null), 3600)
   }
@@ -397,34 +404,119 @@ function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
   )
 }
 
-// ---- finish: session RPE + note ------------------------------------------
-function Finish({ day, week, lastWeek, onClose, onBack }: {
-  day: RoutineDay; week: number; lastWeek?: boolean; onClose: () => void; onBack: () => void
+// rioplatense lines about showing up + finishing (for the shareable finish card)
+const COMMIT_QUOTES = [
+  'Viniste, la peleaste y la terminaste. Eso es lo que te hace fuerte.',
+  'No fue suerte: fue que apareciste. Otro día que sumás. 💪',
+  'El que vuelve siempre, gana siempre. Bien ahí por no faltar.',
+  'Lo difícil no era el peso, era venir — y viniste.',
+  'Cada sesión terminada es una promesa que te cumplís. Seguí así.',
+]
+
+function sessionStats(day: RoutineDay, week: number): { kg: number; series: number } {
+  let kg = 0, series = 0
+  for (const b of day.blocks) for (const ex of b.exercises) {
+    const r = resolveWeek(ex, week)
+    const s = r.sets ?? r.plan?.length ?? 0
+    series += s
+    if (r.load.value != null) {
+      const reps = r.reps ?? (r.plan?.length ? Math.round(r.plan.reduce((a, n) => a + n, 0) / r.plan.length) : 0)
+      kg += recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell') * reps * s
+    }
+  }
+  return { kg: Math.round(kg), series }
+}
+
+function bigOneRow(ex: ExerciseRow, week: number, prHits: Set<string>): { name: string; detail: string; record: boolean } {
+  const r = resolveWeek(ex, week)
+  const reps = r.reps != null ? `${r.reps}` : (r.plan?.length ? r.plan.join('·') : '')
+  const detail = r.load.value != null
+    ? `${r.load.value.toLocaleString('es-AR')} kg${r.load.perSide ? '/lado' : ''}${reps ? ` × ${reps}` : ''}`
+    : setsReps(ex, week)
+  return { name: ex.name, detail, record: prHits.has(ex.id) }
+}
+
+function idToCard(id: string, gender: 'M' | 'F', cat: never, records: ReturnType<typeof getMyRecords>, name: string): ShareData | null {
+  if (id.startsWith('str:')) {
+    const [, lift, tier] = id.split(':')
+    const thr = strengthThresholds(lift, gender, cat); if (!thr) return null
+    const dom = lift === 'dominadas'
+    const val = thr[tier as 'bronce' | 'plata' | 'oro']
+    const sm = strengthMedals(records, gender, cat).find((m) => m.lift === lift)
+    const kg = (n: number) => n.toLocaleString('es-AR')
+    const nextText = sm?.nextTier ? `${TIER_LABEL[sm.nextTier]} · ${dom ? '+' : ''}${kg(sm.nextAt!)} kg${dom ? ' lastre' : ''}` : undefined
+    return { kind: 'medal', name, tier: tier as Tier, lift: liftLabel(lift), thresholdText: dom ? `+${kg(val)} kg de lastre` : `${kg(val)} kg`, category: wcLabel(cat), nextText }
+  }
+  if (id.startsWith('streak:')) { const n = +id.split(':')[1]; return { kind: 'medal', name, tier: STREAK_LADDER.find((s) => s.n === n)?.tier, lift: 'Racha', thresholdText: `${n} semanas seguidas` } }
+  if (id.startsWith('sessions:')) { const n = +id.split(':')[1]; return { kind: 'medal', name, tier: SESSION_LADDER.find((s) => s.n === n)?.tier, lift: 'Entrenamientos', thresholdText: `${n} entrenamientos` } }
+  return null
+}
+
+// New medals earned this session → unlock cards (ladders last, capped so it never floods).
+function computeUnlockCards(): ShareData[] {
+  const gender = getGender(); if (!gender) return []
+  const cat = (weightClass(gender, getBodyweight())?.key ?? defaultCat(gender)) as never
+  const records = getMyRecords()
+  const earned = earnedMedalIds(records, gender, cat, currentStreakWeeks(getCheckins()), getSessions().length)
+  const fresh = earned.filter((id) => !getSeenMedals().includes(id))
+  markMedalsSeen(earned)
+  const name = getClientName() ?? 'Vos'
+  return fresh
+    .map((id) => idToCard(id, gender, cat, records, name))
+    .filter((c): c is ShareData => !!c)
+    .sort((a, b) => (a.lift === 'Racha' || a.lift === 'Entrenamientos' ? 1 : 0) - (b.lift === 'Racha' || b.lift === 'Entrenamientos' ? 1 : 0))
+    .slice(0, 3)
+}
+
+// ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
+function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
+  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; onClose: () => void; onBack: () => void
 }) {
   const [rpe, setRpe] = useState(7)
   const [note, setNote] = useState('')
-  const [celebrating, setCelebrating] = useState(false)
-  const bigOne = day.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
+  const [phase, setPhase] = useState<'rpe' | 'celebrate' | 'medals'>('rpe')
+  const [shareFinish, setShareFinish] = useState(false)
+  const [queue, setQueue] = useState<ShareData[]>([])
+  const bigBlock = day.blocks.find((b) => b.tag === 'big')
+  const bigOne = bigBlock?.exercises[0]?.name
+  const quote = useMemo(() => COMMIT_QUOTES[[...day.id].reduce((a, c) => a + c.charCodeAt(0), 0) % COMMIT_QUOTES.length], [day.id])
   // reaching this screen means the whole day is done → register attendance
   // automatically (no manual "Registrar que viniste hoy" button anymore).
   useEffect(() => { if (!hasCheckedInToday()) addCheckin() }, [])
-  // record the completed session. The RPE/note are optional enrichment — "Saltar"
-  // still saves the session (without them) so the day is NEVER lost; only the
-  // rating is skipped.
+  // "Saltar" still saves the session (without RPE) so the day is NEVER lost.
   const persist = (withRpe: boolean) => logSession({
     date: localDate(), dayId: day.id, week, dayLabel: day.label, bigOne,
     ...(withRpe ? { rpe, note: note.trim() || undefined } : {}),
   })
-  const save = () => { persist(true); setCelebrating(true) }
-  const skip = () => { persist(false); setCelebrating(true) }
-  if (celebrating) {
+  const finishData = (): ShareData => {
+    const s = sessionStats(day, week)
+    return {
+      kind: 'finish', name: getClientName() ?? 'Vos', dayLabel: day.label.replace('DÍA', 'Día'), week,
+      totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()),
+      bigOnes: (bigBlock?.exercises ?? []).map((ex) => bigOneRow(ex, week, prHits)), quote,
+    }
+  }
+  const finish = (withRpe: boolean) => { persist(withRpe); setQueue(computeUnlockCards()); setPhase('celebrate') }
+  const save = () => finish(true)
+  const skip = () => finish(false)
+
+  if (phase === 'celebrate') {
     return (
-      <Celebration
-        title={`${day.label.replace('DÍA', 'Día')} completado`}
-        extra={lastWeek ? 'Cerraste la última semana del ciclo. ¡Avisale a tu coach para armar el próximo! 💪' : undefined}
-        onClose={onClose}
-      />
+      <>
+        <Celebration
+          title={`${day.label.replace('DÍA', 'Día')} completado`}
+          extra={lastWeek ? 'Cerraste la última semana del ciclo. ¡Avisale a tu coach para armar el próximo! 💪' : undefined}
+          onClose={() => (queue.length ? setPhase('medals') : onClose())}
+          onShare={() => setShareFinish(true)}
+        />
+        {shareFinish && <ShareCard data={finishData()} onClose={() => setShareFinish(false)} />}
+      </>
     )
+  }
+  if (phase === 'medals') {
+    const card = queue[0]
+    if (!card) { onClose(); return null }
+    return <ShareCard data={card} onClose={() => { setQueue((q) => q.slice(1)); if (queue.length <= 1) onClose() }} />
   }
   return (
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto">

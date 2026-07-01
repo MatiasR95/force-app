@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { nextFact } from '../lib/facts'
-import { Sparkles, X } from 'lucide-react'
+import { Sparkles, X, Share2 } from 'lucide-react'
 
 const COLORS = ['#C6AE78', '#EADEB4', '#8A6A38', '#FFFFFF']
 
@@ -55,7 +55,7 @@ function Confetti() {
   return <canvas ref={ref} className="pointer-events-none fixed inset-0 z-[60]" />
 }
 
-export function Celebration({ title, extra, onClose }: { title: string; extra?: string; onClose: () => void }) {
+export function Celebration({ title, extra, onClose, onShare }: { title: string; extra?: string; onClose: () => void; onShare?: () => void }) {
   const [fact] = useState(() => nextFact())
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
@@ -78,8 +78,14 @@ export function Celebration({ title, extra, onClose }: { title: string; extra?: 
           <p className="text-white/85 text-sm leading-relaxed">{fact}</p>
         </div>
 
+        {onShare && (
+          <button onClick={onShare}
+            className="mt-6 w-full rounded-full bg-white/8 border border-white/15 text-white font-bold uppercase py-3.5 active:scale-[0.98] flex items-center justify-center gap-2">
+            <Share2 size={17} className="text-gold" /> Compartir mi entreno
+          </button>
+        )}
         <button onClick={onClose}
-          className="mt-6 w-full rounded-full bg-gold-fill text-ink font-black uppercase py-4 active:scale-[0.98]">
+          className={`${onShare ? 'mt-2.5' : 'mt-6'} w-full rounded-full bg-gold-fill text-ink font-black uppercase py-4 active:scale-[0.98]`}>
           Listo
         </button>
         <button onClick={onClose} className="absolute -top-2 -right-1 p-2 text-white/40"><X size={20} /></button>
