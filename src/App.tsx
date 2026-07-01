@@ -118,7 +118,12 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden">
+    <div className="fixed inset-0 max-w-md mx-auto overflow-hidden" style={{ background: 'var(--grad-dark-stage)' }}>
+      {/* The app's OWN full-screen container paints the brand gradient edge-to-edge
+          (incl. the iOS status-bar safe-area under the notch/Dynamic Island). We do
+          NOT rely on the body background showing through: iOS clips `background-
+          attachment: fixed` at the safe-area, which left a black band above the app.
+          `fixed inset-0` + viewport-fit=cover makes this cover the whole screen. */}
       {/* Pinned with `fixed inset-0` (not a height percentage/dvh) so the shell reads
           the real viewport rect directly -- the SAME mechanism the bottom nav already
           uses, guaranteeing they always agree on where "bottom" is. A computed height

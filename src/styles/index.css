@@ -40,7 +40,9 @@
     margin: 0;
     background: var(--grad-dark-stage);
     background-color: #000;
-    background-attachment: fixed;
+    /* NO `background-attachment: fixed` — iOS clips it at the status-bar safe-area,
+       leaving a black band above the app. The body doesn't scroll (`.app-scroll`
+       does), so a normal background paints the full viewport, notch included. */
     color: var(--text-on-dark);
     font-family: var(--font-primary);
     -webkit-font-smoothing: antialiased;
