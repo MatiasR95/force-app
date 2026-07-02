@@ -10,7 +10,7 @@ function mkEx(p: Partial<ExerciseRow>): ExerciseRow {
   return {
     id: 'x', row: 10, name: 'Sentadilla', slug: 'sentadilla', pattern: 'squat',
     section: 'big', isWarmupRamp: false, reps: 5, repsRaw: '5', timeSec: null,
-    sets: 4, setsRaw: '4', setOrdinal: null,
+    sets: 4, setsRaw: '4', setOrdinal: null, plan: null,
     load: { value: 28.75, perSide: true, unit: 'kg', raw: '28,75kg x lado' },
     techniques: [], notes: '', weeks: {},
     raw: { exercise: 'Sentadilla', reps: '5', series: '4', obs: '28,75kg x lado' },

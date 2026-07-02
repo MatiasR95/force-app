@@ -237,6 +237,11 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const load = parseLoad(e)
     const setOrdinalMatch = d.match(/(\d+)\s*°/)
     const isRamp = !!setOrdinalMatch || (!seenBig && section === 'ramp')
+    // a non-linear per-series scheme ("3X2+2X2") sometimes IS the base prescription
+    // (no separate "Semana N" columns for it) — advanced coaches (Rodri Leuzzi, Alva
+    // Cornaggia, Sergio Sosa…) write it straight into REPETICIONES or SERIES. Check
+    // both since either column may carry it.
+    const basePlan = setOrdinalMatch ? null : (parseSeriesPlan(d)?.plan ?? parseSeriesPlan(c)?.plan ?? null)
     const weeks: Record<number, WeekCell> = {}
     for (const wc of weekCols) {
       const cell = parseWeekCell(norm(cells[wc.col]), wc.week, wc.col)
@@ -250,12 +255,13 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       pattern: classifyPattern(b),
       section: isRamp ? 'ramp' : section,
       isWarmupRamp: isRamp,
-      reps: toNum(c),
+      reps: basePlan ? null : toNum(c),
       repsRaw: c,
       timeSec: parseTimeSec(c),
-      sets: setOrdinalMatch ? null : toNum(d),
+      sets: setOrdinalMatch ? null : (basePlan ? basePlan.length : toNum(d)),
       setsRaw: d,
       setOrdinal: setOrdinalMatch ? parseInt(setOrdinalMatch[1], 10) : null,
+      plan: basePlan,
       load,
       techniques: parseTechniques(b, c, e),
       notes: extractNote(e, load),

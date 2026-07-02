@@ -61,6 +61,7 @@ export interface ExerciseRow {
   sets: number | null        // numeric work sets (null for ordinal ramp rows)
   setsRaw: string            // "4", "1°", "2°"
   setOrdinal: number | null  // 1, 2 … for ramp sets
+  plan: number[] | null      // base non-linear per-series reps: "3X2+2X2"→[3,3,2,2]
   load: Load
   techniques: Technique[]
   notes: string              // OBSERVACIONES minus the parsed load (free coaching note)

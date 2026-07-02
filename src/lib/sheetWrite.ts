@@ -46,6 +46,13 @@ export function buildCellWrites(ex: ExerciseRow, week: number, edit: ActualEdit)
   // there's no single cell that owns this value, so don't guess; log only.
   if (week > 1 && !w) return []
   if (w && (w.inherit || w.complex)) return [] // ambiguous — skip writeback
+  if (!w && ex.plan && ex.plan.length) {
+    // base row is a non-linear per-series plan ("3X2+2X2") — overwriting reps/series
+    // would destroy the scheme; only kg is safe to rewrite.
+    const writes: CellWrite[] = []
+    if (edit.kg != null) writes.push({ row: ex.row, col: OBS_COL, value: replaceKg(ex.raw.obs, edit.kg) })
+    return writes
+  }
   const writes: CellWrite[] = []
   const hasWeekCol = !!w && w.col >= 0
 

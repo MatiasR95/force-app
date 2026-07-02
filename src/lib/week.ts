@@ -43,7 +43,9 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
 function resolveRaw(ex: ExerciseRow, week: number): Resolved {
   const base: Resolved = {
     reps: ex.reps, sets: ex.sets, repsRaw: ex.repsRaw, setsRaw: ex.setsRaw,
-    load: ex.load, complexRaw: null, plan: null,
+    load: ex.load,
+    complexRaw: ex.plan && ex.plan.length ? (ex.raw.series || ex.raw.reps) : null,
+    plan: ex.plan ?? null,
   }
   if (week <= 1) {
     // some coaches put week 1 in an explicit "Semana 1" column instead of the

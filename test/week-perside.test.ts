@@ -92,6 +92,42 @@ describe('resolveWeek — non-linear plan drives the series count', () => {
   })
 })
 
+describe('resolveWeek — non-linear plan written directly in the base columns (no week cols)', () => {
+  // advanced coaches (Rodri Leuzzi, Alva Cornaggia, Sergio Sosa…) often write the
+  // scheme straight into SERIES with no "Semana N" progression at all.
+  const SHEET: string[][] = [
+    ['DÍA 1', '', '', '', ''],
+    ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'CARGA'],
+    ['THE BIG ONE', 'Sentadilla', '', '3X2+2X2', '100kg'],
+  ]
+  const r = parseRoutine(SHEET, 'Test')
+  const ex = r.days[0].blocks.flatMap((b) => b.exercises).find((e) => e.name === 'Sentadilla')!
+
+  it('reads the base SERIES cell as a plan, not just its first number', () => {
+    expect(ex.plan).toEqual([3, 3, 2, 2])
+    expect(ex.sets).toBe(4) // 2 series of 3 + 2 series of 2 = 4 total, not 3 or 5
+  })
+
+  it('resolveWeek surfaces the plan and raw label for week 1', () => {
+    const w1 = resolveWeek(ex, 1)
+    expect(w1.sets).toBe(4)
+    expect(w1.plan).toEqual([3, 3, 2, 2])
+    expect(w1.complexRaw).toBe('3X2+2X2')
+    expect(w1.load.value).toBe(100) // CARGA column still read independently
+  })
+
+  it('also recognizes the scheme when written in REPETICIONES instead', () => {
+    const alt = parseRoutine([
+      ['DÍA 1', '', '', '', ''],
+      ['', 'EJERCICIO', 'REPETICIONES', 'SERIES', 'CARGA'],
+      ['THE BIG ONE', 'Press Banca', '3X2+2X2', '', '90kg'],
+    ], 'Test')
+    const pb = alt.days[0].blocks.flatMap((b) => b.exercises).find((e) => e.name === 'Press Banca')!
+    expect(pb.sets).toBe(4)
+    expect(pb.plan).toEqual([3, 3, 2, 2])
+  })
+})
+
 describe('parseStartDate — ISO + rioplatense', () => {
   it('parses an ISO datetime from Sheets at local midnight', () => {
     const d = parseStartDate('2026-05-30T03:00:00.000Z')!

@@ -13,7 +13,6 @@ import { Records } from './screens/Records'
 import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
 import { EventDecor } from './components/EventDecor'
-import { IosDiag } from './components/IosDiag'
 import { RestTimerHost } from './components/RestTimerHost'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
@@ -120,7 +119,7 @@ export default function App() {
 
   return (
     <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
-      style={{ height: 'var(--app-vh, 100dvh)', background: 'var(--grad-dark-stage)' }}>
+      style={{ height: 'min(var(--app-vh, 100dvh), 100dvh)', background: 'var(--grad-dark-stage)' }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge. */}
       {/* iOS PWA layout. Two device bugs are handled together: (1) the status bar is
           `black` (index.html), NOT black-translucent, which handed this iPhone a viewport
@@ -189,7 +188,6 @@ export default function App() {
         />
       )}
       {intro && <Intro onStart={() => { setIntroSeen(); setIntro(false) }} />}
-      <IosDiag />
     </div>
   )
 }
