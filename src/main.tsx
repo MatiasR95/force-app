@@ -33,14 +33,33 @@ function syncAppHeight() {
   const h = window.innerHeight
   if (h > 0) document.documentElement.style.setProperty('--app-vh', h + 'px')
 }
+// Force iOS to recompute the standalone viewport geometry — the same thing a device
+// rotation does, which is what "unsticks" the stale short viewport under a
+// black-translucent status bar. Briefly flip viewport-fit cover→contain→cover so WebKit
+// re-parses the meta and re-measures, then re-pin the height.
+function nudgeViewport() {
+  const vp = document.querySelector('meta[name="viewport"]')
+  if (!vp) return
+  const base = vp.getAttribute('content') || ''
+  if (!base.includes('viewport-fit=cover')) return
+  vp.setAttribute('content', base.replace('viewport-fit=cover', 'viewport-fit=contain'))
+  requestAnimationFrame(() => {
+    vp.setAttribute('content', base)
+    requestAnimationFrame(syncAppHeight)
+  })
+}
 syncAppHeight()
 ;[0, 50, 150, 300, 600, 1000].forEach((ms) => window.setTimeout(syncAppHeight, ms))
 requestAnimationFrame(syncAppHeight)
+// run the geometry nudge a couple of times on launch so a stale cold-start viewport
+// settles to the full screen without the user having to rotate the phone
+window.setTimeout(nudgeViewport, 120)
+window.setTimeout(nudgeViewport, 500)
 window.addEventListener('resize', syncAppHeight)
 window.addEventListener('orientationchange', syncAppHeight)
-window.addEventListener('pageshow', syncAppHeight)
+window.addEventListener('pageshow', () => { syncAppHeight(); nudgeViewport() })
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') syncAppHeight()
+  if (document.visibilityState === 'visible') { syncAppHeight(); nudgeViewport() }
 })
 
 createRoot(document.getElementById('root')!).render(

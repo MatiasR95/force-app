@@ -119,16 +119,15 @@ export default function App() {
 
   return (
     <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
-      style={{ height: 'min(var(--app-vh, 100dvh), 100dvh)', background: 'var(--grad-dark-stage)' }}>
-      {/* The app's OWN full-screen container paints the brand gradient edge-to-edge. */}
-      {/* iOS PWA layout. Two device bugs are handled together: (1) the status bar is
-          `black` (index.html), NOT black-translucent, which handed this iPhone a viewport
-          SHORT by the top inset (873 vs 932). (2) Even then, iOS boots the layout viewport
-          STALE (documentElement.clientHeight lagged at 873 while innerHeight was 932) so
-          the app painted short until a rotation — so the shell height is driven by
-          `--app-vh` = window.innerHeight (main.tsx), re-synced over the first second. The
-          shell is a FLEX COLUMN: scroll area (flex-1) + bottom nav (shrink-0), so the nav
-          is a real flex child pinned to the shell's true bottom. html/body are locked in
+      style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)' }}>
+      {/* The app's OWN full-screen container paints the brand gradient edge-to-edge —
+          incl. UNDER the Dynamic Island, since the status bar is black-translucent. */}
+      {/* iOS PWA layout. black-translucent boots a SHORT, STALE viewport that clips the
+          bottom nav until a rotation; main.tsx counters it with a viewport-meta re-parse
+          (mimics a rotation) + `--app-vh` = window.innerHeight, so the shell fills the full
+          screen. The shell is a FLEX COLUMN: scroll area (flex-1) + bottom nav (shrink-0),
+          so the nav is a real flex child pinned to the shell's true bottom; the nav clears
+          the home indicator via pb-[env(safe-area-inset-bottom)]. html/body are locked in
           index.css so the only scrolling element is `.app-scroll`. */}
       <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />

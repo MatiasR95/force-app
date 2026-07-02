@@ -6,13 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- `black` (NOT black-translucent): black-translucent makes iOS lay a standalone
-         PWA into a viewport that is SHORT by the top safe-area inset and top-anchored,
-         so real layout content clips ~top-inset px above the physical bottom (measured
-         on iPhone 15 Pro Max: usable viewport 873 vs screen 932). `black` gives the web
-         view a correctly-sized viewport that reaches the true bottom, so the bottom nav
-         sits flush with readable labels. -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <!-- black-translucent: the app paints edge-to-edge UNDER the Dynamic Island (premium
+         immersive top). Its known iOS bug — a short, STALE layout viewport that clips the
+         bottom nav until a rotation — is countered in main.tsx: a viewport-meta re-parse
+         on launch (mimics a rotation) plus an innerHeight-driven `--app-vh`. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>FORCE — Mi Rutina</title>
     <script>
       // Self-heal a stale PWA cache. If an app asset (script/style) fails to load

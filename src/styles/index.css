@@ -24,11 +24,12 @@
 
 @layer base {
   /* Height is driven by JS (`--app-vh` = window.innerHeight, see main.tsx) to defeat the
-     iOS standalone stale-layout-viewport bug; 100dvh is the pre-JS fallback. Clamped by
-     `min(…, 100dvh)` so a momentary innerHeight spike (iOS sometimes reports the full
-     screen incl. the status bar) can never push the layout taller than the web view and
-     shove the bottom nav off-screen. */
-  html, body, #root { height: min(var(--app-vh, 100dvh), 100dvh); }
+     iOS standalone stale-layout-viewport bug. Under a black-translucent status bar the
+     target is the FULL screen (content paints under the Dynamic Island), so the pre-JS
+     fallback is 100vh (the large viewport = physical screen), not 100dvh (which iOS boots
+     short). main.tsx re-parses the viewport on launch so innerHeight settles to the full
+     screen. */
+  html, body, #root { height: var(--app-vh, 100vh); }
   /* iOS renders `position: fixed` unreliably once the BODY itself is the
      scrolling element (the bottom nav visibly detaches and floats mid-page
      after a scroll/bounce, especially in standalone PWA mode). Lock the
