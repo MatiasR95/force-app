@@ -4,6 +4,7 @@ import emblem from '../assets/logo/emblem_gold_t.png'
 import { ArgentinaFlag } from '../components/ArgentinaFlag'
 import { EventThemeBanner } from '../components/EventThemeBanner'
 import { NewsBanner } from '../components/NewsBanner'
+import { FoilTilt } from '../components/FoilTilt'
 import { getRivalPending, clearRivalPending } from '../lib/rivalWatch'
 import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
@@ -47,8 +48,8 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
-      {/* hero */}
-      <div className="hero-card rounded-card p-5 mb-4">
+      {/* hero — tilt-reactive gold foil: the sheen tracks the phone's tilt */}
+      <FoilTilt className="hero-card rounded-card p-5 mb-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2.5">
             <img src={emblem} alt="FORCE" className="h-11 w-11 object-contain" />
@@ -69,7 +70,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
           {name ? <>Hola, <span className="text-gold">{name.split(' ')[0]}</span></> : 'Bienvenido a FORCE'}
         </h1>
         <div className="text-white/45 text-sm mt-1 capitalize">{TODAY_LONG()}</div>
-      </div>
+      </FoilTilt>
 
       {/* event-aware banner (patrias, Navidad, fin de año, Malvinas) — date-driven */}
       <EventThemeBanner />

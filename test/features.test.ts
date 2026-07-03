@@ -120,6 +120,30 @@ describe('multi-tab routine (tabs stitched by the backend)', () => {
   })
 })
 
+describe('duplicate in-cell day marker (coach copied a tab and forgot to renumber)', () => {
+  // Real case (Beatriz, Jun 2026): the "Día 3" tab's in-cell marker still said
+  // "DÍA 1" — the by-index dedup collided both days and Día 3 vanished from the app.
+  const tab = (marker: string, exercise: string) => [
+    ['Nombre', 'Beatriz'],
+    [marker, '', '', '', '', 'Semana 2'],
+    ['WARM-UP', 'Movilidad general'],
+    ['', 'EJERCICIO', 'REPS', 'SERIES', 'OBSERVACIONES'],
+    ['THE BIG ONE', '', '', '', ''],
+    ['', exercise, '5', '4', '40kg x lado', '5X4'],
+    ['ACCESORIOS', '', '', '', ''],
+    ['', 'Remo Gorila', '8', '3', 'Amarillas', '8X4'],
+  ]
+  const r = parseRoutine(
+    [...tab('DÍA 1', 'Peso Muerto Hex'), ...tab('DÍA 2', 'Sentadillas'), ...tab('DÍA 1', 'Press Plano')],
+    'Junio 2026',
+  )
+  it('renumbers the duplicate to the next free day instead of dropping it', () => {
+    expect(r.days.map((d) => d.label)).toEqual(['DÍA 1', 'DÍA 2', 'DÍA 3'])
+    expect(r.days[2].blocks.flatMap((b) => b.exercises.map((e) => e.name))).toContain('Press Plano')
+    expect(r.days[0].blocks.flatMap((b) => b.exercises.map((e) => e.name))).toContain('Peso Muerto Hex')
+  })
+})
+
 describe('nextFeriado', () => {
   it('finds the next holiday on or after a date, with days left', () => {
     const n = nextFeriado('2026-06-24')!

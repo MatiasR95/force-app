@@ -18,6 +18,7 @@ import {
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
 import { Celebration, FoilBurst } from '../components/Celebration'
+import { FoilTilt } from '../components/FoilTilt'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
 import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
@@ -560,7 +561,7 @@ function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () 
         </h1>
         <div className="space-y-2 mb-6">
           {cards.map((c, i) => (
-            <div key={i} className="rounded-card border border-gold/40 bg-gold/[0.10] px-4 py-3 flex items-center gap-3 text-left">
+            <FoilTilt key={i} className="rounded-card border border-gold/40 bg-gold/[0.10] px-4 py-3 flex items-center gap-3 text-left">
               <Award size={22} className="text-gold shrink-0" />
               <div className="min-w-0">
                 <div className="text-white font-black truncate">{c.lift}</div>
@@ -568,7 +569,7 @@ function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () 
                   {c.tier ? TIER_LABEL[c.tier] : ''}{c.tier && c.thresholdText ? ' · ' : ''}{c.thresholdText ?? ''}
                 </div>
               </div>
-            </div>
+            </FoilTilt>
           ))}
         </div>
         <button onClick={onContinue}

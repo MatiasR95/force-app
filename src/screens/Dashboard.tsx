@@ -9,6 +9,8 @@ import { getCheckins, getSessions, getMyRecords } from '../lib/store'
 import { epley1RM, liftLabel } from '../lib/records'
 import { Medallero } from '../components/Medallero'
 import { StreakHeatmap } from '../components/StreakHeatmap'
+import { Reveal } from '../components/Reveal'
+import { CountUp } from '../components/NumberTicker'
 import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp, Award } from 'lucide-react'
 
 export function Dashboard({ routine }: { routine: Routine }) {
@@ -42,27 +44,34 @@ export function Dashboard({ routine }: { routine: Routine }) {
       <h1 className="heading text-2xl text-white mb-5">Panel</h1>
 
       {/* personal medals (constancia ladders + strength by category) */}
-      <SectionTitle icon={<Award size={14} />}>Tus medallas</SectionTitle>
-      <div className="mb-6"><Medallero /></div>
+      <Reveal>
+        <SectionTitle icon={<Award size={14} />}>Tus medallas</SectionTitle>
+        <div className="mb-6"><Medallero /></div>
+      </Reveal>
 
-      {/* attendance + streak */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="flex-1"><StatHero value={String(asistencia)} label={`Días en ${month}`} /></div>
+      {/* attendance + streak — the numbers count up as they come into view */}
+      <Reveal delay={80}>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="card p-4 flex items-center gap-3">
+            <div className="flex-1"><StatHero value={<CountUp to={asistencia} delay={200} />} label={`Días en ${month}`} /></div>
+          </div>
+          <div className="card p-4 flex items-center justify-center gap-2">
+            <Flame className="text-gold" size={22} />
+            <div><StatHero value={<CountUp to={racha} delay={320} />} label="Semanas seguidas" /></div>
+          </div>
         </div>
-        <div className="card p-4 flex items-center justify-center gap-2">
-          <Flame className="text-gold" size={22} />
-          <div><StatHero value={String(racha)} label="Semanas seguidas" /></div>
-        </div>
-      </div>
+      </Reveal>
 
       {/* training heatmap — a scannable shape of your last 12 weeks */}
-      <div className="card p-4 mb-6">
-        <div className="kicker mb-3">Tu constancia</div>
-        <StreakHeatmap dates={[...checkins, ...sessions.map((s) => s.date)]} />
-      </div>
+      <Reveal delay={140}>
+        <div className="card p-4 mb-6">
+          <div className="kicker mb-3">Tu constancia</div>
+          <StreakHeatmap dates={[...checkins, ...sessions.map((s) => s.date)]} />
+        </div>
+      </Reveal>
 
       {/* self-progress over time */}
+      <Reveal>
       <SectionTitle icon={<LineChart size={14} />}>Tu evolución</SectionTitle>
       <div className="space-y-2 mb-6">
         {evo.length === 0 && (
@@ -84,8 +93,10 @@ export function Dashboard({ routine }: { routine: Routine }) {
           </div>
         ))}
       </div>
+      </Reveal>
 
       {/* Big lifts e1RM */}
+      <Reveal>
       <SectionTitle icon={<TrendingUp size={14} />}>Fuerza estimada (1RM)</SectionTitle>
       <div className="space-y-2 mb-6">
         {big.slice(0, 3).map((b) => (
@@ -103,8 +114,10 @@ export function Dashboard({ routine }: { routine: Routine }) {
         ))}
         {big.length === 0 && <Empty>Cuando tu rutina tenga cargas en los básicos, vas a ver tu 1RM estimado.</Empty>}
       </div>
+      </Reveal>
 
       {/* volume by pattern */}
+      <Reveal>
       <SectionTitle icon={<Dumbbell size={14} />}>Volumen por patrón (series)</SectionTitle>
       <div className="card p-4 mb-6 space-y-2.5">
         {patterns.map(([p, n]) => (
@@ -117,16 +130,20 @@ export function Dashboard({ routine }: { routine: Routine }) {
           </div>
         ))}
       </div>
+      </Reveal>
 
       {/* effort trend */}
+      <Reveal>
       <SectionTitle icon={<Activity size={14} />}>Esfuerzo reciente (RPE)</SectionTitle>
       <div className="card p-4 mb-6">
         {rpes.length >= 2 ? <Spark values={rpes.map((s) => s.rpe!)} /> : (
           <Empty>Registrá el esfuerzo al terminar de entrenar y vas a ver tu tendencia acá.</Empty>
         )}
       </div>
+      </Reveal>
 
       {/* tonnage */}
+      <Reveal>
       <div className="card p-4 flex items-center justify-between">
         <div>
           <div className="kicker mb-1">Tonelaje del plan</div>
@@ -134,6 +151,7 @@ export function Dashboard({ routine }: { routine: Routine }) {
         </div>
         <div className="text-gold text-2xl font-black tabular-nums">{fmtTonnage(tonnage)}</div>
       </div>
+      </Reveal>
 
       <p className="mt-5 text-[0.66rem] text-white/35 leading-relaxed text-center">
         Cómo se calcula: 1RM estimado con la fórmula de Epley (carga × [1 + reps/30]).

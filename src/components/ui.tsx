@@ -22,7 +22,7 @@ export function Card({ children, className = '', spine = false }: {
   )
 }
 
-export function StatHero({ value, label, suffix }: { value: string; label: string; suffix?: string }) {
+export function StatHero({ value, label, suffix }: { value: ReactNode; label: string; suffix?: string }) {
   return (
     <div className="text-center">
       <div className="flex items-end justify-center gap-1">

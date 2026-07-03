@@ -235,6 +235,27 @@ body::before {
   85%,100% { transform: translate(66px,-36px); }
 }
 
+/* ---- Tilt-reactive gold foil (FoilTilt.tsx) --------------------------------
+   The card rotates on --tilt-x/--tilt-y and a two-layer specular sheen tracks
+   --foil-x, all set from device tilt / pointer. GPU-only (transform/left). */
+.foil-tilt {
+  position: relative; overflow: hidden;
+  transform: perspective(650px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform .12s ease-out;
+  will-change: transform;
+}
+.foil-sheen { position: absolute; inset: 0; pointer-events: none; }
+.foil-sheen-wide, .foil-sheen-core {
+  position: absolute; top: -40%; bottom: -40%;
+  transform: skewX(-18deg); transition: left .12s ease-out;
+}
+.foil-sheen-wide { width: 72px; left: var(--foil-x, 24%); background: rgba(240,226,190,0.07); }
+.foil-sheen-core { width: 24px; left: calc(var(--foil-x, 24%) + 7%); background: rgba(255,255,255,0.09); }
+@media (prefers-reduced-motion: reduce) {
+  .foil-tilt { transform: none; }
+  .foil-sheen { display: none; }
+}
+
 /* ---- Rest-timer ring finish: an echo ring expands + fades when time's up ---- */
 .ring-echo { transform-box: fill-box; transform-origin: center; animation: ringEcho 1.1s ease-out 2; }
 @keyframes ringEcho {
@@ -242,6 +263,18 @@ body::before {
 }
 .ring-pop { animation: ringPop .5s cubic-bezier(.34,1.56,.64,1); }
 @keyframes ringPop { 0% { transform: scale(.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* Live-Activity pill: springy morph between compact capsule and expanded dial */
+.pill-morph {
+  transition:
+    width .45s cubic-bezier(.34,1.4,.64,1),
+    height .45s cubic-bezier(.34,1.4,.64,1),
+    border-radius .45s cubic-bezier(.34,1.4,.64,1);
+  will-change: width, height;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-morph { transition: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .rex-fil-a,.rex-fil-b,.rex-mu,.rex-fill,.rex-fiber,.rex-gap,.rex-brace,.rex-spine,.rex-climb,

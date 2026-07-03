@@ -226,6 +226,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   let exIdx = 0
   let weekCols: Array<{ week: number; col: number }> = []
   let lastDayIndex = 0 // for weekday-named days, which carry no number
+  const explicitDayIdx = new Set<number>() // numbers claimed by real "DÍA N" markers
 
   const pushExercise = (cells: string[], rowIdx: number) => {
     if (!day) return
@@ -300,9 +301,21 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const markerCell = [a, norm(cells[1]), norm(cells[2])].find((v) => v && (isDayMarker(v) || isWeekdayMarker(v)))
     if (markerCell) {
       const dm = isDayMarker(markerCell)
-      const idx = dm ? parseInt(dm[1], 10) : lastDayIndex + 1
+      let idx = dm ? parseInt(dm[1], 10) : lastDayIndex + 1
+      // Coaches copy a day's tab and forget to update the in-cell marker (the tab
+      // name says "Día 3" but the cell still says "DÍA 1" — real case: Beatriz,
+      // Jun 2026). A duplicate number would collide in the by-index dedup below
+      // and silently DROP a whole day, so a number already claimed by an EXPLICIT
+      // marker on a day with content opens the next free day instead. (Implicit
+      // pre-marker days don't claim the number — the dedup merges those as before.)
+      const hasContent = (d: RoutineDay) => !!d.warmup || d.blocks.some((b) => b.exercises.length > 0)
+      if (explicitDayIdx.has(idx) && days.some((d) => d.index === idx && hasContent(d))) {
+        idx = Math.max(...days.map((d) => d.index)) + 1
+      }
+      explicitDayIdx.add(idx)
       lastDayIndex = idx
-      day = { id: `d${days.length + 1}-${idx}`, label: dm ? dayLabel(markerCell) : markerCell.toUpperCase(), index: idx, warmup: '', weeks: [1], blocks: [] }
+      const label = dm ? dayLabel(markerCell).replace(/\d+/, String(idx)) : markerCell.toUpperCase()
+      day = { id: `d${days.length + 1}-${idx}`, label, index: idx, warmup: '', weeks: [1], blocks: [] }
       days.push(day)
       section = 'ramp'
       seenBig = false
