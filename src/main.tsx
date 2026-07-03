@@ -25,12 +25,29 @@ registerSW({
 // iOS standalone PWAs boot with a STALE layout viewport: the document lays out short
 // (documentElement.clientHeight lags the real height) so the app paints ~top-inset px
 // short and the bottom nav floats high — until a geometry change (a device rotation)
-// forces WebKit to re-measure. `window.innerHeight` is correct even while the layout
-// viewport lags, so we pin it to a CSS var `--app-vh` and re-apply it across the first
-// second and on every geometry/visibility event. That reproduces what the rotation does
-// — the app self-corrects to the true height immediately, no user rotation needed.
+// forces WebKit to re-measure. Worse: on some cold starts even `window.innerHeight`
+// stays stale past our early retries, so pinning to it alone can STILL leave the nav
+// floating. The ground truth that can never be stale is the PHYSICAL SCREEN: in
+// standalone (black-translucent, full-bleed) the app must occupy the entire screen,
+// so we clamp `--app-vh` to `screen.height` (portrait; `screen.width` in landscape —
+// iOS reports screen.* orientation-independent). In-browser we keep innerHeight (the
+// screen would overshoot past Safari's chrome there).
+const isStandalone = () =>
+  window.matchMedia?.('(display-mode: standalone)').matches ||
+  (navigator as unknown as { standalone?: boolean }).standalone === true
+
+function targetHeight(): number {
+  let h = window.innerHeight
+  if (isStandalone()) {
+    const portrait = !window.matchMedia || window.matchMedia('(orientation: portrait)').matches
+    const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width)
+    if (full > h) h = full
+  }
+  return h
+}
+
 function syncAppHeight() {
-  const h = window.innerHeight
+  const h = targetHeight()
   if (h > 0) document.documentElement.style.setProperty('--app-vh', h + 'px')
 }
 // Force iOS to recompute the standalone viewport geometry — the same thing a device
@@ -57,10 +74,23 @@ window.setTimeout(nudgeViewport, 120)
 window.setTimeout(nudgeViewport, 500)
 window.addEventListener('resize', syncAppHeight)
 window.addEventListener('orientationchange', syncAppHeight)
+window.visualViewport?.addEventListener('resize', syncAppHeight)
 window.addEventListener('pageshow', () => { syncAppHeight(); nudgeViewport() })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { syncAppHeight(); nudgeViewport() }
 })
+// Watchdog: for the first ~8s of a standalone launch, keep re-checking. If the layout
+// viewport is still short of the pinned height (the stale-boot signature), fire the
+// rotation-mimicking nudge again. Covers cold starts where the stale window outlives
+// the fixed retry schedule above.
+if (isStandalone()) {
+  let ticks = 0
+  const watchdog = window.setInterval(() => {
+    syncAppHeight()
+    if (document.documentElement.clientHeight < targetHeight() - 1) nudgeViewport()
+    if (++ticks >= 16) window.clearInterval(watchdog)
+  }, 500)
+}
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

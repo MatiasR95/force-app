@@ -74,12 +74,27 @@ export async function fetchHistory(token: string | null): Promise<Array<{ id: st
   return call('getHistory', { token })
 }
 
+// Stale-while-revalidate for the gym boards: the last good server response is
+// kept locally so the screen paints INSTANTLY on the next visit, while the fresh
+// fetch updates it in the background. Boards are gym-wide (no per-member data
+// risk) and short-lived staleness is invisible in practice.
+function cacheGet<T>(key: string): T | null {
+  try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : null } catch { return null }
+}
+function cacheSet(key: string, val: unknown): void {
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch { /* quota */ }
+}
+export const cachedRecords = (): RecordEntry[] | null => cacheGet<RecordEntry[]>('force.cache.records')
+export const cachedStreaks = (): StreakEntry[] | null => cacheGet<StreakEntry[]>('force.cache.streaks')
+
 /** Gym-wide records. Demo = the member's own auto-captured marks (no seed). */
 export async function fetchRecords(token: string | null): Promise<RecordEntry[]> {
   if (isDemo() || !token) {
     return [...getMyRecords()]
   }
-  return call<RecordEntry[]>('getRecords', { token })
+  const list = await call<RecordEntry[]>('getRecords', { token })
+  cacheSet('force.cache.records', list)
+  return list
 }
 
 /** Submit a record the member just hit. Demo persists locally only. */
@@ -96,11 +111,22 @@ export async function submitRecord(token: string | null, entry: RecordEntry): Pr
  *  (so it stays "live"). Demo = just the member's own entry. */
 export async function syncStreak(token: string | null, mine: StreakEntry): Promise<StreakEntry[]> {
   if (isDemo() || !token) return mine.weeks > 0 || mine.max > 0 ? [mine] : []
-  await fetch(new URL(API_BASE).toString(), {
+  // fire the upsert and the read TOGETHER (was two sequential round trips — the
+  // main reason Rachas felt slow). The list may predate our own post (server-side
+  // cache), so merge `mine` locally: the member always sees their fresh numbers.
+  const post = fetch(new URL(API_BASE).toString(), {
     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: 'postStreak', token, entry: mine }),
   }).catch(() => {})
-  return call<StreakEntry[]>('getStreaks', { token })
+  const list = await call<StreakEntry[]>('getStreaks', { token })
+  void post
+  const others = list.filter((s) => s.client !== mine.client)
+  const prev = list.find((s) => s.client === mine.client)
+  const out = mine.weeks > 0 || mine.max > 0 || prev
+    ? [...others, { client: mine.client, weeks: mine.weeks, max: Math.max(mine.max, prev?.max ?? 0) }]
+    : others
+  cacheSet('force.cache.streaks', out)
+  return out
 }
 
 /** Flush the offline outbox. Log items → Seguimiento; `cell` items → overwrite

@@ -91,13 +91,18 @@ export const setToken = (t: string) => write(KEYS.token, t)
 export const getClientName = () => read<string | null>(KEYS.client, null)
 export const setClientName = (n: string) => write(KEYS.client, n)
 
-// The brand welcome (Intro) plays on the FIRST open of each day — it greets by
-// time of day and previews today's session, so it's worth a daily ritual. Any
-// relaunch later the same day skips it (iOS kills backgrounded PWAs constantly;
-// re-showing it every relaunch would get old fast). Stored as the date last
-// shown; the legacy boolean `true` from older builds simply reads as "not today".
-export const getIntroSeen = (): boolean => read<string | boolean>(KEYS.introSeen, false) === localDate()
-export const setIntroSeen = (): void => write(KEYS.introSeen, localDate())
+// The brand welcome (Intro) plays when the member comes back after a real break —
+// 6+ hours since it last played (so: every morning, and again for an evening
+// session). Relaunches within the window skip it (iOS kills backgrounded PWAs
+// constantly; re-showing it every relaunch would get old fast). Stored as a
+// timestamp; legacy values from older builds (boolean/date string) read as
+// "stale" so the member simply sees it on their next open.
+const INTRO_GAP_MS = 6 * 3_600_000
+export const getIntroSeen = (): boolean => {
+  const v = read<number | string | boolean>(KEYS.introSeen, 0)
+  return typeof v === 'number' && v > 0 && Date.now() - v < INTRO_GAP_MS
+}
+export const setIntroSeen = (): void => write(KEYS.introSeen, Date.now())
 
 /** Pull the access token out of a pasted access link (or a bare token). */
 export function extractToken(input: string): string | null {

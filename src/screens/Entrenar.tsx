@@ -17,10 +17,10 @@ import {
 } from '../lib/medals'
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
-import { Celebration } from '../components/Celebration'
+import { Celebration, FoilBurst } from '../components/Celebration'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
-import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2 } from 'lucide-react'
+import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -73,6 +73,16 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   useEffect(() => {
     if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done })
   }, [i, done, finishing, day.id])
+
+  // Baseline the medal board at session START: everything already earned before
+  // today is marked seen, so the end-of-session unlock celebrates ONLY medals won
+  // during THIS session — never a re-run of the member's whole trophy case.
+  useEffect(() => {
+    const gender = getGender()
+    if (!gender) return
+    const cat = (weightClass(gender, getBodyweight())?.key ?? defaultCat(gender)) as never
+    markMedalsSeen(earnedMedalIds(getMyRecords(), gender, cat, currentStreakWeeks(getCheckins()), getSessions().length))
+  }, [])
 
   if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
@@ -534,13 +544,50 @@ function computeUnlockCards(): ShareData[] {
     .slice(0, 3)
 }
 
+// Full-screen "you unlocked a medal" beat: foil burst + trophy pop + the medal
+// name(s) — the congratulation the member earns BEFORE the shareable card appears.
+function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/90 backdrop-blur-sm max-w-md mx-auto">
+      <FoilBurst />
+      <div className="relative z-[58] w-full text-center animate-[pop_.35s_ease]">
+        <div className="ring-pop mx-auto mb-4 h-24 w-24 rounded-full border-2 border-gold bg-gold/[0.12] grid place-items-center">
+          <Trophy size={44} className="text-gold-pale" />
+        </div>
+        <div className="kicker">¡Medalla nueva!</div>
+        <h1 className="heading text-3xl text-white mt-1 mb-5">
+          {cards.length > 1 ? `Hoy ganaste ${cards.length} medallas` : 'La ganaste hoy'}
+        </h1>
+        <div className="space-y-2 mb-6">
+          {cards.map((c, i) => (
+            <div key={i} className="rounded-card border border-gold/40 bg-gold/[0.10] px-4 py-3 flex items-center gap-3 text-left">
+              <Award size={22} className="text-gold shrink-0" />
+              <div className="min-w-0">
+                <div className="text-white font-black truncate">{c.lift}</div>
+                <div className="text-gold text-sm font-bold truncate">
+                  {c.tier ? TIER_LABEL[c.tier] : ''}{c.tier && c.thresholdText ? ' · ' : ''}{c.thresholdText ?? ''}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={onContinue}
+          className="btn-glow w-full rounded-full bg-gold-fill text-ink font-black uppercase py-4 active:scale-[0.98]">
+          Ver y compartir
+        </button>
+      </div>
+      <style>{`@keyframes pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
+    </div>
+  )
+}
+
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
 function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
   day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; onClose: () => void; onBack: () => void
 }) {
   const [rpe, setRpe] = useState(7)
   const [note, setNote] = useState('')
-  const [phase, setPhase] = useState<'rpe' | 'celebrate' | 'medals'>('rpe')
+  const [phase, setPhase] = useState<'rpe' | 'celebrate' | 'medalIntro' | 'medals'>('rpe')
   const [shareFinish, setShareFinish] = useState(false)
   const [queue, setQueue] = useState<ShareData[]>([])
   const bigBlock = day.blocks.find((b) => b.tag === 'big')
@@ -575,13 +622,15 @@ function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
           stats={{ totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()) }}
           intense={prHits.size > 0 || queue.length > 0}
           extra={lastWeek ? 'Cerraste la última semana del ciclo. ¡Avisale a tu coach para armar el próximo! 💪' : undefined}
-          onClose={() => (queue.length ? setPhase('medals') : onClose())}
+          onClose={() => (queue.length ? setPhase('medalIntro') : onClose())}
           onShare={() => setShareFinish(true)}
         />
         {shareFinish && <ShareCard data={finishData()} onClose={() => setShareFinish(false)} />}
       </>
     )
   }
+  // a medal earned THIS session gets its own congratulation beat before the share card
+  if (phase === 'medalIntro') return <MedalIntro cards={queue} onContinue={() => setPhase('medals')} />
   if (phase === 'medals') {
     const card = queue[0]
     if (!card) { onClose(); return null }

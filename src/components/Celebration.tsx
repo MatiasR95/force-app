@@ -6,7 +6,7 @@ import { Sparkles, X, Share2, Check, Trophy } from 'lucide-react'
 // Gold foil-shard burst — a short, intentional radial spray of thin gold slivers.
 // Reserved for medal/PR-tier moments (see `intense`); ordinary completion uses the
 // calmer ring-sweep alone. Honors prefers-reduced-motion (renders nothing).
-function FoilBurst() {
+export function FoilBurst() {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return

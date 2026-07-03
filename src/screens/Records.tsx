@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { RecordEntry, Gender, StreakEntry } from '../lib/records'
 import { RECORD_LIFTS, rank, bestOf, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
-import { fetchRecords, syncStreak } from '../lib/api'
+import { fetchRecords, syncStreak, cachedRecords, cachedStreaks } from '../lib/api'
 import { getToken, getGender, getClientName, getCheckins, getMaxStreak } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
 import { Pill } from '../components/ui'
@@ -27,7 +27,8 @@ export function Records() {
 }
 
 function RecordsView({ client }: { client: string }) {
-  const [all, setAll] = useState<RecordEntry[]>([])
+  // paint the last known board instantly; the fetch below refreshes it silently
+  const [all, setAll] = useState<RecordEntry[]>(() => cachedRecords() ?? [])
   const [lift, setLift] = useState(RECORD_LIFTS[0].key)
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [wc, setWc] = useState<string>('all') // 'all' | weight-class key
@@ -113,7 +114,8 @@ function RecordsView({ client }: { client: string }) {
 }
 
 function RachasView({ client }: { client: string }) {
-  const [streaks, setStreaks] = useState<StreakEntry[]>([])
+  // paint the last known board instantly; syncStreak refreshes it silently
+  const [streaks, setStreaks] = useState<StreakEntry[]>(() => cachedStreaks() ?? [])
   const myCur = currentStreakWeeks(getCheckins())
   const myMax = Math.max(getMaxStreak(), myCur)
 
