@@ -91,11 +91,13 @@ export const setToken = (t: string) => write(KEYS.token, t)
 export const getClientName = () => read<string | null>(KEYS.client, null)
 export const setClientName = (n: string) => write(KEYS.client, n)
 
-// The brand welcome (Intro) plays once, then we remember it — so an iOS PWA that
-// gets killed in the background and relaunched doesn't dump the member back on the
-// welcome screen every time (they just land on their routine).
-export const getIntroSeen = (): boolean => read<boolean>(KEYS.introSeen, false)
-export const setIntroSeen = (): void => write(KEYS.introSeen, true)
+// The brand welcome (Intro) plays on the FIRST open of each day — it greets by
+// time of day and previews today's session, so it's worth a daily ritual. Any
+// relaunch later the same day skips it (iOS kills backgrounded PWAs constantly;
+// re-showing it every relaunch would get old fast). Stored as the date last
+// shown; the legacy boolean `true` from older builds simply reads as "not today".
+export const getIntroSeen = (): boolean => read<string | boolean>(KEYS.introSeen, false) === localDate()
+export const setIntroSeen = (): void => write(KEYS.introSeen, localDate())
 
 /** Pull the access token out of a pasted access link (or a bare token). */
 export function extractToken(input: string): string | null {
