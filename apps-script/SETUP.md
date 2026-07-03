@@ -21,15 +21,18 @@ Open the `Clientes` folder in Drive; copy the ID from the URL
 4. Run `rebuildClientConfig` once and authorize the scopes when prompted.
 
 ## 4. Build client tokens + links
-- Run **`rebuildClientConfig`** — scans `Clientes/` and fills the `clientes` tab
-  (existing tokens are preserved, new clients get a fresh one). Re-run whenever you add a
-  member; the manual coach workflow is untouched. This is the **only** time you need the
-  script editor.
-- Day-to-day sharing needs no script run at all: open the Config sheet, find the client's
-  row, and copy their `link` cell (or the `qr` cell URL) straight into WhatsApp/print. Both
-  columns are plain values, so they also work with Sheets' filter/search to find someone fast.
-- `listMagicLinks` (Run → View → Logs) still works if you want everything dumped to one
-  place for bulk printing, but it's optional now.
+- Run **`rebuildClientConfig`** — scans `Clientes/` and fills **two** tabs (existing tokens
+  are preserved, new clients get a fresh one): `clientes` (the backend reads this) and
+  **`compartir`** (for staff). Re-run whenever you add/rename a member; the manual coach
+  workflow is untouched. This is the **only** time you need the script editor.
+- **Staff sharing — use the `compartir` tab.** It opens first and shows, per member:
+  **NOMBRE · QR (rendered as an image) · LINK DE ACCESO · COMPARTIR**. To share:
+  - Find the person (`Ctrl/⌘+F` by name — the tab is sorted alphabetically).
+  - **WhatsApp:** click **"Enviar por WhatsApp"** → their chat opens with the personal link
+    and the iPhone install tip already written; just pick the contact and send.
+  - **QR:** the QR shows inline — screenshot it, or open the `qr` URL (in the `clientes`
+    tab) for a print-ready 600×600 PNG for the gym wall / a printed card.
+- `listMagicLinks` (Run → View → Logs) still dumps everything to the log for bulk printing.
 
 ## 5. Deploy the Web App
 1. **Deploy → New deployment → Web app.**
