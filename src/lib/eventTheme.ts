@@ -17,51 +17,58 @@ export interface EventTheme {
   quote: string       // short rioplatense motivational line (shown with the banner)
   emoji: string
   effect: ThemeEffect
+  accent: string      // event accent color — subtly tints the app chrome during the window
 }
 
 interface ThemeWindow extends EventTheme { from: string; to: string } // 'MM-DD'
+
+// Patriotic events lean on the flag celeste; festive on warm gold-pale; solemne
+// stays close to brand gold (restraint — a remembrance shouldn't feel decorated).
+const CELESTE = '#74ACDF'
+const GOLD = '#C6AE78'
+const PALE = '#EADEB4'
 
 // Ordered; first matching window wins (windows don't overlap). Each opens 7 days
 // before the date and closes on the date.
 const WINDOWS: ThemeWindow[] = [
   {
-    id: 'malvinas', tone: 'solemne', from: '03-26', to: '04-02', effect: 'map', emoji: '🇦🇷',
+    id: 'malvinas', tone: 'solemne', from: '03-26', to: '04-02', effect: 'map', emoji: '🇦🇷', accent: GOLD,
     title: '2 de Abril', greeting: 'Día del Veterano y de los Caídos en Malvinas',
     blurb: 'Honramos a quienes dieron todo. Las Malvinas son argentinas.',
     quote: 'Su entrega nos recuerda lo que es no rendirse jamás.',
   },
   {
-    id: 'revolucion-mayo', tone: 'patria', from: '05-18', to: '05-25', effect: 'flags', emoji: '🇦🇷',
+    id: 'revolucion-mayo', tone: 'patria', from: '05-18', to: '05-25', effect: 'flags', emoji: '🇦🇷', accent: CELESTE,
     title: '25 de Mayo', greeting: '¡Feliz 25 de Mayo!', blurb: 'Revolución de Mayo · donde todo empezó.',
     quote: 'Como en 1810: lo que arranca con decisión, no para más. A darle.',
   },
   {
-    id: 'bandera', tone: 'patria', from: '06-13', to: '06-20', effect: 'flags', emoji: '🇦🇷',
+    id: 'bandera', tone: 'patria', from: '06-13', to: '06-20', effect: 'flags', emoji: '🇦🇷', accent: CELESTE,
     title: 'Día de la Bandera', greeting: '¡Feliz Día de la Bandera!', blurb: 'Por Belgrano y los colores que nos unen.',
-    quote: 'Llevá tus colores con orgullo, adentro y afuera del gym.',
+    quote: 'Llevá tus colores con orgullo, adentro y afuera de entrenar.',
   },
   {
-    id: 'independencia', tone: 'patria', from: '07-01', to: '07-10', effect: 'flags', emoji: '🇦🇷',
+    id: 'independencia', tone: 'patria', from: '07-01', to: '07-10', effect: 'flags', emoji: '🇦🇷', accent: CELESTE,
     title: '9 de Julio', greeting: '¡Feliz Día de la Independencia!', blurb: 'Libres desde 1816. A entrenar con orgullo.',
     quote: 'Ser libre también es elegir ser tu mejor versión. Hoy te toca a vos.',
   },
   {
-    id: 'san-martin', tone: 'patria', from: '08-10', to: '08-17', effect: 'flags', emoji: '⚔️',
+    id: 'san-martin', tone: 'patria', from: '08-10', to: '08-17', effect: 'flags', emoji: '⚔️', accent: CELESTE,
     title: 'Gral. San Martín', greeting: 'Honramos al Libertador', blurb: 'Paso a la inmortalidad del Padre de la Patria.',
     quote: 'Disciplina sanmartiniana: hacé lo que hay que hacer, aunque cueste.',
   },
   {
-    id: 'soberania', tone: 'patria', from: '11-13', to: '11-20', effect: 'flags', emoji: '🇦🇷',
+    id: 'soberania', tone: 'patria', from: '11-13', to: '11-20', effect: 'flags', emoji: '🇦🇷', accent: CELESTE,
     title: 'Soberanía Nacional', greeting: 'Día de la Soberanía Nacional', blurb: 'Vuelta de Obligado · de pie, siempre.',
     quote: 'De pie y firme. Tu esfuerzo no se negocia con nadie.',
   },
   {
-    id: 'navidad', tone: 'festivo', from: '12-18', to: '12-25', effect: 'snow', emoji: '🎄',
+    id: 'navidad', tone: 'festivo', from: '12-18', to: '12-25', effect: 'snow', emoji: '🎄', accent: PALE,
     title: 'Felices fiestas', greeting: '¡Feliz Navidad, familia FORCE!', blurb: 'Que cierres el año más fuerte que nunca.',
     quote: 'El mejor regalo es lo que construís cada día. Seguí firme.',
   },
   {
-    id: 'fin-de-anio', tone: 'festivo', from: '12-26', to: '01-01', effect: 'fireworks', emoji: '🎆',
+    id: 'fin-de-anio', tone: 'festivo', from: '12-26', to: '01-01', effect: 'fireworks', emoji: '🎆', accent: PALE,
     title: 'Fin de año', greeting: '¡Feliz Año Nuevo!', blurb: 'Nuevo año, nuevos récords.',
     quote: 'Año nuevo, misma promesa: no aflojar. #TrustTheProcess',
   },

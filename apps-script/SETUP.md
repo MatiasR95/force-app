@@ -31,7 +31,13 @@ Open the `Clientes` folder in Drive; copy the ID from the URL
   - **WhatsApp:** click **"Enviar por WhatsApp"** → their chat opens with the personal link
     and the iPhone install tip already written; just pick the contact and send.
   - **QR:** the QR shows inline — screenshot it, or open the `qr` URL (in the `clientes`
-    tab) for a print-ready 600×600 PNG for the gym wall / a printed card.
+    tab) for a print-ready 600×600 PNG to hand to that member (a printed card).
+    ⚠️ The QR **is** the member's personal access — never post it on a wall or anywhere
+    public: anyone who scans it sees their routine and can write as them.
+- **`genero` column (in `clientes`):** after adding a member, set their `genero` to **M**
+  or **F**. The records board (split by gender) trusts ONLY this column; until it's filled
+  the app falls back to what the member chose on their phone. `rebuildClientConfig`
+  preserves the column on re-runs.
 - `listMagicLinks` (Run → View → Logs) still dumps everything to the log for bulk printing.
 
 ## 5. Deploy the Web App
@@ -53,9 +59,30 @@ creating a new monthly sheet and moving the old one into `Historial/` exactly as
 `updateCells` (since Jun 2026) **overwrites** the matching cell in the routine sheet when a member
 edits what they really did (kg / reps / series). The prior value is logged to `Seguimiento` first, so
 the coach's original number stays recoverable. It targets the *current* routine sheet only and only
-the cell for the field/week the member changed.
+the cell for the field/week the member changed. Since Jul 2026 each write carries the cell text the
+member's app parsed: if a coach edited the sheet in between (so the member's row would land on the
+wrong cell), the write is **skipped** and logged to `Seguimiento` as `cell-skip` instead.
+
+Since Jul 2026 the backend also: derives the member's name (and gender, from `genero`) from the
+**token** on every record/streak write — the app can't claim someone else's identity; caches routine
+and board reads (~90 s / ~45 s) so peak-hour traffic doesn't hit Apps Script quotas; and dedupes
+records by id so offline retries never double-post a PR.
 
 `records` tab gains a `wc` column (bodyweight category). Both auto-handle existing data.
+
+## Gym news / novedades (holiday hours, closures)
+Add a tab named **`novedades`** to the config sheet with columns:
+`desde | hasta | titulo | mensaje | tipo`
+- `desde` / `hasta` — visibility window as `YYYY-MM-DD` (leave blank for "always" / "until
+  further notice"). The announcement only shows on the app's Inicio between those dates.
+- `titulo` — short headline (e.g. "Feriado 9 de Julio").
+- `mensaje` — one or two lines (e.g. "El martes 9 permanecemos cerrados. ¡Volvemos el miércoles!").
+- `tipo` — `cerrado` (closed, amber door icon), `horario` (special hours, gold clock) or `info`
+  (default megaphone).
+
+To announce a holiday closure, add a row a few days before with `hasta` = the holiday date;
+it disappears on its own afterwards. The list is cached ~5 min gym-wide, so edits show within
+minutes. No re-deploy needed — just edit the sheet.
 
 ## Updating to a new app version (re-deploy)
 When you pull new backend code (`Code.gs`), the Web App must be re-published for it to take effect:

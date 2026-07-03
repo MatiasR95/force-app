@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { weightClass, wcLabel } from '../src/lib/records'
-import { buildCellWrites, replaceKg, fmtKg } from '../src/lib/sheetWrite'
+import { buildCellWrites, replaceKg, fmtKg, _resetWritebackMemory } from '../src/lib/sheetWrite'
 import { nextFeriado } from '../src/lib/feriados'
 import { parseRoutine } from '../src/lib/parser'
 import type { ExerciseRow, WeekCell } from '../src/lib/types'
@@ -43,6 +43,7 @@ describe('weightClass', () => {
 })
 
 describe('sheet writeback cell rebuild', () => {
+  beforeEach(_resetWritebackMemory)
   it('formats kg with the rioplatense comma', () => {
     expect(fmtKg(27.5)).toBe('27,5')
     expect(fmtKg(30)).toBe('30')
@@ -51,11 +52,11 @@ describe('sheet writeback cell rebuild', () => {
     expect(replaceKg('28,75kg x lado', 30)).toBe('30kg x lado')
     expect(replaceKg('Banda roja', 25)).toBe('Banda roja 25kg')
   })
-  it('week 1: writes separate reps/series/obs cells', () => {
+  it('week 1: writes separate reps/series/obs cells (prev = the parsed cell text)', () => {
     const ex = mkEx({ row: 12 })
-    expect(buildCellWrites(ex, 1, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado' }])
-    expect(buildCellWrites(ex, 1, { reps: 8 })).toEqual([{ row: 12, col: 2, value: '8' }])
-    expect(buildCellWrites(ex, 1, { series: 5 })).toEqual([{ row: 12, col: 3, value: '5' }])
+    expect(buildCellWrites(ex, 1, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado', prev: '28,75kg x lado' }])
+    expect(buildCellWrites(ex, 1, { reps: 8 })).toEqual([{ row: 12, col: 2, value: '8', prev: '5' }])
+    expect(buildCellWrites(ex, 1, { series: 5 })).toEqual([{ row: 12, col: 3, value: '5', prev: '4' }])
   })
   it('does not overwrite ramp ordinal series', () => {
     const ex = mkEx({ setOrdinal: 2, setsRaw: '2°' })
@@ -64,14 +65,16 @@ describe('sheet writeback cell rebuild', () => {
   it('week N: rewrites the composite "Semana N" cell for fields it owns', () => {
     const load = { value: 28.75, perSide: true, unit: 'kg' as const, raw: '28,75kg x lado' }
     const ex = mkEx({ row: 12, weeks: { 2: wk({ raw: '2X4 28,75kg x lado', reps: 2, sets: 4, load }) } })
-    expect(buildCellWrites(ex, 2, { reps: 12 })).toEqual([{ row: 12, col: 7, value: '12X4 28,75kg x lado' }])
-    expect(buildCellWrites(ex, 2, { kg: 30 })).toEqual([{ row: 12, col: 7, value: '2X4 30kg x lado' }])
+    expect(buildCellWrites(ex, 2, { reps: 12 })).toEqual([{ row: 12, col: 7, value: '12X4 28,75kg x lado', prev: '2X4 28,75kg x lado' }])
+    // a SECOND edit to the same cell fingerprints against what we last wrote
+    // (now live in the sheet), not the original text.
+    expect(buildCellWrites(ex, 2, { kg: 30 })).toEqual([{ row: 12, col: 7, value: '2X4 30kg x lado', prev: '12X4 28,75kg x lado' }])
   })
   it('week N without its own weight: kg falls back to the base OBSERVACIONES cell', () => {
     // "5X4" overrides only reps/sets; weight is inherited from the base row.
     const ex = mkEx({ row: 12, weeks: { 8: wk({ week: 8, raw: '5X4', reps: 5, sets: 4, load: null, col: 9 }) } })
-    expect(buildCellWrites(ex, 8, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado' }])
-    expect(buildCellWrites(ex, 8, { reps: 6 })).toEqual([{ row: 12, col: 9, value: '6X4' }])
+    expect(buildCellWrites(ex, 8, { kg: 30 })).toEqual([{ row: 12, col: 4, value: '30kg x lado', prev: '28,75kg x lado' }])
+    expect(buildCellWrites(ex, 8, { reps: 6 })).toEqual([{ row: 12, col: 9, value: '6X4', prev: '5X4' }])
   })
   it('skips inherited / complex week cells', () => {
     const inh = mkEx({ weeks: { 2: wk({ inherit: true, raw: 'Mismo semana ant.' }) } })
@@ -112,7 +115,8 @@ describe('multi-tab routine (tabs stitched by the backend)', () => {
     expect(press.row).toBe(11)              // absolute index in the stitched array
     expect(press.weeks[2].col).toBe(5)      // "Semana 2" column on the DÍA 2 row
     // a kg edit on week 1 targets that exact row's OBSERVACIONES cell (col 4)
-    expect(buildCellWrites(press, 1, { kg: 42.5 })).toEqual([{ row: 11, col: 4, value: '42,5kg' }])
+    _resetWritebackMemory()
+    expect(buildCellWrites(press, 1, { kg: 42.5 })).toEqual([{ row: 11, col: 4, value: '42,5kg', prev: '40kg' }])
   })
 })
 

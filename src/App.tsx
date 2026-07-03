@@ -5,6 +5,7 @@ import { runRivalWatch } from './lib/rivalWatch'
 import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek, getIntroSeen, setIntroSeen, extractToken } from './lib/store'
 import type { Gender } from './lib/records'
 import { memberCurrentWeek } from './lib/week'
+import { currentEventTheme } from './lib/eventTheme'
 import { Home } from './screens/Home'
 import { Hoy } from './screens/Hoy'
 import { Semana } from './screens/Semana'
@@ -14,6 +15,8 @@ import { Intro } from './screens/Intro'
 import { Entrenar } from './screens/Entrenar'
 import { EventDecor } from './components/EventDecor'
 import { RestTimerHost } from './components/RestTimerHost'
+import { InstallSheet, armInstallCapture, canPromptInstall } from './components/InstallSheet'
+import { installNudgeSeen } from './lib/store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
@@ -27,6 +30,13 @@ type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
 // browser — that way "Agregar a inicio" bakes the token into the icon and the
 // installed app launches with it. Only clean the URL once already running standalone
 // (no address bar there anyway).
+// The last time we actually re-fetched routine + records. Refresh triggers fire on
+// EVERY phone unlock (visibilitychange) — many times per workout — and all members
+// share one Apps Script quota pool of 30 simultaneous executions, so reads are
+// throttled; pending writes (outbox) always flush.
+let lastReadAt = 0
+const READ_THROTTLE_MS = 150_000 // 2.5 min
+
 function captureToken() {
   try {
     const t = new URLSearchParams(location.search).get('t')
@@ -38,6 +48,7 @@ function captureToken() {
   } catch { /* no-op */ }
 }
 captureToken()
+armInstallCapture() // catch Android's beforeinstallprompt before React mounts
 
 export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
@@ -49,12 +60,23 @@ export default function App() {
   const [intro, setIntro] = useState(!getIntroSeen())
   const [slow, setSlow] = useState(false)
   const [askStartDay, setAskStartDay] = useState(getStartDay() == null && getSessions().length === 0)
+  const [showInstall, setShowInstall] = useState(false)
+
+  // Close of a training session → if they just finished their first one and we can
+  // still install, offer the branded "add to home" nudge (once, at peak goodwill).
+  const endTraining = () => {
+    setTraining(null)
+    if (!installNudgeSeen() && canPromptInstall() && getSessions().length >= 1) {
+      window.setTimeout(() => setShowInstall(true), 400)
+    }
+  }
 
   // (re)load the routine — also used by the Reintentar button on the error screen
   const load = () => {
     setError(null); setRoutine(null); setSlow(false)
     const slowTimer = setTimeout(() => setSlow(true), 9_000)
     const token = getToken()
+    lastReadAt = Date.now()
     fetchRoutine(token)
       .then((r) => { setRoutine(r); clearTimeout(slowTimer) })
       .catch((e) => { setError(String(e?.message ?? e)); clearTimeout(slowTimer) })
@@ -75,8 +97,12 @@ export default function App() {
     const refresh = () => {
       if (document.visibilityState !== 'visible') return
       const t = getToken()
-      fetchRoutine(t).then(setRoutine).catch(() => {})
+      // writes first, always: flushing the outbox is a no-op when it's empty and
+      // must never wait behind the read throttle (a logged set could get stuck).
       syncOutbox(t).catch(() => {})
+      if (Date.now() - lastReadAt < READ_THROTTLE_MS) return
+      lastReadAt = Date.now()
+      fetchRoutine(t).then(setRoutine).catch(() => {})
       fetchRecords(t).then(runRivalWatch).catch(() => {})
     }
     document.addEventListener('visibilitychange', refresh)
@@ -106,6 +132,11 @@ export default function App() {
   const currentWk = memberCurrentWeek(routine)
   const wk = week ?? currentWk
 
+  // during an event window, expose its accent as a CSS var so the chrome (nav
+  // hairline, active tab) picks it up. Falls back to brand gold on ordinary days.
+  const eventTheme = currentEventTheme()
+  const eventAccent = eventTheme?.accent ?? '#C6AE78'
+
   // suggested day = next day NOT trained this week (miss a day → do the next one)
   const trainedDayIds = new Set(getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId))
   const nextUndone = routine.days.findIndex((d) => !trainedDayIds.has(d.id))
@@ -119,7 +150,7 @@ export default function App() {
 
   return (
     <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
-      style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)' }}>
+      style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)', ['--event-accent' as string]: eventAccent }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge —
           incl. UNDER the Dynamic Island, since the status bar is black-translucent. */}
       {/* iOS PWA layout. black-translucent boots a SHORT, STALE viewport that clips the
@@ -150,10 +181,12 @@ export default function App() {
         </ErrorBoundary>
       </div>
 
-      {/* bottom nav — a flex child pinned to the shell's real bottom (not fixed) */}
-      <nav className="shrink-0 z-30
+      {/* bottom nav — a flex child pinned to the shell's real bottom (not fixed).
+          During an event, a hairline in the event accent sits on its top edge. */}
+      <nav className="shrink-0 z-30 relative
         bg-black/80 backdrop-blur border-t border-white/10
         pb-[env(safe-area-inset-bottom)]">
+        {eventTheme && <div className="absolute inset-x-0 -top-px h-0.5" style={{ background: eventAccent, opacity: 0.7 }} />}
         <div className="grid grid-cols-5">
           <NavBtn active={tab === 'inicio'} onClick={() => setTab('inicio')} icon={<House size={19} />} label="Inicio" />
           <NavBtn active={tab === 'hoy'} onClick={() => setTab('hoy')} icon={<CalendarDays size={19} />} label="Hoy" />
@@ -169,10 +202,12 @@ export default function App() {
             day={routine.days[training.dayIdx]}
             week={training.week}
             lastWeek={routine.totalWeeks > 1 && training.week >= routine.totalWeeks}
-            onClose={() => setTraining(null)}
+            onClose={endTraining}
           />
         </ErrorBoundary>
       )}
+
+      {showInstall && <InstallSheet onClose={() => setShowInstall(false)} />}
 
       {askGender && !intro && <GenderGate onPick={(g) => { setGender(g); setAskGender(false) }} />}
       {askStartDay && !askGender && !intro && routine.days.length > 1 && (
@@ -186,7 +221,7 @@ export default function App() {
           }}
         />
       )}
-      {intro && <Intro onStart={() => { setIntroSeen(); setIntro(false) }} />}
+      {intro && <Intro day={routine.days[suggestedDay]} week={wk} onStart={() => { setIntroSeen(); setIntro(false) }} />}
     </div>
   )
 }
@@ -287,8 +322,9 @@ function NavBtn({ active, onClick, icon, label }: {
 }) {
   return (
     <button onClick={onClick}
-      className={`relative flex flex-col items-center gap-1 py-2.5 transition ${active ? 'text-gold' : 'text-white/45'}`}>
-      {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold-fill shadow-[0_0_10px_rgba(198,174,120,0.7)]" />}
+      className="relative flex flex-col items-center gap-1 py-2.5 transition"
+      style={{ color: active ? 'var(--event-accent, #C6AE78)' : 'rgba(255,255,255,0.45)' }}>
+      {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: 'var(--event-accent, #C6AE78)', boxShadow: '0 0 10px rgba(198,174,120,0.6)' }} />}
       {icon}
       <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
     </button>

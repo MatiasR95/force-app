@@ -8,9 +8,11 @@ var APP_URL = 'https://matiasr95.github.io/force-app/' // the deployed PWA
 
 /**
  * Scan Clientes/ and (re)build TWO tabs from one pass:
- *   • `clientes`  (machine-readable, the backend reads this): token | nombre | folderId | link | qr
+ *   • `clientes`  (machine-readable, the backend reads this): token | nombre | folderId | link | qr | genero
  *   • `compartir` (staff-facing, pretty): NOMBRE | QR | LINK DE ACCESO | COMPARTIR
- * Existing tokens are preserved so links stay valid; new clients get a fresh token.
+ * Existing tokens AND the staff-set `genero` column (M/F — the records board trusts
+ * only this) are preserved so links stay valid; new clients get a fresh token and an
+ * empty genero for staff to fill in.
  * Run this whenever you add/rename a member. Day-to-day, employees only ever open the
  * `compartir` tab — the QR shows as an image and "Enviar por WhatsApp" opens a chat with
  * the personal link + install tip already written.
@@ -20,10 +22,12 @@ function rebuildClientConfig() {
   var config = SpreadsheetApp.openById(CONFIG_SHEET_ID)
   var sheet = config.getSheetByName('clientes') || config.insertSheet('clientes')
 
-  // index existing tokens by folderId so we don't regenerate them (links stay valid)
+  // index existing token + genero by folderId so we don't regenerate/lose them
   var existing = {}
   var cur = sheet.getDataRange().getValues()
-  for (var i = 1; i < cur.length; i++) existing[cur[i][2]] = cur[i][0]
+  for (var i = 1; i < cur.length; i++) {
+    existing[cur[i][2]] = { token: cur[i][0], genero: cur[i][5] || '' }
+  }
 
   // collect + sort by name so both tabs are easy to scan
   var clients = []
@@ -34,16 +38,17 @@ function rebuildClientConfig() {
   }
   clients.sort(function (a, b) { return a.name.localeCompare(b.name, 'es') })
 
-  var dataRows = [['token', 'nombre', 'folderId', 'link', 'qr']]
+  var dataRows = [['token', 'nombre', 'folderId', 'link', 'qr', 'genero']]
   for (var k = 0; k < clients.length; k++) {
     var c = clients[k]
-    var token = existing[c.id] || newToken_()
+    var prev = existing[c.id] || {}
+    var token = prev.token || newToken_()
     var link = APP_URL + '?t=' + encodeURIComponent(token)
     var qr = qrUrl_(link)
-    dataRows.push([token, c.name, c.id, link, qr])
+    dataRows.push([token, c.name, c.id, link, qr, prev.genero || ''])
   }
   sheet.clearContents()
-  sheet.getRange(1, 1, dataRows.length, 5).setValues(dataRows)
+  sheet.getRange(1, 1, dataRows.length, 6).setValues(dataRows)
 
   buildCompartirTab_(config, dataRows)
   Logger.log('Config actualizada: ' + (dataRows.length - 1) + ' clientes (tabs: clientes + compartir)')

@@ -18,6 +18,7 @@ import {
 import { submitRecord, syncOutbox } from '../lib/api'
 import { buildCellWrites } from '../lib/sheetWrite'
 import { Celebration } from '../components/Celebration'
+import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
 import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2 } from 'lucide-react'
 
@@ -59,7 +60,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [i, setI] = useState(restored?.i ?? 0)
   const [done, setDone] = useState<Record<string, number>>(restored?.done ?? {})
   const [flash, setFlash] = useState(-1)
-  const [pr, setPr] = useState<string | null>(null)
+  const [pr, setPr] = useState<{ lift: string; kg: number; reps: number } | null>(null)
   const [restSignal, setRestSignal] = useState(0)
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
@@ -106,7 +107,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     addMyRecord(entry)
     submitRecord(getToken(), entry).catch(() => {})
     setPrHits((s) => new Set(s).add(ex.id))
-    setPr(`¡Récord! ${liftLabel(lift)}: ${kg} kg × ${reps}`)
+    setPr({ lift: liftLabel(lift), kg, reps })
     window.setTimeout(() => setPr(null), 3600)
   }
 
@@ -171,10 +172,13 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
           onPick={(idx) => { setI(idx); setOverview(false) }} onClose={() => setOverview(false)} />
       )}
 
-      {/* PR toast */}
+      {/* PR toast — the kg count up so a record feels like it lands */}
       {pr && (
         <div className="mx-4 mb-2 rounded-card border border-gold/50 bg-gold/[0.14] px-3 py-2 flex items-center gap-2 animate-[pop_.3s_ease]">
-          <Trophy size={16} className="text-gold" /><span className="text-gold font-bold text-sm">{pr}</span>
+          <Trophy size={16} className="text-gold shrink-0" />
+          <span className="text-gold font-bold text-sm">
+            ¡Récord! {pr.lift}: <NumberTicker value={pr.kg} decimals={pr.kg % 1 ? 1 : 0} className="font-black" /> kg × {pr.reps}
+          </span>
         </div>
       )}
 
@@ -563,10 +567,13 @@ function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
   const skip = () => finish(false)
 
   if (phase === 'celebrate') {
+    const s = sessionStats(day, week)
     return (
       <>
         <Celebration
           title={`${day.label.replace('DÍA', 'Día')} completado`}
+          stats={{ totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()) }}
+          intense={prHits.size > 0 || queue.length > 0}
           extra={lastWeek ? 'Cerraste la última semana del ciclo. ¡Avisale a tu coach para armar el próximo! 💪' : undefined}
           onClose={() => (queue.length ? setPhase('medals') : onClose())}
           onShare={() => setShareFinish(true)}

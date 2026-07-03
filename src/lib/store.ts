@@ -52,6 +52,8 @@ const KEYS = {
   lastDone: 'force.lastDone',
   seenMedals: 'force.seenMedals',
   progress: 'force.progress',
+  restEdu: 'force.restEdu',
+  installNudge: 'force.installNudge',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -171,6 +173,14 @@ export const getRestPref = (): number => {
 }
 export const setRestPref = (sec: number): void =>
   write(KEYS.restPref, Math.max(15, Math.min(600, Math.round(sec))))
+
+// ---- rest-time education preference (null = never asked; the member chooses) --
+export const getRestEduPref = (): boolean | null => read<boolean | null>(KEYS.restEdu, null)
+export const setRestEduPref = (v: boolean): void => write(KEYS.restEdu, v)
+
+// ---- install nudge (branded "agregar a inicio" sheet, shown once) -----------
+export const installNudgeSeen = (): boolean => read<boolean>(KEYS.installNudge, false)
+export const markInstallNudgeSeen = (): void => write(KEYS.installNudge, true)
 
 // ---- records (PRs) --------------------------------------------------------
 export const getGender = (): Gender | null => read<Gender | null>(KEYS.gender, null)

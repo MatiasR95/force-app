@@ -16,13 +16,20 @@
  *   { action:'logInput', token, items:[...] }       → appends to Seguimiento
  *
  * Config: a spreadsheet (CONFIG_SHEET_ID) with a "clientes" tab:
- *   token | nombre | folderId
+ *   token | nombre | folderId | link | qr | genero
  * Tokens are opaque per-client strings (also encoded in the magic link / QR).
+ * `genero` (M/F) is set by staff and is the ONLY gender the records board trusts —
+ * the client payload's self-declared gender is a fallback for rows not yet filled.
  */
 
 // ---- CONFIG (fill these once on the gym account) --------------------------
 var CONFIG_SHEET_ID = '1DFbuY-IHuyt61zK6RstqtBWvou28IlXFtRI2bsLqKQQ'
 var CLIENTES_FOLDER_ID = '1-V8PAlzz4nmlPXB8IGiI1fM6ksX8D7aF' // optional; for name-based fallback
+// The gym-news `novedades` tab lives in the CONFIG sheet by default. To instead
+// manage it in another file (e.g. the staff "FORCE - Horarios" sheet), put that
+// file's ID here AND share the file with the gym account so this script can read
+// it. Leave '' to keep it in CONFIG_SHEET_ID.
+var NOVEDADES_SHEET_ID = ''
 
 // ---- routing --------------------------------------------------------------
 function doGet(e) {
@@ -32,10 +39,11 @@ function doGet(e) {
     if (action === 'getHistory') return json(getHistory_(e.parameter.token))
     if (action === 'getRecords') return json(getRecords_(e.parameter.token))
     if (action === 'getStreaks') return json(getStreaks_(e.parameter.token))
+    if (action === 'getNews') return json(getNews_(e.parameter.token))
     if (action === 'ping') return json({ ok: true })
     return json({ error: 'unknown action: ' + action }, 400)
   } catch (err) {
-    return json({ error: String(err) }, 500)
+    return json({ error: errMsg_(err) }, 500)
   }
 }
 
@@ -48,8 +56,21 @@ function doPost(e) {
     if (body.action === 'updateCells') return json(updateCells_(body.token, body.cells))
     return json({ error: 'unknown action' }, 400)
   } catch (err) {
-    return json({ error: String(err) }, 500)
+    return json({ error: errMsg_(err) }, 500)
   }
+}
+
+// Errors we throw on purpose (bad/missing token) are meaningful to the member and
+// safe to show. Anything else (Drive/Sheets internals) is logged server-side and
+// replaced with a generic message so internals never reach the client.
+var SAFE_ERRORS = ['missing token', 'token no reconocido']
+function errMsg_(err) {
+  var s = String((err && err.message) || err)
+  for (var i = 0; i < SAFE_ERRORS.length; i++) {
+    if (s.indexOf(SAFE_ERRORS[i]) >= 0) return s
+  }
+  try { console.error(s + ((err && err.stack) ? '\n' + err.stack : '')) } catch (e) { /* no-op */ }
+  return 'No pudimos procesar el pedido. Probá de nuevo en unos minutos.'
 }
 
 function json(obj, code) {
@@ -59,28 +80,57 @@ function json(obj, code) {
 }
 
 // ---- client resolution ----------------------------------------------------
+// Positive lookups are cached 5 min so the config sheet isn't re-scanned on every
+// call (every endpoint goes through here). Misses are NOT cached — a member added
+// a minute ago must be able to open their fresh link right away.
 function clientFor_(token) {
   if (!token) throw new Error('missing token')
+  var cache = CacheService.getScriptCache()
+  var key = 'client:' + token
+  var hit = cache.get(key)
+  if (hit) return JSON.parse(hit)
   var sh = SpreadsheetApp.openById(CONFIG_SHEET_ID).getSheetByName('clientes')
   var rows = sh.getDataRange().getValues()
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).trim() === String(token).trim()) {
-      return { token: token, nombre: rows[i][1], folderId: rows[i][2] }
+      var c = { token: token, nombre: rows[i][1], folderId: rows[i][2], genero: normGender_(rows[i][5]) }
+      try { cache.put(key, JSON.stringify(c), 300) } catch (e) { /* cache is best-effort */ }
+      return c
     }
   }
   throw new Error('token no reconocido')
 }
 
+/** Normalize a staff-entered gender cell to 'M' / 'F' ('' if empty/unknown). */
+function normGender_(v) {
+  var s = String(v || '').trim().toUpperCase()
+  if (s === 'M' || s === 'HOMBRE' || s === 'MASCULINO') return 'M'
+  if (s === 'F' || s === 'MUJER' || s === 'FEMENINO') return 'F'
+  return ''
+}
+
 // ---- getRoutine: find the current (loose) sheet in the client folder ------
 function getRoutine_(token) {
+  // Cached 90 s per member. Reading a routine costs 2–6 s (Drive scan + every tab);
+  // at peak hour dozens of phones re-fetch within the same minute and would saturate
+  // the 30-simultaneous-executions quota of the gym account. A cache hit is ~100 ms.
+  var cache = CacheService.getScriptCache()
+  var key = 'routine:' + token
+  var hit = cache.get(key)
+  if (hit) return JSON.parse(hit)
   var c = clientFor_(token)
   var folder = DriveApp.getFolderById(c.folderId)
   var file = currentRoutineFile_(folder)
   // include the client's canonical name so the app can greet them and attribute
   // their records to the real name (not the "Vos" fallback).
-  if (!file) return { title: 'Sin rutina', values: [], nombre: c.nombre }
-  var r = allTabRows_(file.getId())
-  return { title: file.getName(), values: r.values, nombre: c.nombre }
+  var out
+  if (!file) out = { title: 'Sin rutina', values: [], nombre: c.nombre }
+  else {
+    var r = allTabRows_(file.getId())
+    out = { title: file.getName(), values: r.values, nombre: c.nombre }
+  }
+  try { cache.put(key, JSON.stringify(out), 90) } catch (e) { /* >100 KB: serve uncached */ }
+  return out
 }
 
 /**
@@ -219,7 +269,11 @@ function logInput_(token, items) {
 // The member edits what they actually did; per the product decision these
 // OVERWRITE the matching cell in their current routine sheet. We log the prior
 // value to Seguimiento first so the coach's original number stays recoverable.
-// cells = [ { row, col, value } ]  (0-based row/col, matching the parsed array).
+// cells = [ { row, col, value, prev } ]  (0-based row/col, matching the parsed
+// array). `prev` = the cell text the member's app parsed when it loaded: if the
+// coach edited the sheet since (inserted a row, changed a number), the member's
+// row index may now point at a DIFFERENT cell — the write is skipped and logged
+// instead of silently corrupting the plan.
 function updateCells_(token, cells) {
   var c = clientFor_(token)
   var folder = DriveApp.getFolderById(c.folderId)
@@ -243,10 +297,18 @@ function updateCells_(token, cells) {
     var cell = sheets[ti].getRange(abs + 1, w.col + 1) // Apps Script is 1-based
     var prev = cell.getValue()
     if (String(prev) === String(w.value)) return
+    if (w.prev != null && String(prev) !== String(w.prev)) {
+      log.push([new Date(), 'cell-skip', '', 't' + ti + 'r' + abs + 'c' + w.col, '', '', '',
+        'la celda cambió desde que el cliente cargó la rutina: la app esperaba "' + w.prev +
+        '", hay "' + prev + '" — NO se escribió "' + w.value + '"'])
+      return
+    }
     cell.setValue(w.value)
     written++
     log.push([new Date(), 'cell', '', 't' + ti + 'r' + abs + 'c' + w.col, '', '', '', 'antes: "' + prev + '" → "' + w.value + '"'])
   })
+  // the member should see their own edit on the next refresh, not a stale cache
+  if (written) { try { CacheService.getScriptCache().remove('routine:' + token) } catch (e) { /* no-op */ } }
   if (log.length) {
     try {
       var ss = seguimientoSheet_(folder, c.nombre)
@@ -272,6 +334,11 @@ function recordsSheet_() {
 
 function getRecords_(token) {
   clientFor_(token) // authorize
+  // one shared 45 s cache for the whole gym — the board is identical for everyone
+  // and the sheet only grows, so re-reading it per member per refresh is pure waste.
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('records')
+  if (hit) return JSON.parse(hit)
   var rows = recordsSheet_().getDataRange().getValues()
   var out = []
   for (var i = 1; i < rows.length; i++) {
@@ -279,16 +346,43 @@ function getRecords_(token) {
     if (!r[0]) continue
     out.push({ id: String(r[0]), client: r[1], gender: r[2], lift: r[3], kg: Number(r[4]), reps: Number(r[5]), ts: String(r[6]), wc: r[7] ? String(r[7]) : '' })
   }
+  try { cache.put('records', JSON.stringify(out), 45) } catch (e) { /* best-effort */ }
   return out
 }
 
 function postRecord_(token, entry) {
-  clientFor_(token)
+  // Identity comes from the TOKEN, never from the payload — otherwise any member
+  // could plant records under someone else's name from devtools/localStorage.
+  var c = clientFor_(token)
   if (!entry || !entry.lift) return { error: 'invalid entry' }
-  recordsSheet_().appendRow([
-    entry.id || Utilities.getUuid(), entry.client, entry.gender, entry.lift,
-    entry.kg, entry.reps, entry.ts || new Date().toISOString(), entry.wc || '',
-  ])
+  var kg = Number(entry.kg), reps = Number(entry.reps)
+  if (!isFinite(kg) || kg <= 0 || kg > 500) return { error: 'invalid entry' }
+  if (!isFinite(reps) || reps < 1 || reps > 100) return { error: 'invalid entry' }
+  // staff-set gender (clientes tab) wins; the device's self-declared gender is only
+  // a fallback for rows staff hasn't filled yet.
+  var gender = c.genero || normGender_(entry.gender)
+  if (gender !== 'M' && gender !== 'F') return { error: 'invalid entry' }
+  var id = String(entry.id || Utilities.getUuid())
+  // Idempotent by id: the record also travels in the offline outbox and may be
+  // retried — the same PR must never appear twice on the board. The lock keeps a
+  // concurrent retry from appending between our duplicate check and the append.
+  var lock = LockService.getScriptLock()
+  try { lock.waitLock(5000) } catch (e) { return { error: 'ocupado, probá de nuevo' } }
+  try {
+    var sh = recordsSheet_()
+    var last = sh.getLastRow()
+    if (last > 1) {
+      var ids = sh.getRange(2, 1, last - 1, 1).getValues()
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) === id) return { ok: true, dup: true }
+      }
+    }
+    sh.appendRow([id, c.nombre, gender, String(entry.lift), kg, reps,
+      entry.ts || new Date().toISOString(), entry.wc ? String(entry.wc) : ''])
+  } finally {
+    lock.releaseLock()
+  }
+  try { CacheService.getScriptCache().remove('records') } catch (e) { /* no-op */ }
   return { ok: true }
 }
 
@@ -391,28 +485,97 @@ function streaksSheet_() {
 
 function getStreaks_(token) {
   clientFor_(token)
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('streaks')
+  if (hit) return JSON.parse(hit)
   var rows = streaksSheet_().getDataRange().getValues()
   var out = []
   for (var i = 1; i < rows.length; i++) {
     if (!rows[i][0]) continue
     out.push({ client: rows[i][0], weeks: Number(rows[i][1]), max: Number(rows[i][2]) })
   }
+  try { cache.put('streaks', JSON.stringify(out), 45) } catch (e) { /* best-effort */ }
   return out
 }
 
 function postStreak_(token, entry) {
-  clientFor_(token)
+  // The row is keyed by the TOKEN's canonical name — the payload's `client` is
+  // ignored, so nobody can overwrite (or zero out) someone else's streak.
+  var c = clientFor_(token)
   if (!entry) return { error: 'invalid' }
-  var sh = streaksSheet_()
-  var rows = sh.getDataRange().getValues()
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === entry.client) { // upsert: keep the best historical max
-      sh.getRange(i + 1, 2, 1, 3).setValues([[entry.weeks, Math.max(Number(rows[i][2]) || 0, entry.max), new Date().toISOString()]])
-      return { ok: true }
+  var weeks = clampInt_(entry.weeks, 0, 520)
+  var max = clampInt_(entry.max, 0, 520)
+  var lock = LockService.getScriptLock()
+  try { lock.waitLock(5000) } catch (e) { return { error: 'ocupado, probá de nuevo' } }
+  try {
+    var sh = streaksSheet_()
+    var rows = sh.getDataRange().getValues()
+    var done = false
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]) === String(c.nombre)) { // upsert: keep the best historical max
+        sh.getRange(i + 1, 2, 1, 3).setValues([[weeks, Math.max(Number(rows[i][2]) || 0, max, weeks), new Date().toISOString()]])
+        done = true
+        break
+      }
     }
+    if (!done) sh.appendRow([c.nombre, weeks, Math.max(max, weeks), new Date().toISOString()])
+  } finally {
+    lock.releaseLock()
   }
-  sh.appendRow([entry.client, entry.weeks, entry.max, new Date().toISOString()])
+  try { CacheService.getScriptCache().remove('streaks') } catch (e) { /* no-op */ }
   return { ok: true }
+}
+
+/** Whole number clamped to [lo, hi]; garbage becomes lo. */
+function clampInt_(v, lo, hi) {
+  var n = Math.round(Number(v))
+  if (!isFinite(n)) return lo
+  return Math.max(lo, Math.min(hi, n))
+}
+
+// ---- gym news (novedades) -------------------------------------------------
+// Staff-managed announcements shown on the app's Inicio — especially holiday
+// hours ("cerramos el 9 de Julio", "sábado abrimos 9-13"). Stored in a
+// `novedades` tab of the CONFIG sheet: desde | hasta | titulo | mensaje | tipo
+//   desde/hasta = YYYY-MM-DD visibility window (blank = always/until further notice)
+//   tipo = 'cerrado' | 'horario' | 'info' (drives the icon/tone in the app)
+// Cached 5 min gym-wide (news changes rarely; everyone sees the same list).
+function newsSheet_() {
+  var ss = SpreadsheetApp.openById(NOVEDADES_SHEET_ID || CONFIG_SHEET_ID)
+  var sh = ss.getSheetByName('novedades')
+  if (!sh) { sh = ss.insertSheet('novedades'); sh.appendRow(['desde', 'hasta', 'titulo', 'mensaje', 'tipo']) }
+  return sh
+}
+
+function getNews_(token) {
+  clientFor_(token) // authorize
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('news')
+  if (hit) return JSON.parse(hit)
+  var rows = newsSheet_().getDataRange().getValues()
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd')
+  var out = []
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i]
+    var titulo = String(r[2] || '').trim()
+    if (!titulo) continue
+    var desde = fmtDateCell_(r[0]), hasta = fmtDateCell_(r[1])
+    if (desde && today < desde) continue        // not open yet
+    if (hasta && today > hasta) continue         // expired
+    out.push({ titulo: titulo, mensaje: String(r[3] || '').trim(), tipo: String(r[4] || 'info').trim().toLowerCase(), desde: desde, hasta: hasta })
+  }
+  try { cache.put('news', JSON.stringify(out), 300) } catch (e) { /* best-effort */ }
+  return out
+}
+
+/** A date cell (a real Date or a YYYY-MM-DD string) → 'YYYY-MM-DD' or '' . */
+function fmtDateCell_(v) {
+  if (!v) return ''
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, Session.getScriptTimeZone() || 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd')
+  }
+  var s = String(v).trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ''
 }
 
 /** A per-client "Seguimiento" spreadsheet (created once, kept beside the routine). */

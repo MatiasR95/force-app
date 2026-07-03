@@ -8,6 +8,7 @@ import { PATTERN_LABEL } from '../lib/media'
 import { getCheckins, getSessions, getMyRecords } from '../lib/store'
 import { epley1RM, liftLabel } from '../lib/records'
 import { Medallero } from '../components/Medallero'
+import { StreakHeatmap } from '../components/StreakHeatmap'
 import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp, Award } from 'lucide-react'
 
 export function Dashboard({ routine }: { routine: Routine }) {
@@ -45,7 +46,7 @@ export function Dashboard({ routine }: { routine: Routine }) {
       <div className="mb-6"><Medallero /></div>
 
       {/* attendance + streak */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="card p-4 flex items-center gap-3">
           <div className="flex-1"><StatHero value={String(asistencia)} label={`Días en ${month}`} /></div>
         </div>
@@ -53,6 +54,12 @@ export function Dashboard({ routine }: { routine: Routine }) {
           <Flame className="text-gold" size={22} />
           <div><StatHero value={String(racha)} label="Semanas seguidas" /></div>
         </div>
+      </div>
+
+      {/* training heatmap — a scannable shape of your last 12 weeks */}
+      <div className="card p-4 mb-6">
+        <div className="kicker mb-3">Tu constancia</div>
+        <StreakHeatmap dates={[...checkins, ...sessions.map((s) => s.date)]} />
       </div>
 
       {/* self-progress over time */}

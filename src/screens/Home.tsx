@@ -3,6 +3,7 @@ import type { Routine } from '../lib/types'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { ArgentinaFlag } from '../components/ArgentinaFlag'
 import { EventThemeBanner } from '../components/EventThemeBanner'
+import { NewsBanner } from '../components/NewsBanner'
 import { getRivalPending, clearRivalPending } from '../lib/rivalWatch'
 import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
@@ -72,6 +73,9 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 
       {/* event-aware banner (patrias, Navidad, fin de año, Malvinas) — date-driven */}
       <EventThemeBanner />
+
+      {/* gym announcements (holiday hours / closures) — staff-managed */}
+      <NewsBanner />
 
       {/* someone in your category took a record → go for the revancha */}
       {rivals.length > 0 && (

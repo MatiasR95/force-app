@@ -72,7 +72,7 @@ function fireAlert() {
   } catch { /* no-op */ }
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('FORCE · ¡Descanso terminado!', { body: 'A darle a la próxima serie 💪', tag: 'force-rest', silent: false })
+      new Notification('FORCE · ¡Descanso terminado!', { body: 'Metele a la próxima serie 💪', tag: 'force-rest', silent: false })
     }
   } catch { /* no-op */ }
 }

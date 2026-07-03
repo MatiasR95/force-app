@@ -49,6 +49,20 @@ export async function fetchRoutine(token: string | null): Promise<Routine> {
   return parseRoutine(raw.values, raw.title)
 }
 
+export interface NewsItem { titulo: string; mensaje: string; tipo: string; desde?: string; hasta?: string }
+
+/** Gym news / announcements (holiday hours, closures). Empty in demo. */
+export async function fetchNews(token: string | null): Promise<NewsItem[]> {
+  if (isDemo() || !token) {
+    // demo: a friendly sample so the section isn't blank in previews
+    return [{ titulo: 'Feriado 9 de Julio', mensaje: 'El martes 9 permanecemos cerrados. ¡Volvemos con todo el miércoles!', tipo: 'cerrado' }]
+  }
+  try {
+    const items = await call<NewsItem[]>('getNews', { token })
+    return Array.isArray(items) ? items : []
+  } catch { return [] } // news is non-critical: never block the home screen
+}
+
 /** History list (past cycles in Historial/). */
 export async function fetchHistory(token: string | null): Promise<Array<{ id: string; title: string }>> {
   if (isDemo() || !token) {
@@ -106,7 +120,8 @@ export async function syncOutbox(token: string | null): Promise<number> {
   })
 
   const cells = box.filter((i) => i.kind === 'cell')
-  const logs = box.filter((i) => i.kind !== 'cell')
+  const records = box.filter((i) => i.kind === 'record')
+  const logs = box.filter((i) => i.kind !== 'cell' && i.kind !== 'record')
 
   if (logs.length) {
     const res = await post({ action: 'logInput', token, items: logs })
@@ -115,6 +130,13 @@ export async function syncOutbox(token: string | null): Promise<number> {
   if (cells.length) {
     const res = await post({ action: 'updateCells', token, cells: cells.map((i) => i.payload) })
     if (!res.ok) throw new Error(`updateCells → ${res.status}`)
+  }
+  // A PR hit offline must reach the gym board, not the Seguimiento log. The
+  // backend dedupes by the entry's client-generated id, so replaying one that
+  // already made it through the direct submitRecord() path is harmless.
+  for (const r of records) {
+    const res = await post({ action: 'postRecord', token, entry: r.payload })
+    if (!res.ok) throw new Error(`postRecord → ${res.status}`)
   }
   clearOutbox(box.map((i) => i.id))
   return box.length

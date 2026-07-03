@@ -17,6 +17,8 @@ export function EventDecor() {
   return (
     <div className="pointer-events-none fixed inset-0 z-20 max-w-md mx-auto overflow-hidden" aria-hidden="true">
       {t.effect === 'flags' && <PatriaLayer />}
+      {/* 9 de Julio gets its signature: a faceless Sol de Mayo rising, gold on dark */}
+      {t.id === 'independencia' && <SolDeMayo />}
       {t.effect === 'snow' && <NavidadLayer />}
       {t.effect === 'fireworks' && <FireworksLayer />}
       {t.effect === 'map' && <SolemnLayer />}
@@ -31,8 +33,10 @@ export function EventDecor() {
         @keyframes evFw { 0%{transform:scale(.2);opacity:0} 25%{opacity:1} 100%{transform:scale(1.4);opacity:0} }
         .ev-drift { animation: evDrift linear infinite; will-change: transform; }
         @keyframes evDrift { 0%{transform:translateY(-8vh) rotate(-3deg);opacity:0} 12%{opacity:.5} 88%{opacity:.5} 100%{transform:translateY(112vh) rotate(3deg);opacity:0} }
+        .ev-sol { animation: evSol 44s linear infinite; transform-origin: center; will-change: transform; }
+        @keyframes evSol { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         @media (prefers-reduced-motion: reduce) {
-          .ev-esc,.ev-snow,.ev-fw,.ev-drift,.ev-guir { animation: none; }
+          .ev-esc,.ev-snow,.ev-fw,.ev-drift,.ev-guir,.ev-sol { animation: none; }
           .ev-esc,.ev-snow,.ev-drift { opacity: .6; }
         }
       `}</style>
@@ -85,6 +89,31 @@ function Guirnalda() {
         <path key={i} d={`M${p.x - 9},${p.y} L${p.x + 9},${p.y} L${p.x},${p.y + 22} Z`}
           fill={i % 4 === 3 ? GOLD : i % 2 ? '#ffffff' : CELESTE} stroke="rgba(0,0,0,0.22)" strokeWidth="0.5" />
       ))}
+    </svg>
+  )
+}
+
+// ---- 9 de Julio · Sol de Mayo (faceless, brand-gold) ----------------------
+// A large, slowly-rotating stylized sun sits low-opacity behind the top of the
+// screen — 16 alternating straight/wavy rays, no face (brand rule: no faces).
+function SolDeMayo() {
+  const rays = Array.from({ length: 16 }, (_, i) => i)
+  return (
+    <svg className="absolute left-1/2 -translate-x-1/2" viewBox="0 0 200 200"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) - 92px)', width: 220, height: 220, opacity: 0.16, filter: 'drop-shadow(0 0 6px rgba(198,174,120,0.4))' }}>
+      <g className="ev-sol">
+        {rays.map((i) => {
+          const straight = i % 2 === 0
+          return (
+            <path key={i}
+              d={straight ? 'M100 22 L106 52 L94 52 Z' : 'M100 30 q7 11 0 22 q-7 -11 0 -22'}
+              fill={straight ? GOLD : 'none'} stroke={GOLD} strokeWidth="2"
+              transform={`rotate(${i * 22.5} 100 100)`} />
+          )
+        })}
+      </g>
+      <circle cx="100" cy="100" r="26" fill="none" stroke={GOLD} strokeWidth="3" />
+      <circle cx="100" cy="100" r="13" fill={GOLD} opacity="0.85" />
     </svg>
   )
 }
