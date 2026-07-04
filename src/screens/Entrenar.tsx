@@ -29,9 +29,11 @@ const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).
 type Item =
   | { type: 'warmup'; text: string }
   | { type: 'single'; ex: ExerciseRow; section: SectionTag }
-  | { type: 'circuit'; block: Block }
+  // `dup` = 1-based occurrence of this tag among the day's circuits: two same-tag
+  // circuits must NOT share a progress key (marking one advanced the other).
+  | { type: 'circuit'; block: Block; dup: number }
 
-function buildItems(day: RoutineDay): Item[] {
+export function buildItems(day: RoutineDay): Item[] {
   const items: Item[] = []
   // the day's entrada en calor is the first step — same as Hoy/Plan, so it's never
   // skipped just because the member jumped straight into "Entrenar".
@@ -39,9 +41,13 @@ function buildItems(day: RoutineDay): Item[] {
   const blocks = [...day.blocks]
     .filter((b) => b.exercises.length)
     .sort((a, b) => ORDER.indexOf(a.tag) - ORDER.indexOf(b.tag))
+  const circuitsSeen = new Map<SectionTag, number>()
   for (const b of blocks) {
-    if (b.circuit) items.push({ type: 'circuit', block: b })
-    else for (const ex of b.exercises) items.push({ type: 'single', ex, section: b.tag })
+    if (b.circuit) {
+      const dup = (circuitsSeen.get(b.tag) ?? 0) + 1
+      circuitsSeen.set(b.tag, dup)
+      items.push({ type: 'circuit', block: b, dup })
+    } else for (const ex of b.exercises) items.push({ type: 'single', ex, section: b.tag })
   }
   return items
 }
@@ -88,7 +94,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   // member on a blank overlay; give them a way back.
   if (!item) return <EmptyDay day={day} onClose={onClose} />
   const isTimed = item.type === 'circuit' && item.block.timed
-  const key = item.type === 'single' ? item.ex.id : item.type === 'warmup' ? 'warmup' : `c-${item.block.tag}`
+  const key = keyOf(item)
   const target = unitsOf(item, week)
   const doneCount = done[key] ?? 0
   const isLast = i === items.length - 1
@@ -200,7 +206,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
           ? <SingleView ex={item.ex} dayId={day.id} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
           : item.type === 'warmup'
             ? <WarmupView text={item.text} />
-            : <CircuitView block={item.block} dayId={day.id} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
+            : <CircuitView block={item.block} dayId={day.id} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
 
         <button onClick={primary.onClick}
           className="mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow">
@@ -388,8 +394,8 @@ function SingleView({ ex, dayId, section, week, done, target, flash }: {
   )
 }
 
-function CircuitView({ block, dayId, week, round, rounds, flash, timed }: {
-  block: Block; dayId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
+function CircuitView({ block, dayId, noteId, week, round, rounds, flash, timed }: {
+  block: Block; dayId: string; noteId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
 }) {
   const g = groupInfo(block)
   const word = g.roundWord === 'series' ? 'Serie' : 'Vuelta'
@@ -425,7 +431,7 @@ function CircuitView({ block, dayId, week, round, rounds, flash, timed }: {
         ))}
       </div>
       {!timed && <Dots n={rounds} done={round} flash={flash} label={(s) => `V${s + 1}`} />}
-      <NoteField id={`${dayId}-${block.tag}`} dayId={dayId} />
+      <NoteField id={noteId} dayId={dayId} />
     </>
   )
 }
@@ -452,8 +458,13 @@ function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
   )
 }
 
-function keyOf(it: Item): string {
-  return it.type === 'single' ? it.ex.id : it.type === 'warmup' ? 'warmup' : `c-${it.block.tag}`
+// Circuit keys stay `c-<tag>` for the first circuit of a tag (so members mid-
+// session across an app update keep their progress) and gain `-2`, `-3`… only
+// for real duplicates, which previously collided into one shared counter.
+export function keyOf(it: Item): string {
+  if (it.type === 'single') return it.ex.id
+  if (it.type === 'warmup') return 'warmup'
+  return it.dup > 1 ? `c-${it.block.tag}-${it.dup}` : `c-${it.block.tag}`
 }
 function itemLabel(it: Item): string {
   return it.type === 'warmup' ? 'Entrada en calor' : it.type === 'single' ? (it.ex.name || '—') : it.block.title
