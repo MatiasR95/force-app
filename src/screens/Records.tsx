@@ -26,10 +26,18 @@ export function Records() {
   )
 }
 
+// Rotate which lift greets you: a different record leads the board each day (the
+// member can still pick any lift from the pills — the whole list is one tap away).
+function rotatedLifts() {
+  const shift = Math.floor(Date.now() / 86_400_000) % RECORD_LIFTS.length
+  return [...RECORD_LIFTS.slice(shift), ...RECORD_LIFTS.slice(0, shift)]
+}
+
 function RecordsView({ client }: { client: string }) {
   // paint the last known board instantly; the fetch below refreshes it silently
   const [all, setAll] = useState<RecordEntry[]>(() => cachedRecords() ?? [])
-  const [lift, setLift] = useState(RECORD_LIFTS[0].key)
+  const [lifts] = useState(rotatedLifts)
+  const [lift, setLift] = useState(lifts[0].key)
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [wc, setWc] = useState<string>('all') // 'all' | weight-class key
 
@@ -56,7 +64,7 @@ function RecordsView({ client }: { client: string }) {
       </div>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 -mx-1 px-1">
-        {RECORD_LIFTS.map((l) => (
+        {lifts.map((l) => (
           <Pill key={l.key} active={l.key === lift} onClick={() => setLift(l.key)}>{l.emoji} {l.label.split(' ')[0]}</Pill>
         ))}
       </div>
@@ -72,6 +80,17 @@ function RecordsView({ client }: { client: string }) {
       <h2 className="heading text-lg text-white mb-2">{liftLabel(lift)}
         {wc !== 'all' && <span className="text-gold/80 text-sm font-bold"> · {WEIGHT_CLASSES[gender].find((w) => w.key === wc)?.label}</span>}
       </h2>
+
+      {/* records captured before the member loaded their bodyweight carry no
+          category — surface why a category board can look emptier than "Todas" */}
+      {wc !== 'all' && (() => {
+        const sinCat = all.filter((e) => e.lift === lift && e.gender === gender && !e.wc).length
+        return sinCat > 0 ? (
+          <p className="text-white/40 text-[0.7rem] mb-3 -mt-1">
+            {sinCat} {sinCat === 1 ? 'marca no tiene categoría' : 'marcas no tienen categoría'} (esa persona no cargó su peso corporal) — {sinCat === 1 ? 'la ves' : 'las ves'} en "Todas las categorías".
+          </p>
+        ) : null
+      })()}
 
       {mine && (
         <div className="hero-card rounded-card p-4 mb-5">

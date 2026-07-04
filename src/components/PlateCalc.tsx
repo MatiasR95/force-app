@@ -1,4 +1,4 @@
-import { planPlates, groupPlates, DEFAULT_BAR_KG, DEFAULT_PLATES_KG, DEADLIFT_PLATES_KG } from '../lib/plates'
+import { planPlatesProgressive, groupPlates, inventoryFor, DEFAULT_BAR_KG } from '../lib/plates'
 
 // Plate sizes → a color, loosely matching IPF/competition plates so the visual
 // reads fast on the gym floor. Micro plates (≤2kg) render small and gold.
@@ -7,10 +7,14 @@ const PLATE_COLOR: Record<number, string> = {
   5: '#E8E6E2', 2.5: '#1A1916', 2: '#C6AE78', 1.5: '#C6AE78', 1.25: '#8A6A38', 1: '#8A6A38', 0.5: '#EADEB4',
 }
 
-export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false }: {
-  perSideKg: number; barKg?: number; deadlift?: boolean
+// `priorLoads` = this lift's earlier per-side loads today (aproximación sets),
+// so the plan only ADDS plates set to set; `dayMaxKg` = the heaviest load the
+// lift reaches today, which decides whether 20s are on the menu (deadlift >50).
+export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false, priorLoads = [], dayMaxKg }: {
+  perSideKg: number; barKg?: number; deadlift?: boolean; priorLoads?: number[]; dayMaxKg?: number
 }) {
-  const plan = planPlates(perSideKg, barKg, deadlift ? DEADLIFT_PLATES_KG : DEFAULT_PLATES_KG)
+  const inventory = inventoryFor(deadlift, Math.max(dayMaxKg ?? 0, perSideKg))
+  const plan = planPlatesProgressive(perSideKg, priorLoads, barKg, inventory)
   const groups = groupPlates(plan.plates)
 
   return (

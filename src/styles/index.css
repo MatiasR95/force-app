@@ -92,6 +92,24 @@
   /* progress rail */
   .rail { height: 4px; border-radius: 9px; background: rgba(255,255,255,0.10); overflow: hidden; }
   .rail > span { display:block; height:100%; background: var(--grad-gold-fill); border-radius: 9px; }
+  /* live session rail: a glowing comet tip breathes at the progress edge */
+  .rail-live { overflow: visible; }
+  .rail-live > span { position: relative; transition: width .4s cubic-bezier(.22,1,.36,1); }
+  .rail-live > span::after {
+    content: ''; position: absolute; right: -3px; top: 50%; margin-top: -4px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #F0E2BE; box-shadow: 0 0 8px 2px rgba(240,226,190,0.55);
+    animation: railPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes railPulse { 0%,100% { opacity: .55; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
+
+  /* nav: active tab icon springs in when it becomes active */
+  .nav-pop { animation: navPop .4s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes navPop { 0% { transform: scale(.7); } 60% { transform: scale(1.22); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    .rail-live > span::after { animation: none; }
+    .nav-pop { animation: none; }
+  }
 }
 
 /* hide scrollbars on horizontal pagers but keep scroll */
@@ -133,6 +151,15 @@ body::before {
     background: linear-gradient(180deg, rgba(198,174,120,0.12), rgba(255,255,255,0.02));
     border: 1px solid rgba(198,174,120,0.28);
     backdrop-filter: blur(10px);
+  }
+  /* fine SVG grain on the gold glass — flat gradient reads "screen", grain reads
+     "brushed metal". Vector noise (feTurbulence): no raster asset, ~0 cost. */
+  .hero-card::after {
+    content: '';
+    position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.045;
+    mix-blend-mode: overlay;
   }
 
   /* gold glow + sheen sweep on primary CTAs */

@@ -325,7 +325,7 @@ function NavBtn({ active, onClick, icon, label }: {
       className="relative flex flex-col items-center gap-1 py-2.5 transition"
       style={{ color: active ? 'var(--event-accent, #C6AE78)' : 'rgba(255,255,255,0.45)' }}>
       {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: 'var(--event-accent, #C6AE78)', boxShadow: '0 0 10px rgba(198,174,120,0.6)' }} />}
-      {icon}
+      {active ? <span className="nav-pop inline-flex">{icon}</span> : icon}
       <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
     </button>
   )

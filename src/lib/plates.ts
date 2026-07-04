@@ -12,11 +12,16 @@ export interface PlatePlan {
 }
 
 export const DEFAULT_BAR_KG = 20
-// FORCE disc inventory: 25kg plates are only used for deadlifts. Everything else
-// loads off a 20/15 base, then 10/5/2.5/1.25, plus micro plates (2/1.5/1/0.5)
-// available per side for fine jumps.
-export const DEFAULT_PLATES_KG = [20, 15, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
-export const DEADLIFT_PLATES_KG = [25, 20, 15, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+// FORCE disc policy (Jul 2026, per Matías): everything builds from 10s and 5s
+// (+ change plates for fine jumps). 20 kg discs are suggested ONLY on deadlifts
+// whose working load exceeds 50 kg per side. 15/25 kg discs are never suggested.
+export const DEFAULT_PLATES_KG = [10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+export const DEADLIFT_PLATES_KG = [20, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+
+/** The disc set for a lift, given the heaviest per-side load it reaches today. */
+export function inventoryFor(deadlift: boolean, workingMaxKg: number): number[] {
+  return deadlift && workingMaxKg > 50 ? DEADLIFT_PLATES_KG : DEFAULT_PLATES_KG
+}
 
 export const isDeadliftName = (name: string): boolean =>
   /peso\s*muerto|deadlift|\brdl\b|hex|sumo/i.test(
@@ -59,6 +64,41 @@ export function planPlates(
     plates,
     remainder: Math.round(left * 1000) / 1000,
     achievable: left < EPS,
+  }
+}
+
+/**
+ * Ramp-aware plate plan: what's already on the bar STAYS on the bar — each jump
+ * of the same lift (1° aproximación → 2° → working sets) only ADDS plates, so
+ * the member never sees "swap your two 10s for a 20" halfway through. A load
+ * BELOW an earlier set (a back-off) is the one case where re-racking is real,
+ * so it plans fresh.
+ */
+export function planPlatesProgressive(
+  perSideKg: number,
+  priorLoads: number[],
+  barKg = DEFAULT_BAR_KG,
+  inventory = DEFAULT_PLATES_KG,
+): PlatePlan {
+  const EPS = 1e-6
+  if (priorLoads.some((p) => p > perSideKg + EPS)) return planPlates(perSideKg, barKg, inventory)
+  const plates: number[] = []
+  let loaded = 0
+  for (const target of [...priorLoads, perSideKg]) {
+    if (target <= loaded + EPS) continue // same load as the previous set: bar untouched
+    const step = planPlates(Math.round((target - loaded) * 1000) / 1000, 0, inventory)
+    plates.push(...step.plates)
+    loaded = Math.round((target - step.remainder) * 1000) / 1000
+  }
+  plates.sort((a, b) => b - a)
+  const remainder = Math.round((perSideKg - loaded) * 1000) / 1000
+  return {
+    perSide: perSideKg,
+    barKg,
+    totalKg: barKg + perSideKg * 2,
+    plates,
+    remainder,
+    achievable: remainder < EPS,
   }
 }
 

@@ -173,7 +173,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
       <div className="flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
         <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
-        <div className="flex-1"><Rail value={totalUnits ? totalDone / totalUnits : 0} /></div>
+        <div className="flex-1"><Rail value={totalUnits ? totalDone / totalUnits : 0} live /></div>
         <span className="text-xs font-bold text-white/50 tabular-nums">Sem {week} · {i + 1}/{items.length}</span>
         <button onClick={() => setOverview(true)} aria-label="Ver toda la sesión" className="p-1.5 text-white/60"><ListChecks size={20} /></button>
       </div>
@@ -207,9 +207,25 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
         {item.type !== 'warmup' && !isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
 
-        {item.type === 'single' && singleLoad(item.ex, week) && (
-          <div className="mt-4 mb-6"><PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)} /></div>
-        )}
+        {item.type === 'single' && singleLoad(item.ex, week) && (() => {
+          // this lift's per-side loads across today's items: earlier sets feed the
+          // "only add plates" plan; the day max decides if 20s are allowed (DL >50).
+          const prior: number[] = []
+          let dayMax = 0
+          items.forEach((it, k) => {
+            if (it.type !== 'single' || it.ex.slug !== item.ex.slug) return
+            const l = resolveWeek(it.ex, week).load
+            if (l.value == null || !l.perSide) return
+            dayMax = Math.max(dayMax, l.value)
+            if (k < i) prior.push(l.value)
+          })
+          return (
+            <div className="mt-4 mb-6">
+              <PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)}
+                priorLoads={prior} dayMaxKg={dayMax} />
+            </div>
+          )
+        })()}
         <div className="h-4" />
       </div>
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { weightClass, wcLabel } from '../src/lib/records'
 import { buildCellWrites, replaceKg, fmtKg, _resetWritebackMemory } from '../src/lib/sheetWrite'
+import { inventoryFor, planPlatesProgressive } from '../src/lib/plates'
 import { nextFeriado } from '../src/lib/feriados'
 import { parseRoutine } from '../src/lib/parser'
 import type { ExerciseRow, WeekCell } from '../src/lib/types'
@@ -117,6 +118,28 @@ describe('multi-tab routine (tabs stitched by the backend)', () => {
     // a kg edit on week 1 targets that exact row's OBSERVACIONES cell (col 4)
     _resetWritebackMemory()
     expect(buildCellWrites(press, 1, { kg: 42.5 })).toEqual([{ row: 11, col: 4, value: '42,5kg', prev: '40kg' }])
+  })
+})
+
+describe('disc policy (Jul 2026): 10s/5s always; 20s only for deadlift > 50/side', () => {
+  it('gates the 20 kg discs to heavy deadlifts', () => {
+    expect(inventoryFor(true, 60)).toContain(20)
+    expect(inventoryFor(true, 45)).not.toContain(20)
+    expect(inventoryFor(false, 80)).not.toContain(20)
+  })
+  it('a ramp only ADDS plates — never swaps what is already on the bar', () => {
+    // 15 = {10,5} → 25 adds a 10 → 42.5 adds {10,5,2.5}; the original 10+5 stay on
+    const plan = planPlatesProgressive(42.5, [15, 25], 20, inventoryFor(false, 42.5))
+    expect(plan.plates).toEqual([10, 10, 10, 5, 5, 2.5])
+    expect(plan.achievable).toBe(true)
+  })
+  it('a heavy deadlift ramp builds on 20s additively', () => {
+    const plan = planPlatesProgressive(70, [30, 50], 20, inventoryFor(true, 70))
+    expect(plan.plates).toEqual([20, 20, 20, 10])
+  })
+  it('a back-off set below an earlier load plans fresh (re-racking is real there)', () => {
+    const plan = planPlatesProgressive(20, [40], 20, inventoryFor(false, 40))
+    expect(plan.plates).toEqual([10, 10])
   })
 })
 

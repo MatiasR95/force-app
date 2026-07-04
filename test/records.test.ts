@@ -55,17 +55,20 @@ describe('noteWeight', () => {
   })
 })
 
-describe('plate inventory', () => {
-  it('does not use 25kg discs by default', () => {
+describe('plate inventory (Jul 2026 policy: 10s/5s; 20s only heavy deadlift)', () => {
+  it('never suggests 15/20/25 kg discs by default', () => {
     expect(DEFAULT_PLATES_KG).not.toContain(25)
+    expect(DEFAULT_PLATES_KG).not.toContain(20)
+    expect(DEFAULT_PLATES_KG).not.toContain(15)
     const p = planPlates(27.5, 20, DEFAULT_PLATES_KG)
-    expect(p.plates).toEqual([20, 5, 2.5]) // not 25 + 2.5
+    expect(p.plates).toEqual([10, 10, 5, 2.5]) // built from 10s + 5s
     expect(p.achievable).toBe(true)
   })
-  it('uses 25kg only for deadlifts', () => {
-    expect(DEADLIFT_PLATES_KG).toContain(25)
-    const p = planPlates(50, 20, DEADLIFT_PLATES_KG)
-    expect(groupPlates(p.plates)).toEqual([{ kg: 25, count: 2 }])
+  it('the deadlift inventory adds 20s (never 25s)', () => {
+    expect(DEADLIFT_PLATES_KG).toContain(20)
+    expect(DEADLIFT_PLATES_KG).not.toContain(25)
+    const p = planPlates(60, 20, DEADLIFT_PLATES_KG)
+    expect(groupPlates(p.plates)).toEqual([{ kg: 20, count: 3 }])
   })
   it('supports micro plates for fine jumps', () => {
     const p = planPlates(0.5, 20, DEFAULT_PLATES_KG)

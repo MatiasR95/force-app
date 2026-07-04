@@ -36,8 +36,10 @@ export function StatHero({ value, label, suffix }: { value: ReactNode; label: st
   )
 }
 
-export function Rail({ value }: { value: number }) {
-  return <div className="rail"><span style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} /></div>
+export function Rail({ value, live = false }: { value: number; live?: boolean }) {
+  const pct = Math.max(0, Math.min(100, value * 100))
+  // `live` adds the breathing comet tip (only once there's real progress)
+  return <div className={`rail ${live && pct > 0 ? 'rail-live' : ''}`}><span style={{ width: `${pct}%` }} /></div>
 }
 
 export function Pill({ active, children, onClick }: {
