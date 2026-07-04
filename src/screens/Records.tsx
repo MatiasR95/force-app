@@ -105,8 +105,9 @@ function RecordsView({ client }: { client: string }) {
         </div>
       )}
 
-      {/* top 3 → a real podium (2·1·3); the rest of the board lists from #4 */}
-      {board.length >= 3 && <Podium top3={[board[0], board[1], board[2]]} client={client} />}
+      {/* top 3 → a real podium (2·1·3); the rest of the board lists from #4.
+          Keyed by the active filters so the blocks rise again on each new board. */}
+      {board.length >= 3 && <Podium key={`${lift}-${gender}-${wc}`} top3={[board[0], board[1], board[2]]} client={client} />}
 
       <div className="space-y-2">
         {board.length === 0 && (

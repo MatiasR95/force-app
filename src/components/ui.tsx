@@ -36,12 +36,6 @@ export function StatHero({ value, label, suffix }: { value: ReactNode; label: st
   )
 }
 
-export function Rail({ value, live = false }: { value: number; live?: boolean }) {
-  const pct = Math.max(0, Math.min(100, value * 100))
-  // `live` adds the breathing comet tip (only once there's real progress)
-  return <div className={`rail ${live && pct > 0 ? 'rail-live' : ''}`}><span style={{ width: `${pct}%` }} /></div>
-}
-
 // Session map (Entrenar): one notch per exercise/block instead of a single bar —
 // the member sees the SHAPE of the session (how many stops, where they are).
 // Each segment fills with its own progress; the current one breathes gold.

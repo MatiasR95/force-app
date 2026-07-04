@@ -89,20 +89,6 @@
     background: var(--good-bg); color: var(--gold); border: 1px solid var(--good-border);
   }
 
-  /* progress rail */
-  .rail { height: 4px; border-radius: 9px; background: rgba(255,255,255,0.10); overflow: hidden; }
-  .rail > span { display:block; height:100%; background: var(--grad-gold-fill); border-radius: 9px; }
-  /* live session rail: a glowing comet tip breathes at the progress edge */
-  .rail-live { overflow: visible; }
-  .rail-live > span { position: relative; transition: width .4s cubic-bezier(.22,1,.36,1); }
-  .rail-live > span::after {
-    content: ''; position: absolute; right: -3px; top: 50%; margin-top: -4px;
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #F0E2BE; box-shadow: 0 0 8px 2px rgba(240,226,190,0.55);
-    animation: railPulse 1.8s ease-in-out infinite;
-  }
-  @keyframes railPulse { 0%,100% { opacity: .55; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
-
   /* nav: active tab icon springs in when it becomes active */
   .nav-pop { animation: navPop .4s cubic-bezier(.34,1.56,.64,1); }
   @keyframes navPop { 0% { transform: scale(.7); } 60% { transform: scale(1.22); } 100% { transform: scale(1); } }
@@ -120,10 +106,11 @@
     content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
     width: 32px; height: 2px; border-radius: 9999px;
     background: var(--event-accent, #C6AE78);
+    /* glow follows the event accent (gold fallback for engines without color-mix) */
     box-shadow: 0 0 10px rgba(198,174,120,0.6);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--event-accent, #C6AE78) 60%, transparent);
   }
   @media (prefers-reduced-motion: reduce) {
-    .rail-live > span::after { animation: none; }
     .nav-pop { animation: none; }
     .nav-thread { transition: none; }
   }
