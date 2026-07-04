@@ -42,6 +42,27 @@ export function Rail({ value, live = false }: { value: number; live?: boolean })
   return <div className={`rail ${live && pct > 0 ? 'rail-live' : ''}`}><span style={{ width: `${pct}%` }} /></div>
 }
 
+// Session map (Entrenar): one notch per exercise/block instead of a single bar —
+// the member sees the SHAPE of the session (how many stops, where they are).
+// Each segment fills with its own progress; the current one breathes gold.
+export function SegmentRail({ segments, current }: { segments: number[]; current: number }) {
+  return (
+    <div className="flex items-center gap-1" role="progressbar"
+      aria-valuenow={Math.min(current + 1, segments.length)} aria-valuemax={segments.length}>
+      {segments.map((f, i) => {
+        const pct = Math.max(0, Math.min(100, f * 100))
+        return (
+          <div key={i}
+            className={`flex-1 h-1 rounded-full overflow-hidden bg-white/10 ${i === current && pct < 100 ? 'seg-live' : ''}`}>
+            <span className="block h-full rounded-full bg-gold-fill"
+              style={{ width: `${pct}%`, transition: 'width .4s cubic-bezier(.22,1,.36,1)' }} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function Pill({ active, children, onClick }: {
   active?: boolean; children: ReactNode; onClick?: () => void
 }) {

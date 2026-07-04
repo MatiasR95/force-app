@@ -22,6 +22,9 @@ import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react
 import emblem from './assets/logo/emblem_gold_t.png'
 
 type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
+// visual order of the bottom-nav tabs — drives the sliding indicator position and
+// the direction each screen glides in from (forward = from the right).
+const TAB_ORDER: Tab[] = ['inicio', 'hoy', 'semana', 'records', 'panel']
 
 // Capture the magic-link token (?t=…) synchronously, before React renders, so the
 // "need link" guard below is correct on first paint. CRITICAL for iOS: an installed
@@ -54,6 +57,14 @@ export default function App() {
   const [routine, setRoutine] = useState<Routine | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('inicio')
+  const [navDir, setNavDir] = useState(0) // -1 back, +1 forward, 0 first paint
+  // all tab changes go through here: sets the glide direction + a tiny haptic tick
+  const go = (t: Tab) => {
+    if (t === tab) return
+    setNavDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
+    setTab(t)
+    try { navigator.vibrate?.(8) } catch { /* no-op */ }
+  }
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [askGender, setAskGender] = useState(!getGender())
@@ -171,8 +182,8 @@ export default function App() {
         )}
 
         <ErrorBoundary key={tab}>
-          <div className="screen-in">
-            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => setTab('records')} />}
+          <div className={navDir === 0 ? 'screen-in' : navDir > 0 ? 'screen-in-right' : 'screen-in-left'}>
+            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} />}
             {tab === 'hoy' && <Hoy routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
             {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
             {tab === 'panel' && <Dashboard routine={routine} />}
@@ -187,12 +198,15 @@ export default function App() {
         bg-black/80 backdrop-blur border-t border-white/10
         pb-[env(safe-area-inset-bottom)]">
         {eventTheme && <div className="absolute inset-x-0 -top-px h-0.5" style={{ background: eventAccent, opacity: 0.7 }} />}
-        <div className="grid grid-cols-5">
-          <NavBtn active={tab === 'inicio'} onClick={() => setTab('inicio')} icon={<House size={19} />} label="Inicio" />
-          <NavBtn active={tab === 'hoy'} onClick={() => setTab('hoy')} icon={<CalendarDays size={19} />} label="Hoy" />
-          <NavBtn active={tab === 'semana'} onClick={() => setTab('semana')} icon={<LayoutGrid size={19} />} label="Plan" />
-          <NavBtn active={tab === 'records'} onClick={() => setTab('records')} icon={<Trophy size={19} />} label="Récords" />
-          <NavBtn active={tab === 'panel'} onClick={() => setTab('panel')} icon={<BarChart3 size={19} />} label="Panel" />
+        <div className="relative grid grid-cols-5">
+          {/* hilo de oro: ONE indicator that springs to the active tab */}
+          <span aria-hidden className="nav-thread"
+            style={{ transform: `translateX(${TAB_ORDER.indexOf(tab) * 100}%)` }} />
+          <NavBtn active={tab === 'inicio'} onClick={() => go('inicio')} icon={<House size={19} />} label="Inicio" />
+          <NavBtn active={tab === 'hoy'} onClick={() => go('hoy')} icon={<CalendarDays size={19} />} label="Hoy" />
+          <NavBtn active={tab === 'semana'} onClick={() => go('semana')} icon={<LayoutGrid size={19} />} label="Plan" />
+          <NavBtn active={tab === 'records'} onClick={() => go('records')} icon={<Trophy size={19} />} label="Récords" />
+          <NavBtn active={tab === 'panel'} onClick={() => go('panel')} icon={<BarChart3 size={19} />} label="Panel" />
         </div>
       </nav>
 
@@ -217,7 +231,7 @@ export default function App() {
           onPick={(dayId, startWeek) => {
             setStartDay(dayId)
             if (startWeek != null) { setStartWeek(startWeek); setWeek(null) }
-            setAskStartDay(false); setTab('inicio')
+            setAskStartDay(false); go('inicio')
           }}
         />
       )}
@@ -324,7 +338,6 @@ function NavBtn({ active, onClick, icon, label }: {
     <button onClick={onClick}
       className="relative flex flex-col items-center gap-1 py-2.5 transition"
       style={{ color: active ? 'var(--event-accent, #C6AE78)' : 'rgba(255,255,255,0.45)' }}>
-      {active && <span className="absolute top-0 h-0.5 w-8 rounded-full" style={{ background: 'var(--event-accent, #C6AE78)', boxShadow: '0 0 10px rgba(198,174,120,0.6)' }} />}
       {active ? <span className="nav-pop inline-flex">{icon}</span> : icon}
       <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
     </button>

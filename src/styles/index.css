@@ -106,9 +106,26 @@
   /* nav: active tab icon springs in when it becomes active */
   .nav-pop { animation: navPop .4s cubic-bezier(.34,1.56,.64,1); }
   @keyframes navPop { 0% { transform: scale(.7); } 60% { transform: scale(1.22); } 100% { transform: scale(1); } }
+
+  /* nav: the "hilo de oro" — ONE indicator that springs between tabs instead of a
+     static hairline popping per-tab. The span is one tab-cell wide; translateX in
+     multiples of its own width lands it over the active cell. */
+  .nav-thread {
+    position: absolute; top: 0; left: 0; height: 3px; width: 20%;
+    pointer-events: none;
+    transition: transform .38s cubic-bezier(.34,1.4,.64,1);
+    will-change: transform;
+  }
+  .nav-thread::after {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 32px; height: 2px; border-radius: 9999px;
+    background: var(--event-accent, #C6AE78);
+    box-shadow: 0 0 10px rgba(198,174,120,0.6);
+  }
   @media (prefers-reduced-motion: reduce) {
     .rail-live > span::after { animation: none; }
     .nav-pop { animation: none; }
+    .nav-thread { transition: none; }
   }
 }
 
@@ -189,6 +206,17 @@ body::before {
   /* gentle screen-enter transition */
   .screen-in { animation: screenin .28s ease; }
   @keyframes screenin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* direction-aware screen entrances: the new screen glides in from the side the
+     member is heading toward (right when moving forward in the tab order, left
+     when moving back) — spatial continuity, like a native pager. */
+  .screen-in-right { animation: screeninR .3s cubic-bezier(.22,1,.36,1); }
+  .screen-in-left  { animation: screeninL .3s cubic-bezier(.22,1,.36,1); }
+  @keyframes screeninR { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+  @keyframes screeninL { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .screen-in, .screen-in-right, .screen-in-left { animation: none; }
+  }
 }
 
 /* generic "pop" (toast / icon acknowledgement) */
@@ -307,6 +335,54 @@ body::before {
   .rex-fil-a,.rex-fil-b,.rex-mu,.rex-fill,.rex-fiber,.rex-gap,.rex-brace,.rex-spine,.rex-climb,
   .ring-echo,.ring-pop { animation: none !important; }
   .rex-mu { opacity: 1; } .rex-gap { opacity: 0; }
+}
+
+/* ---- Session map (Entrenar): the live segment of the rail breathes gold ---- */
+.seg-live { animation: segLive 1.8s ease-in-out infinite; }
+@keyframes segLive {
+  0%, 100% { background-color: rgba(255,255,255,0.12); }
+  50%      { background-color: rgba(198,174,120,0.42); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-live { animation: none; background-color: rgba(198,174,120,0.30); }
+}
+
+/* ---- Panel: data comes alive on reveal ------------------------------------
+   Sparklines draw themselves left→right (pathLength=1 normalizes the dash), the
+   gold area fill fades up under the line, dots/labels pop in staggered, and the
+   volume bars grow from zero. All transform/opacity + dashoffset — iOS-safe. */
+.spark-draw {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: sparkDraw 1.1s cubic-bezier(.22,1,.36,1) .1s forwards;
+}
+@keyframes sparkDraw { to { stroke-dashoffset: 0; } }
+.spark-area { opacity: 0; animation: sparkArea .6s ease .65s forwards; }
+@keyframes sparkArea { to { opacity: 1; } }
+.spark-dot { opacity: 0; animation: sparkDot .3s ease forwards; }
+@keyframes sparkDot { to { opacity: 1; } }
+.bar-grow { transform-origin: left center; animation: barGrow .7s cubic-bezier(.22,1,.36,1) backwards; }
+@keyframes barGrow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .spark-draw { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .spark-area, .spark-dot { animation: none; opacity: 1; }
+  .bar-grow { animation: none; }
+}
+
+/* ---- Récords: the podium blocks rise from the floor on entry ---- */
+.podium-block {
+  background: linear-gradient(180deg, rgba(198,174,120,0.85), rgba(138,106,56,0.55));
+  border: 1px solid rgba(198,174,120,0.50);
+  border-bottom: none;
+  transform-origin: bottom center;
+  animation: podiumRise .55s cubic-bezier(.22,1,.36,1) backwards;
+}
+.podium-block--dim {
+  background: linear-gradient(180deg, rgba(198,174,120,0.28), rgba(138,106,56,0.14));
+  border-color: rgba(198,174,120,0.26);
+}
+@keyframes podiumRise { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .podium-block { animation: none; }
 }
 
 /* Waving Argentina flag (subtle cloth skew) */

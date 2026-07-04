@@ -105,16 +105,20 @@ function RecordsView({ client }: { client: string }) {
         </div>
       )}
 
+      {/* top 3 → a real podium (2·1·3); the rest of the board lists from #4 */}
+      {board.length >= 3 && <Podium top3={[board[0], board[1], board[2]]} client={client} />}
+
       <div className="space-y-2">
         {board.length === 0 && (
           <p className="text-white/45 text-sm text-center py-8">Todavía no hay récords de {liftLabel(lift)}.<br />¡Hacé una serie y entrá al ranking! 🚀</p>
         )}
-        {board.slice(0, 20).map((e, i) => {
+        {(board.length >= 3 ? board.slice(3, 20) : board.slice(0, 20)).map((e, i) => {
           const isMe = e.client === client
+          const pos = board.length >= 3 ? i + 4 : i + 1
           return (
-            <div key={e.id} className={`flex items-center gap-3 rounded-card border p-3 ${isMe ? 'border-gold/50 bg-gold/[0.10]' : i < 3 ? 'border-gold/20 bg-white/[0.04]' : 'border-white/8 bg-white/[0.02]'}`}>
-              <div className={`w-7 text-center font-black ${i === 0 ? 'text-gold text-lg' : 'text-white/50'}`}>
-                {i === 0 ? <Crown size={18} className="text-gold mx-auto" /> : i + 1}
+            <div key={e.id} className={`flex items-center gap-3 rounded-card border p-3 ${isMe ? 'border-gold/50 bg-gold/[0.10]' : pos <= 3 ? 'border-gold/20 bg-white/[0.04]' : 'border-white/8 bg-white/[0.02]'}`}>
+              <div className={`w-7 text-center font-black ${pos === 1 ? 'text-gold text-lg' : 'text-white/50'}`}>
+                {pos === 1 ? <Crown size={18} className="text-gold mx-auto" /> : pos}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-white truncate">{e.client}{isMe && <span className="text-gold/80 text-xs font-bold"> · vos</span>}</div>
@@ -129,6 +133,51 @@ function RecordsView({ client }: { client: string }) {
         })}
       </div>
     </>
+  )
+}
+
+const initials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return parts.length ? parts.map((w) => w[0].toUpperCase()).slice(0, 2).join('') : '?'
+}
+
+// Salón de la fama: the top 3 stand on a gold podium — center elevated, crown on
+// #1, monogram rings (brand rule: no faces). Blocks rise from the floor on entry.
+function Podium({ top3, client }: { top3: RecordEntry[]; client: string }) {
+  const cols = [
+    { e: top3[1], place: 2, block: 'h-12' },
+    { e: top3[0], place: 1, block: 'h-20' },
+    { e: top3[2], place: 3, block: 'h-9' },
+  ]
+  return (
+    <div className="grid grid-cols-3 gap-2 items-end mb-5 px-1">
+      {cols.map(({ e, place, block }, col) => {
+        const isMe = e.client === client
+        const first = place === 1
+        return (
+          <div key={e.id} className="flex flex-col items-center min-w-0">
+            {first && <Crown size={18} className="text-gold mb-1" />}
+            <div className={`grid place-items-center rounded-full bg-gold-fill text-ink font-black shrink-0
+              ${first ? 'h-12 w-12 text-base' : 'h-10 w-10 text-sm opacity-80'} ${isMe ? 'ring-2 ring-gold-pale' : ''}`}>
+              {initials(e.client)}
+            </div>
+            <div className="w-full text-center mt-1.5 mb-2">
+              <div className="text-white text-xs font-bold truncate">
+                {e.client.split(' ')[0]}{isMe && <span className="text-gold/80"> · vos</span>}
+              </div>
+              <div className={`font-black tabular-nums ${first ? 'text-gold text-base' : 'text-gold/90 text-sm'}`}>
+                {e.kg} <span className="text-[0.62rem] font-bold">kg</span>
+                <span className="text-white/45 font-bold text-[0.62rem]"> × {e.reps}</span>
+              </div>
+            </div>
+            <div className={`podium-block ${first ? '' : 'podium-block--dim'} w-full rounded-t-lg ${block}`}
+              style={{ animationDelay: `${col * 90}ms` }}>
+              <span className={`grid place-items-center h-full font-black text-sm ${first ? 'text-ink/70' : 'text-gold/80'}`}>{place}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

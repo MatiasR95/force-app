@@ -7,7 +7,7 @@ import { RestTimer } from '../components/RestTimer'
 import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
-import { Rail, BottomSheet } from '../components/ui'
+import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds } from '../lib/week'
 import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress } from '../lib/store'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
@@ -66,9 +66,6 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
   const [prHits, setPrHits] = useState<Set<string>>(new Set()) // exercise ids that set a PR this session
-
-  const totalUnits = items.reduce((a, it) => a + unitsOf(it, week), 0)
-  const totalDone = Object.values(done).reduce((a, b) => a + b, 0)
 
   // persist progress on every change so backgrounding / leaving keeps it
   useEffect(() => {
@@ -139,6 +136,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const onPrimary = () => {
     // warm-up is just a "done, let's go" step — no sets, records or rest timer.
     if (item.type === 'warmup') {
+      setDone((d) => ({ ...d, warmup: 1 })) // its notch on the session map fills
       try { navigator.vibrate?.(25) } catch { /* no-op */ }
       if (isLast) window.setTimeout(() => setFinishing(true), 200)
       else skip()
@@ -173,7 +171,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
       <div className="flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
         <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
-        <div className="flex-1"><Rail value={totalUnits ? totalDone / totalUnits : 0} live /></div>
+        {/* session map: one notch per item so the whole session's shape is visible */}
+        <div className="flex-1">
+          <SegmentRail current={i}
+            segments={items.map((it) => (done[keyOf(it)] ?? 0) / Math.max(1, unitsOf(it, week)))} />
+        </div>
         <span className="text-xs font-bold text-white/50 tabular-nums">Sem {week} · {i + 1}/{items.length}</span>
         <button onClick={() => setOverview(true)} aria-label="Ver toda la sesión" className="p-1.5 text-white/60"><ListChecks size={20} /></button>
       </div>

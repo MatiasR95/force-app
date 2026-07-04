@@ -7,13 +7,15 @@ import {
 import { PATTERN_LABEL } from '../lib/media'
 import { getCheckins, getSessions, getMyRecords } from '../lib/store'
 import { epley1RM, liftLabel } from '../lib/records'
+import { useId } from 'react'
 import { Medallero } from '../components/Medallero'
 import { StreakHeatmap } from '../components/StreakHeatmap'
-import { Reveal } from '../components/Reveal'
+import { Reveal, useInView } from '../components/Reveal'
 import { CountUp } from '../components/NumberTicker'
 import { Flame, TrendingUp, Dumbbell, Activity, LineChart, ArrowUp, Award } from 'lucide-react'
 
 export function Dashboard({ routine }: { routine: Routine }) {
+  const [volRef, volOn] = useInView<HTMLDivElement>()
   const checkins = getCheckins()
   const sessions = getSessions()
   const asistencia = attendanceThisMonth(checkins)
@@ -119,12 +121,14 @@ export function Dashboard({ routine }: { routine: Routine }) {
       {/* volume by pattern */}
       <Reveal>
       <SectionTitle icon={<Dumbbell size={14} />}>Volumen por patrón (series)</SectionTitle>
-      <div className="card p-4 mb-6 space-y-2.5">
-        {patterns.map(([p, n]) => (
+      <div ref={volRef} className="card p-4 mb-6 space-y-2.5">
+        {patterns.map(([p, n], i) => (
           <div key={p} className="flex items-center gap-3">
             <span className="text-xs text-white/60 w-24 shrink-0">{PATTERN_LABEL[p]}</span>
             <div className="flex-1 h-2.5 rounded-bar bg-white/8 overflow-hidden">
-              <div className="h-full rounded-bar bg-gold-fill" style={{ width: `${(n / maxVol) * 100}%` }} />
+              {/* grows from zero, staggered, once the card scrolls into view */}
+              <div className={`h-full rounded-bar bg-gold-fill ${volOn ? 'bar-grow' : ''}`}
+                style={{ width: `${(n / maxVol) * 100}%`, animationDelay: `${i * 70}ms`, ...(volOn ? {} : { transform: 'scaleX(0)' }) }} />
             </div>
             <span className="text-xs font-bold text-gold w-6 text-right tabular-nums">{n}</span>
           </div>
@@ -175,7 +179,12 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-white/45 text-sm py-2 text-center">{children}</p>
 }
 
+// Sparkline that comes alive when SEEN: the line draws itself left→right, a soft
+// gold area fades up beneath it, and the dots/labels pop in staggered.
 function Spark({ values, dynamic = false }: { values: number[]; dynamic?: boolean }) {
+  const [ref, on] = useInView<SVGSVGElement>()
+  // useId can emit ':' (invalid inside url(#…) refs in some engines) — strip it
+  const uid = 'spark' + useId().replace(/[^a-zA-Z0-9-]/g, '')
   const W = 280, H = 70, pad = 6
   const lo = Math.min(...values), hi = Math.max(...values)
   const min = dynamic ? lo - (hi - lo) * 0.15 - 0.01 : 1
@@ -186,14 +195,24 @@ function Spark({ values, dynamic = false }: { values: number[]; dynamic?: boolea
     return [x, y] as const
   })
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+  const area = `${d} L${pts[pts.length - 1][0].toFixed(1)},${H - pad} L${pts[0][0].toFixed(1)},${H - pad} Z`
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[70px]">
-      <path d={d} fill="none" stroke="#C6AE78" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} className="w-full h-[70px]"
+      style={{ visibility: on ? undefined : 'hidden' }}>
+      <defs>
+        <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#C6AE78" stopOpacity="0.30" />
+          <stop offset="1" stopColor="#C6AE78" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${uid})`} className={on ? 'spark-area' : undefined} />
+      <path d={d} pathLength={1} className={on ? 'spark-draw' : undefined}
+        fill="none" stroke="#C6AE78" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       {pts.map((p, i) => (
-        <circle key={i} cx={p[0]} cy={p[1]} r={3} fill="#C6AE78" />
-      ))}
-      {pts.map((p, i) => (
-        <text key={i} x={p[0]} y={p[1] - 8} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,.5)">{values[i]}</text>
+        <g key={i} className={on ? 'spark-dot' : undefined} style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
+          <circle cx={p[0]} cy={p[1]} r={3} fill="#C6AE78" />
+          <text x={p[0]} y={p[1] - 8} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,.5)">{values[i]}</text>
+        </g>
       ))}
     </svg>
   )
