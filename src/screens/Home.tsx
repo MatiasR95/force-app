@@ -111,7 +111,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
       {/* today's session CTA */}
       {day && (
         <button onClick={() => onTrain(suggestedDay, week)}
-          className="hero-card rounded-card p-4 mb-4 w-full text-left active:scale-[0.99] block">
+          className="beam hero-card rounded-card p-4 mb-4 w-full text-left active:scale-[0.99] block">
           <div className="flex items-center justify-between">
             <div className="kicker">🔥 Hoy te toca</div>
             {/* this week at a glance: días entrenados / total */}

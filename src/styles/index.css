@@ -140,6 +140,88 @@ body::before {
   body::before { animation: none; }
 }
 
+/* ---- Ambient mesh aurora (event-accent reactive) --------------------------
+   A second, slow-drifting blurred blob tinted by the active event accent, layered
+   INSIDE the app container (so it reads --event-accent). Together with the gold
+   body aurora it forms a subtle two-tone mesh that shifts with events — blue on
+   9 de Julio, gold on ordinary days. Behind all content, GPU-only. */
+.aurora-mesh {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.aurora-mesh::before, .aurora-mesh::after {
+  content: ''; position: absolute; border-radius: 50%; filter: blur(60px);
+  will-change: transform;
+}
+.aurora-mesh::before {
+  width: 70%; height: 40%; left: -10%; bottom: -8%;
+  background: radial-gradient(circle, var(--event-accent, #C6AE78), transparent 70%);
+  opacity: 0.10; animation: meshA 22s ease-in-out infinite alternate;
+}
+.aurora-mesh::after {
+  width: 55%; height: 38%; right: -12%; top: 22%;
+  background: radial-gradient(circle, var(--event-accent, #C6AE78), transparent 70%);
+  opacity: 0.07; animation: meshB 28s ease-in-out infinite alternate;
+}
+@keyframes meshA { 0% { transform: translate3d(0,0,0) scale(1); } 100% { transform: translate3d(8%,-6%,0) scale(1.2); } }
+@keyframes meshB { 0% { transform: translate3d(0,0,0) scale(1.1); } 100% { transform: translate3d(-7%,5%,0) scale(0.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .aurora-mesh::before, .aurora-mesh::after { animation: none; }
+}
+
+/* ---- Rotating "beam" border on the primary CTA ----------------------------
+   A thin gold light travels around the button edge — draws the eye to the main
+   action without shouting. A big conic-gradient pseudo-element rotates behind the
+   content; a 1.5px inset mask leaves only the border lit. GPU-only (rotate). */
+.beam { position: relative; z-index: 0; }
+.beam::before {
+  content: ''; position: absolute; z-index: -1; inset: 0; border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--beam-a, 0deg), transparent 0deg,
+    rgba(240,226,190,0.15) 40deg, #F0E2BE 90deg, rgba(240,226,190,0.15) 140deg, transparent 200deg, transparent 360deg);
+  /* show only the padding ring (the border) */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: beamSpin 3.6s linear infinite;
+}
+@keyframes beamSpin { to { --beam-a: 360deg; } }
+/* Fallback for engines without @property angle animation: rotate a fixed gradient */
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  .beam::before { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beam::before { animation: none; opacity: .6; }
+}
+
+/* the CSS var the beam animates (registered so it can transition/animate) */
+@property --beam-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+/* ---- "Respirá" breathing pacer (rest timer) -------------------------------
+   A soft ring expands on the inhale and contracts on the exhale, on a calm
+   ~11s box cadence (inhale 4 · hold 2 · exhale 4 · hold 1). Guides recovery
+   breathing during the pause. Scale/opacity only. */
+.breathe-orb {
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(198,174,120,0.30), rgba(198,174,120,0.06) 70%);
+  border: 1px solid rgba(198,174,120,0.35);
+  animation: breatheOrb 11s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+@keyframes breatheOrb {
+  0%   { transform: scale(0.55); opacity: 0.5; }   /* start of inhale */
+  36%  { transform: scale(1.0);  opacity: 1; }     /* full inhale (4s) */
+  55%  { transform: scale(1.0);  opacity: 1; }     /* hold (2s) */
+  91%  { transform: scale(0.55); opacity: 0.5; }   /* exhale (4s) */
+  100% { transform: scale(0.55); opacity: 0.5; }   /* hold (1s) */
+}
+.breathe-label { animation: breatheLabel 11s ease-in-out infinite; }
+@keyframes breatheLabel { /* cross-faded text is swapped in JS; this just softens it */
+  0%,100% { opacity: .85; } 45%,50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .breathe-orb { animation: none; transform: scale(0.85); }
+  .breathe-label { animation: none; }
+}
+
 @layer components {
   /* glassmorphism surface */
   .glass {

@@ -3,6 +3,7 @@ import { getRestPref, setRestPref, getRestEduPref, setRestEduPref } from '../lib
 import { getRest, subscribeRest, restRemaining, startRest, pauseRest, resumeRest, resetRest, tickRest } from '../lib/restTimer'
 import { nextEducation } from '../lib/restEducation'
 import { RestExplainer } from './RestExplainer'
+import { BreathePacer } from './BreathePacer'
 import { Timer, Play, Pause, RotateCcw, Minus, Plus, Flame, BookOpen, X } from 'lucide-react'
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -131,6 +132,8 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
               )}
               <button onClick={() => resetRest()} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70"><RotateCcw size={18} /></button>
             </div>
+            {/* box-breathing guide while the pause runs (not on the "time's up" state) */}
+            {active && <BreathePacer />}
           </div>
         )}
       </div>

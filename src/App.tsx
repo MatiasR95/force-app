@@ -172,7 +172,10 @@ export default function App() {
           so the nav is a real flex child pinned to the shell's true bottom; the nav clears
           the home indicator via pb-[env(safe-area-inset-bottom)]. html/body are locked in
           index.css so the only scrolling element is `.app-scroll`. */}
-      <div className="app-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      {/* ambient mesh: a slow event-accent blob drifting behind everything (reads
+          --event-accent from this container → blue on 9 de Julio, gold otherwise) */}
+      <div className="aurora-mesh" aria-hidden />
+      <div className="app-scroll relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
         {isDemo() && (

@@ -103,12 +103,13 @@ export function bestOf(entries: RecordEntry[], client: string): RecordEntry | nu
 export function matchRecordLift(name: string): string | null {
   const s = deburr(name)
   // squats: the back squat only — EXCLUDE bulgarian/split/sissy/pistol/hack/leg-press/
-  // lunges/hatfield/FRONT squat/goblet (front squat is a different lift, not the record)
-  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal|\bfront\b|goblet/.test(s)) return 'sentadilla'
+  // lunges/hatfield/FRONT squat/goblet, and dumbbell/wall/machine variants (e.g. a
+  // finisher like "Open Squat over Wall with DB" must NOT fire a back-squat record)
+  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal|\bfront\b|goblet|\bdb\b|mancuerna|dumbbell|wall|pared/.test(s)) return 'sentadilla'
   if (/hex/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-hex'
   if (/sumo/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-sumo'
-  // conventional deadlift only (exclude romanian / RDL / good-morning)
-  if (/peso muerto|deadlift/.test(s) && !/rumano|\brdl\b|buenos dias|good ?morning|unipodal|1 ?pie/.test(s)) return 'peso-muerto'
+  // conventional deadlift only (exclude romanian/RDL — es AND en — good-morning, unipodal)
+  if (/peso muerto|deadlift/.test(s) && !/rumano|romanian|\brdl\b|buenos dias|good ?morning|unipodal|1 ?pie/.test(s)) return 'peso-muerto'
   // bench with dumbbells
   if (/(press (plano|de banca|banca)|banca|bench).*(mancuerna|db)|(mancuerna|db).*(press (plano|banca)|banca|bench)/.test(s)) return 'press-banca-db'
   // flat barbell bench only (exclude incline)

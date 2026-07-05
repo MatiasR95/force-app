@@ -35,6 +35,18 @@ describe('matchRecordLift', () => {
     expect(matchRecordLift('Press Hombros KB Sentado')).toBeNull()
     expect(matchRecordLift('Press Hombros KB')).toBeNull()
   })
+  it("excludes English 'Romanian Deadlift' and dumbbell/wall squats (Matias's accessories)", () => {
+    // Día 1 accessory — the exclusion listed only the Spanish "rumano", so the
+    // English name slipped through and fired a false peso-muerto PR.
+    expect(matchRecordLift('Romanian Deadlift')).toBeNull()
+    expect(matchRecordLift('Romanian Deadlift')).not.toBe('peso-muerto')
+    // Día 1 finisher — no dumbbell/wall exclusion existed in the squat branch.
+    expect(matchRecordLift('Open Squat over Wall with DB')).toBeNull()
+    expect(matchRecordLift('Sentadilla con Mancuernas')).toBeNull()
+    // the real conventional lifts still capture
+    expect(matchRecordLift('Deadlift')).toBe('peso-muerto')
+    expect(matchRecordLift('Sentadillas')).toBe('sentadilla')
+  })
 })
 
 describe('recordKg', () => {
