@@ -11,7 +11,7 @@ import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
 import { nextFeriado } from '../lib/feriados'
 import { coachTip } from '../lib/coachTips'
-import { currentStreakWeeks } from '../lib/metrics'
+import { currentStreakWeeks, weekStartOf, daysTrainedInWeek } from '../lib/metrics'
 import {
   getClientName, getCheckins, getMaxStreak, localDate,
   isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions,
@@ -24,11 +24,6 @@ const TODAY_LONG = () =>
 
 const WD = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 const shortDay = (iso: string) => WD[new Date(iso + 'T00:00:00').getDay()]
-
-function withinDays(date: string, n: number): boolean {
-  const a = new Date(date + 'T00:00:00'), b = new Date(localDate() + 'T00:00:00')
-  return (b.getTime() - a.getTime()) / 86_400_000 < n
-}
 
 export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   routine: Routine
@@ -50,10 +45,12 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   const best = Math.max(getMaxStreak(), streak)
   const bwAge = bodyweightAgeDays()
   const needBw = getBodyweight() == null || (bwAge != null && bwAge >= 30)
-  // distinct days trained in the last 7 days → this week's progress ring
-  const daysTrainedThisWeek = new Set(
-    getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId),
-  ).size
+  // Weekly progress ring: how many of THIS plan's days were trained in the current
+  // calendar week (Mon–Sun, same week boundary as the streak). We match each plan
+  // day to a session by id OR label — so a coach re-saving the sheet (which can
+  // regenerate day ids) doesn't drop a day the member really trained, and stale
+  // sessions from an old layout can't inflate the count past the real total.
+  const daysTrainedThisWeek = daysTrainedInWeek(routine.days, getSessions(), weekStartOf(localDate()))
   const totalDays = routine.days.length
 
   useEffect(() => { getWeather().then(setWeather) }, [])

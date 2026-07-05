@@ -116,6 +116,29 @@ function mondayKey(d: Date): string {
   return dayKey(x)
 }
 
+/** Monday-of-week key for a local "YYYY-MM-DD" string (no timezone drift). */
+export function weekStartOf(dateStr: string): string {
+  return mondayKey(new Date(dateStr.slice(0, 10) + 'T00:00:00'))
+}
+
+/**
+ * How many of the plan's days were trained during the given Monday-week — the
+ * weekly progress ring. A session counts for a day if it matches by id OR label,
+ * so a coach re-saving the sheet (which can regenerate day ids) never drops a day
+ * the member really did, and stale sessions from an old layout can't push the
+ * count past the real number of plan days.
+ */
+export function daysTrainedInWeek(
+  days: ReadonlyArray<{ id: string; label: string }>,
+  sessions: ReadonlyArray<{ date: string; dayId: string; dayLabel?: string }>,
+  weekKey: string,
+): number {
+  const wk = sessions.filter((s) => weekStartOf(s.date) === weekKey)
+  return days.filter((d) =>
+    wk.some((s) => s.dayId === d.id || (!!s.dayLabel && s.dayLabel === d.label)),
+  ).length
+}
+
 /**
  * Schedule-aware streak: consecutive WEEKS with at least one training day.
  * Members train on appointments (e.g. Mon/Wed/Fri), so skipping a non-training
