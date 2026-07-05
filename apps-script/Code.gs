@@ -606,9 +606,13 @@ function seguimientoSheet_(folder, nombre) {
 
 // ---- coach comments digest (gym-wide, human-readable) ---------------------
 // One `Seguimiento` tab (in the FORCE - Horarios file — see COACH_NOTES_SHEET_ID)
-// that gathers EVERY member comment as its own row: Fecha | Cliente | Día |
-// Ejercicio | Observación | Tipo. Written newest-first (each new batch is inserted
-// right under the header) so coaches never scroll — the latest note is always on top.
+// that gathers only what a MEMBER actively did, each as its own row: Fecha | Cliente
+// | Día | Ejercicio | Observación | Tipo, where Tipo is `Ejercicio` (a note on one
+// lift), `Sesión` (an end-of-session note) or `Peso` (a weight/reps they logged as
+// what they really did). Machine noise — check-ins, plain set completions, bodyweight
+// /birthday meta, cell edits and any date-only rows — is deliberately left out.
+// Written newest-first (each batch inserted right under the header) so coaches never
+// scroll — the latest entry is always on top.
 var COACH_NOTES_HEAD = ['Fecha', 'Cliente', 'Día', 'Ejercicio', 'Observación', 'Tipo']
 
 /** The `Seguimiento` digest sheet, created + formatted on first use (staff-tab style). */
@@ -643,21 +647,35 @@ function prependCoachRows_(sh, rows) {
   sh.getRange(2, 1, rows.length, rows[0].length).setValues(rows)
 }
 
-/** Turn logInput items into digest rows and prepend them. Only free-text comments
- *  (a member's end-of-session note or a per-exercise observación) qualify — set logs,
- *  check-ins, bodyweight/birthday meta and cell edits carry no `note` and are skipped. */
+/**
+ * Turn logInput items into digest rows and prepend them. Only two things a member
+ * DID belong here:
+ *   • a free-text comment  — an end-of-session note (`session`) or a per-exercise
+ *     observación (`note`)  → Tipo "Sesión" / "Ejercicio"
+ *   • a weight/reps they logged (`set` from adjusting what they really did) → Tipo "Peso"
+ * Everything else (check-ins, set-completions with no weight, bodyweight/birthday meta,
+ * cell edits) is skipped, and any "comment" that is really just a date is dropped.
+ * Repeated weight logs for the same exercise in one flush collapse to the latest.
+ */
 function mirrorCoachNotes_(nombre, items) {
   var out = []
+  var lastSet = {} // exerciseId → latest Peso row this flush (kills same-session repeats)
   ;(items || []).forEach(function (it) {
     var p = it.payload || {}
-    var note = String(p.note || '').trim()
-    if (!note) return
-    if (it.kind === 'session') {
-      out.push([dateCell_(p.date || it.ts), nombre, dayName_(p.dayLabel || p.dayId), p.bigOne || '—', note, 'Sesión'])
-    } else if (it.kind === 'note') {
-      out.push([dateCell_(p.date || it.ts), nombre, dayName_(p.dayLabel || p.dayId), p.exName || p.exerciseId || '—', note, 'Ejercicio'])
+    if (it.kind === 'session' || it.kind === 'note') {
+      var note = String(p.note || '').trim()
+      if (!note || isDateLike_(note)) return
+      var ej = it.kind === 'session' ? (p.bigOne || '—') : (p.exName || p.exerciseId || '—')
+      out.push([dateCell_(p.date || it.ts), nombre, dayName_(p.dayLabel || p.dayId), ej, note,
+        it.kind === 'session' ? 'Sesión' : 'Ejercicio'])
+    } else if (it.kind === 'set') {
+      var txt = pesoText_(p.actualKg, p.actualReps)
+      if (!txt) return // a set completion with no logged weight — not a change, skip
+      lastSet[String(p.exerciseId || '')] = [dateCell_(p.date || it.ts), nombre,
+        dayName_(p.dayLabel || p.dayId), p.exName || p.exerciseId || '—', txt, 'Peso']
     }
   })
+  Object.keys(lastSet).forEach(function (k) { out.push(lastSet[k]) })
   prependCoachRows_(coachNotesSheet_(), out)
 }
 
@@ -671,10 +689,37 @@ function dateCell_(v) {
   return s
 }
 
-/** True if a string is just a date/timestamp (used to skip session rows that stored
- *  the date in the note column because the member left the note blank). */
-function isDateLike_(s) {
-  return /^\d{4}-\d{2}-\d{2}([T ]|$)/.test(String(s || '').trim())
+/** True if a value is really just a date/timestamp, NOT a member comment — so it
+ *  never leaks into the digest as a fake observation. Catches a Date object, ISO
+ *  ('2026-06-26'), a JS Date.toString() ('Fri Jun 26 2026 … GMT-0300 (…)') and
+ *  d/m/yyyy. Real comments ("bajé a 25 kg", "molestó el hombro") never match. */
+function isDateLike_(v) {
+  if (!v) return false
+  if (Object.prototype.toString.call(v) === '[object Date]') return true
+  var s = String(v).trim()
+  if (!s) return false
+  if (/^\d{4}-\d{2}-\d{2}([T ]|$)/.test(s)) return true                                   // ISO / 2026-06-26
+  if (/\bGMT[+-]?\d{2,4}\b/i.test(s)) return true                                          // "…GMT-0300…"
+  if (/^(mon|tue|wed|thu|fri|sat|sun|lun|mar|mi[eé]|jue|vie|s[aá]b|dom)[a-z]*\s+\w+\s+\d/i.test(s)) return true // "Fri Jun 26 2026"
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(s)) return true                                  // 26/6/2026
+  return false
+}
+
+/** A logged weight/reps → a short human string ("45 kg × 8 reps"), or '' if neither
+ *  is a real number. This is what a member actually did, shown as a `Peso` row. */
+function pesoText_(kg, reps) {
+  var k = Number(kg), r = Number(reps)
+  var hasK = isFinite(k) && k > 0
+  var hasR = isFinite(r) && r > 0
+  if (hasK && hasR) return fmtNum_(k) + ' kg × ' + Math.round(r) + ' reps'
+  if (hasK) return fmtNum_(k) + ' kg'
+  if (hasR) return Math.round(r) + ' reps'
+  return ''
+}
+
+/** Number with the rioplatense comma the sheets use (27.5 → "27,5"). */
+function fmtNum_(n) {
+  return (Math.round(Number(n) * 100) / 100).toString().replace('.', ',')
 }
 
 /** "DÍA 1" → "Día 1"; a dayId like "d1-3" → "Día 1"; blank → "—". */
@@ -686,11 +731,11 @@ function dayName_(v) {
 }
 
 /**
- * One-time bootstrap: pull the comments already sitting in every per-client
- * "Seguimiento — …" sheet into the consolidated digest, newest first. Safe to run
- * again — it re-reads the sources and PREPENDS, so run it once on an empty digest
- * (right after adding this feature); running twice would duplicate. Run manually
- * from the Apps Script editor.
+ * Bootstrap the digest from what's already in every per-client "Seguimiento — …"
+ * sheet: free-text comments (Sesión / Ejercicio) and logged weights (Peso), newest
+ * first. Date-only rows and machine noise are filtered out; exact same-day repeats of
+ * a weight collapse to one. PREPENDS, so run ONCE on an empty digest — use
+ * `rebuildCoachDigest` if you need to redo it cleanly. Run from the Apps Script editor.
  */
 function backfillCoachNotes() {
   var conf = SpreadsheetApp.openById(CONFIG_SHEET_ID).getSheetByName('clientes').getDataRange().getValues()
@@ -702,20 +747,43 @@ function backfillCoachNotes() {
       var files = DriveApp.getFolderById(folderId).getFilesByName('Seguimiento — ' + (nombre || 'Cliente'))
       if (!files.hasNext()) continue
       var rows = SpreadsheetApp.openById(files.next().getId()).getSheets()[0].getDataRange().getValues()
+      var seen = {} // per-client exact-dup guard (same day + día + ejercicio + obs + tipo)
       for (var r = 1; r < rows.length; r++) {
         var kind = String(rows[r][1] || '').toLowerCase() // per-client `tipo` = the outbox kind
-        if (kind !== 'note' && kind !== 'session') continue
-        var nota = String(rows[r][7] || '').trim()        // session rows w/o note store the date here
-        if (!nota || isDateLike_(nota)) continue
-        collected.push({
-          ts: rows[r][0],
-          row: [dateCell_(rows[r][0]), nombre, dayName_(rows[r][2]),
-            rows[r][3] || '—', nota, kind === 'session' ? 'Sesión' : 'Ejercicio'],
-        })
+        var obs, tipo
+        if (kind === 'note' || kind === 'session') {
+          if (isDateLike_(rows[r][7])) continue           // a date parked in the note column, not a comment
+          obs = String(rows[r][7] || '').trim()
+          if (!obs) continue
+          tipo = kind === 'session' ? 'Sesión' : 'Ejercicio'
+        } else if (kind === 'set') {
+          obs = pesoText_(rows[r][4], rows[r][5])          // kg_real, reps_real
+          if (!obs) continue
+          tipo = 'Peso'
+        } else {
+          continue                                          // checkin / cell / etc. — not for coaches
+        }
+        var row = [dateCell_(rows[r][0]), nombre, dayName_(rows[r][2]), rows[r][3] || '—', obs, tipo]
+        var sig = String(rows[r][0]).slice(0, 15) + '|' + row.slice(2).join('|') // day-granular
+        if (seen[sig]) continue
+        seen[sig] = true
+        collected.push({ ts: rows[r][0], row: row })
       }
     } catch (e) { /* skip any client sheet we can't open */ }
   }
   collected.sort(function (a, b) { return new Date(b.ts) - new Date(a.ts) }) // newest first
   prependCoachRows_(coachNotesSheet_(), collected.map(function (x) { return x.row }))
-  return 'backfill: ' + collected.length + ' comentario(s) agregados al digest'
+  return 'backfill: ' + collected.length + ' fila(s) (comentarios + pesos) agregadas al digest'
+}
+
+/**
+ * Wipe the digest's data rows (keeping the formatted header) and rebuild it from
+ * scratch via backfill. Run this after updating the code to clear out any old junk
+ * rows from an earlier backfill. Safe to run as many times as you like.
+ */
+function rebuildCoachDigest() {
+  var sh = coachNotesSheet_()
+  var last = sh.getLastRow()
+  if (last > 1) sh.deleteRows(2, last - 1)
+  return backfillCoachNotes()
 }

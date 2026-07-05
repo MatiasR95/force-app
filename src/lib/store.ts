@@ -268,11 +268,12 @@ export interface Actual { kg?: number; reps?: number; sets?: number } // kg = pe
 type ActualMap = Record<string, Actual>
 export const getActual = (exerciseId: string): Actual | undefined =>
   read<ActualMap>(KEYS.actuals, {})[exerciseId]
-export function saveActual(exerciseId: string, dayId: string, a: Actual): void {
+export function saveActual(exerciseId: string, dayId: string, a: Actual, meta?: { exName?: string; dayLabel?: string }): void {
   const m = read<ActualMap>(KEYS.actuals, {})
   m[exerciseId] = { ...m[exerciseId], ...a }
   write(KEYS.actuals, m)
-  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate() })
+  // exName/dayLabel let the coach digest show "Sentadilla · Día 1: 45 kg", not a raw id.
+  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate(), exName: meta?.exName, dayLabel: meta?.dayLabel })
 }
 
 // ---- "última vez" per exercise (a light memory aid for progressive overload) ----

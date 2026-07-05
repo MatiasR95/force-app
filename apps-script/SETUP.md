@@ -58,24 +58,32 @@ creating a new monthly sheet and moving the old one into `Historial/` exactly as
 machine log (one row per set/edit) — handy for recovery, but noisy to read. See the coach
 digest below for the human-friendly view.
 
-## Coach comments digest (read all client observations in one place)
-Every free-text comment a member leaves — an end-of-session note or a per-exercise
-observación — is **also** mirrored into a single **`Seguimiento`** tab, so coaches never
-open each client's log and scroll past machine rows. Columns:
-**Fecha · Cliente · Día · Ejercicio · Observación · Tipo** (`Sesión` = end-of-session note,
-`Ejercicio` = note on one lift). New comments are inserted at the **top**, so the latest is
-always the first row.
+## Coach comments digest (read what clients did, in one place)
+Only what a member **actively did** is mirrored into a single **`Seguimiento`** tab, so coaches
+never open each client's log and scroll past machine rows. Columns:
+**Fecha · Cliente · Día · Ejercicio · Observación · Tipo**, where **Tipo** is one of:
+- `Ejercicio` — a note the member wrote on one lift (e.g. *"el curl lo hago con banda + pesa rusa amarilla"*).
+- `Sesión` — an end-of-session note (e.g. *"17 repes en amrap"*).
+- `Peso` — a weight/reps the member logged as what they really did (e.g. *"45 kg × 8 reps"*).
+
+Everything else — check-ins, plain set completions, bodyweight/birthday entries, cell edits and
+any date-only rows — is deliberately **left out**. New entries are inserted at the **top**, so the
+latest is always the first row.
 
 - **Where it lives:** set **`COACH_NOTES_SHEET_ID`** at the top of `Code.gs` to the
   **"FORCE - Horarios"** file's ID, and give the gym account **Edit** access to that file.
   Leave it `''` to fall back to `NOVEDADES_SHEET_ID`, then to the config sheet. The tab is
-  created + formatted automatically on the first comment (or on backfill).
-- **Bring existing comments in (optional, one time):** run **`backfillCoachNotes`** once from
-  the Apps Script editor — it pulls the comments already sitting in every per-client
-  `Seguimiento — <name>` sheet into the digest, newest first. Run it **once** (it prepends, so
-  a second run would duplicate). Historical rows show the exercise id; new comments show the
-  exercise name.
-- No re-deploy needed to read it — it's a normal tab coaches can sort/filter.
+  created + formatted automatically on the first entry (or on backfill).
+- **Bring existing history in (optional, one time):** run **`backfillCoachNotes`** once from
+  the Apps Script editor — it pulls the comments and logged weights already in every per-client
+  `Seguimiento — <name>` sheet into the digest, newest first (date-only junk and same-day repeats
+  are filtered out). It **prepends**, so run it once; to redo it cleanly use `rebuildCoachDigest`.
+- **`rebuildCoachDigest`** — wipes the digest's data rows (keeping the header) and rebuilds from
+  scratch. Run this after updating the code to clear out old junk rows from an earlier backfill.
+  Safe to run repeatedly.
+- Historical `Peso`/`Ejercicio` rows may show the exercise *id*; entries made after the frontend
+  update show the exercise *name*.
+- No re-deploy needed to read the tab — coaches can sort/filter it like any sheet.
 
 `updateCells` (since Jun 2026) **overwrites** the matching cell in the routine sheet when a member
 edits what they really did (kg / reps / series). The prior value is logged to `Seguimiento` first, so

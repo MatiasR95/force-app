@@ -297,7 +297,7 @@ function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; n
 
 // Adjust what the member actually did (weight per side / reps). Saved to
 // Seguimiento and used for records + progress. Prefilled with the prescription.
-function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week: number }) {
+function AdjustField({ ex, dayId, dayLabel, week }: { ex: ExerciseRow; dayId: string; dayLabel: string; week: number }) {
   const r = resolveWeek(ex, week)
   const saved = getActual(ex.id)
   const [open, setOpen] = useState(() => !!saved)
@@ -306,7 +306,7 @@ function AdjustField({ ex, dayId, week }: { ex: ExerciseRow; dayId: string; week
   const [sets, setSets] = useState(() => saved?.sets ?? r.sets ?? 0)
   const commit = (a: { kg?: number; reps?: number; sets?: number }) => {
     if (a.kg != null) setKg(a.kg); if (a.reps != null) setReps(a.reps); if (a.sets != null) setSets(a.sets)
-    saveActual(ex.id, dayId, { kg, reps, sets, ...a })
+    saveActual(ex.id, dayId, { kg, reps, sets, ...a }, { exName: ex.name, dayLabel })
     // overwrite the matching prescription cell(s) in the routine sheet (only the
     // field the member just changed). Queued + flushed; no-op offline / in demo.
     const writes = buildCellWrites(ex, week, { kg: a.kg, reps: a.reps, series: a.sets })
@@ -389,7 +389,7 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }:
         ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
         : <Dots n={target} done={done} flash={flash} />}
       <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />
-      {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} week={week} />}
+      {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
     </>
   )
 }
