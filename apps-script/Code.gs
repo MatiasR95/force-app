@@ -787,3 +787,17 @@ function rebuildCoachDigest() {
   if (last > 1) sh.deleteRows(2, last - 1)
   return backfillCoachNotes()
 }
+
+/**
+ * Diagnostic — Run this to confirm WHICH file the digest reads/writes. It resolves
+ * exactly like coachNotesSheet_ (COACH_NOTES_SHEET_ID → NOVEDADES_SHEET_ID → CONFIG),
+ * so if it doesn't say "FORCE - Horarios", COACH_NOTES_SHEET_ID isn't set and you're
+ * looking at the wrong tab. Output shows in the editor's execution log.
+ */
+function coachDigestWhere() {
+  var id = COACH_NOTES_SHEET_ID || NOVEDADES_SHEET_ID || CONFIG_SHEET_ID
+  var name = SpreadsheetApp.openById(id).getName()
+  var msg = 'El digest usa el archivo: "' + name + '" (id ' + id + ')'
+  Logger.log(msg)
+  return msg
+}
