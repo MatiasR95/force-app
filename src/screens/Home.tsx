@@ -5,6 +5,7 @@ import { ArgentinaFlag } from '../components/ArgentinaFlag'
 import { EventThemeBanner } from '../components/EventThemeBanner'
 import { NewsBanner } from '../components/NewsBanner'
 import { FoilTilt } from '../components/FoilTilt'
+import { StreakFlame } from '../components/StreakFlame'
 import { getRivalPending, clearRivalPending } from '../lib/rivalWatch'
 import { Profile } from '../components/Profile'
 import { getWeather, type WeatherBundle } from '../lib/weather'
@@ -13,8 +14,9 @@ import { coachTip } from '../lib/coachTips'
 import { currentStreakWeeks } from '../lib/metrics'
 import {
   getClientName, getCheckins, getMaxStreak, localDate,
-  isBirthdayToday, bodyweightAgeDays, getBodyweight,
+  isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions,
 } from '../lib/store'
+import { WeekRing } from '../components/WeekRing'
 import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X } from 'lucide-react'
 
 const TODAY_LONG = () =>
@@ -22,6 +24,11 @@ const TODAY_LONG = () =>
 
 const WD = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 const shortDay = (iso: string) => WD[new Date(iso + 'T00:00:00').getDay()]
+
+function withinDays(date: string, n: number): boolean {
+  const a = new Date(date + 'T00:00:00'), b = new Date(localDate() + 'T00:00:00')
+  return (b.getTime() - a.getTime()) / 86_400_000 < n
+}
 
 export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   routine: Routine
@@ -43,6 +50,11 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   const best = Math.max(getMaxStreak(), streak)
   const bwAge = bodyweightAgeDays()
   const needBw = getBodyweight() == null || (bwAge != null && bwAge >= 30)
+  // distinct days trained in the last 7 days → this week's progress ring
+  const daysTrainedThisWeek = new Set(
+    getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId),
+  ).size
+  const totalDays = routine.days.length
 
   useEffect(() => { getWeather().then(setWeather) }, [])
 
@@ -103,13 +115,22 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
       {day && (
         <button onClick={() => onTrain(suggestedDay, week)}
           className="hero-card rounded-card p-4 mb-4 w-full text-left active:scale-[0.99] block">
-          <div className="kicker">🔥 Hoy te toca</div>
+          <div className="flex items-center justify-between">
+            <div className="kicker">🔥 Hoy te toca</div>
+            {/* this week at a glance: días entrenados / total */}
+            {totalDays > 1 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[0.55rem] uppercase tracking-micro text-white/45 font-bold">Tu semana</span>
+                <WeekRing done={daysTrainedThisWeek} total={totalDays} size={38} />
+              </div>
+            )}
+          </div>
           <div className="flex items-center justify-between mt-1">
-            <div>
+            <div className="min-w-0">
               <div className="heading text-2xl text-white">{day.label.replace('DÍA', 'Día')}{routine.style === 'weekly' && <span className="text-gold text-base"> · Sem {week}</span>}</div>
-              {bigOne && <div className="text-gold/90 font-bold text-sm mt-0.5">{bigOne}</div>}
+              {bigOne && <div className="text-gold/90 font-bold text-sm mt-0.5 truncate">{bigOne}</div>}
             </div>
-            <span className="btn-glow shrink-0 inline-flex items-center gap-1.5 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide text-sm px-4 py-2.5">
+            <span className="btn-glow shrink-0 inline-flex items-center gap-1.5 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide text-sm px-4 py-2.5 ml-3">
               <Dumbbell size={16} /> Entrenar
             </span>
           </div>
@@ -180,7 +201,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
       {/* rachas snapshot → Récords */}
       <button onClick={onGoRecords} className="card p-4 mb-4 w-full text-left active:scale-[0.99] flex items-center gap-4">
         <div className="flex items-center gap-2.5">
-          <Flame size={26} className="text-gold" />
+          <StreakFlame streak={streak} size={26} />
           <div>
             <div className="text-gold text-3xl font-black leading-none tabular-nums">{streak}</div>
             <div className="text-[0.58rem] uppercase tracking-micro text-white/45 font-bold mt-0.5">semanas seguidas</div>

@@ -79,6 +79,46 @@ function Scene({ id }: { id: string }) {
           <circle className="rex-climb" cx="30" cy="52" r="5" fill={GOLD} />
         </svg>
       )
+    case 'riego-sanguineo': // blood cells flowing through a widening vessel
+      return (
+        <svg viewBox="0 0 120 80" className="w-full h-full">
+          <path d="M8 40 H112" stroke={DEEP} strokeWidth="14" strokeLinecap="round" opacity=".35" />
+          <path d="M8 40 H112" stroke={TRACK} strokeWidth="10" strokeLinecap="round" />
+          <g className="rex-flow">
+            {[0, 22, 44, 66, 88].map((x) => <circle key={x} cx={x} cy="40" r="3.4" fill={GOLD} />)}
+          </g>
+          <g className="rex-flow rex-flow2">
+            {[11, 33, 55, 77, 99].map((x) => <circle key={x} cx={x} cy="40" r="2.6" fill={PALE} />)}
+          </g>
+        </svg>
+      )
+    case 'frecuencia-cardiaca': // an ECG trace with a beating pulse
+      return (
+        <svg viewBox="0 0 120 80" className="w-full h-full">
+          <path d="M8 40 H40 l6 -18 l7 34 l6 -16 H112" fill="none" stroke={TRACK} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          <g className="rex-beat" style={{ transformOrigin: '59px 40px' }}>
+            <path d="M59 30 c-6 -8 -18 -1 0 12 c18 -13 6 -20 0 -12 z" fill={GOLD} />
+          </g>
+        </svg>
+      )
+    case 'sueno-recuperacion': // a moon with particles rising as the body repairs
+      return (
+        <svg viewBox="0 0 120 80" className="w-full h-full">
+          <path d="M74 24 a16 16 0 1 0 14 26 a13 13 0 1 1 -14 -26 z" fill="none" stroke={GOLD} strokeWidth="2" />
+          <g className="rex-rise rex-rise1"><circle cx="34" cy="58" r="2.6" fill={PALE} /></g>
+          <g className="rex-rise rex-rise2"><circle cx="46" cy="58" r="2" fill={GOLD} /></g>
+          <g className="rex-rise rex-rise3"><circle cx="24" cy="58" r="2" fill={GOLD} /></g>
+        </svg>
+      )
+    case 'hidratacion': // a droplet dripping into a filling glass
+      return (
+        <svg viewBox="0 0 120 80" className="w-full h-full">
+          <path d="M48 18 L72 18 L68 66 L52 66 Z" fill="none" stroke={DEEP} strokeWidth="2" />
+          <clipPath id="glass"><path d="M49 19 L71 19 L67 65 L53 65 Z" /></clipPath>
+          <g clipPath="url(#glass)"><rect className="rex-fill" x="49" y="19" width="22" height="46" fill={GOLD} opacity=".8" /></g>
+          <g className="rex-drip"><path d="M60 6 c-4 5 -4 9 0 9 c4 0 4 -4 0 -9 z" fill={PALE} /></g>
+        </svg>
+      )
     default:
       return null
   }
@@ -94,7 +134,7 @@ export function RestExplainer({ id }: { id: string }) {
       </div>
       <div className="flex gap-3 items-start">
         <div className="shrink-0 w-24 h-16 rounded-lg bg-black/30 border border-white/5 grid place-items-center">
-          <Scene id={entry.id} />
+          <Scene id={entry.scene ?? entry.id} />
         </div>
         <div className="min-w-0">
           <p className="text-gold-pale font-bold text-sm leading-tight mb-1">{entry.title}</p>

@@ -5,6 +5,7 @@ import { fetchRecords, syncStreak, cachedRecords, cachedStreaks } from '../lib/a
 import { getToken, getGender, getClientName, getCheckins, getMaxStreak } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
 import { Pill } from '../components/ui'
+import { StreakFlame } from '../components/StreakFlame'
 import { Trophy, Crown, Sparkles, Flame } from 'lucide-react'
 
 export function Records() {
@@ -205,7 +206,10 @@ function RachasView({ client }: { client: string }) {
       <div className="grid grid-cols-2 gap-3 mb-5">
         <div className="hero-card rounded-card p-4 text-center">
           <div className="kicker mb-1">Tu racha</div>
-          <div className="text-gold text-4xl font-black leading-none tabular-nums">{myCur}</div>
+          <div className="flex items-center justify-center gap-2">
+            <StreakFlame streak={myCur} size={30} />
+            <div className="text-gold text-4xl font-black leading-none tabular-nums">{myCur}</div>
+          </div>
           <div className="text-[0.6rem] uppercase tracking-micro text-white/45 font-bold mt-1">semanas seguidas</div>
         </div>
         <div className="card p-4 text-center flex flex-col justify-center">

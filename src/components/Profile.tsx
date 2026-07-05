@@ -3,12 +3,13 @@ import { BottomSheet } from './ui'
 import {
   getClientName, setClientName, getGender, setGender,
   getBirthday, setBirthday, getBodyweight, addBodyweight, setStartWeek,
+  getRestEduPref, setRestEduPref,
 } from '../lib/store'
 import type { Gender } from '../lib/records'
 import { weightClass } from '../lib/records'
 import { memberCurrentWeek } from '../lib/week'
 import type { Routine } from '../lib/types'
-import { User, Cake, Scale, Check, CalendarRange, Minus, Plus } from 'lucide-react'
+import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen } from 'lucide-react'
 
 // Member profile: name, gender (record categories), birthday (cumpleaños board),
 // current bodyweight (record weight class + monthly nudge) and — for weekly plans —
@@ -18,6 +19,9 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [bday, setB] = useState(getBirthday() ?? '') // MM-DD
   const [bw, setBw] = useState(getBodyweight()?.toString() ?? '')
+  // rest-time micro-education: null = never asked. Treat null as "on" in the UI so
+  // the toggle reads true until the member deliberately turns it off.
+  const [restEdu, setRestEdu] = useState<boolean>(getRestEduPref() !== false)
   const weekly = !!routine && routine.style === 'weekly' && routine.totalWeeks > 1
   const [week, setWk] = useState(() => (routine ? memberCurrentWeek(routine) : 1))
   const [saved, setSaved] = useState(false)
@@ -30,6 +34,7 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
     if (bday) setBirthday(bday)
     const n = parseFloat(bw.replace(',', '.'))
     if (n > 0 && n !== getBodyweight()) addBodyweight(n)
+    setRestEduPref(restEdu)
     if (weekly && routine && week !== memberCurrentWeek(routine)) setStartWeek(week) // re-anchor only if changed
     setSaved(true)
     window.setTimeout(() => { setSaved(false); onClose() }, 650)
@@ -65,6 +70,14 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
             {wc ? <>Tu categoría: <b className="text-gold">{wc.label}</b>. </> : null}
             Actualizalo una vez por mes para clasificar bien tus récords.
           </p>
+        </Field>
+
+        <Field icon={<BookOpen size={15} />} label="Datos mientras descansás">
+          <div className="flex gap-2">
+            <button onClick={() => setRestEdu(true)} className={`flex-1 rounded-card py-2.5 font-bold uppercase text-sm border ${restEdu ? 'bg-gold text-ink border-gold' : 'bg-white/5 text-white/60 border-white/10'}`}>Sí</button>
+            <button onClick={() => setRestEdu(false)} className={`flex-1 rounded-card py-2.5 font-bold uppercase text-sm border ${!restEdu ? 'bg-gold text-ink border-gold' : 'bg-white/5 text-white/60 border-white/10'}`}>No</button>
+          </div>
+          <p className="text-[0.62rem] text-white/40 mt-1.5">Datos cortos sobre cómo funciona tu cuerpo, en cada pausa. También lo activás o desactivás desde el timer.</p>
         </Field>
 
         {weekly && routine && (

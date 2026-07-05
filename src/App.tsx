@@ -18,6 +18,7 @@ import { RestTimerHost } from './components/RestTimerHost'
 import { InstallSheet, armInstallCapture, canPromptInstall } from './components/InstallSheet'
 import { installNudgeSeen } from './lib/store'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { HomeSkeleton } from './components/HomeSkeleton'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
@@ -407,10 +408,15 @@ function NeedLink() {
   )
 }
 
-// Loading: after ~9s with no response, offer a way out so a slow/stuck backend
-// never traps the member on an endless spinner.
+// Loading: a shimmering skeleton of Home while the routine loads (feels like the
+// app is assembling it, not stuck). After ~9s with no response, swap to a way out
+// so a slow/stuck backend never traps the member on an endless screen.
 function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
-  if (!slow) return <Splash sub="Cargando tu rutina…" />
+  if (!slow) return (
+    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden" style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)' }}>
+      <div className="h-full overflow-y-auto"><HomeSkeleton /></div>
+    </div>
+  )
   return (
     <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain animate-pulse" />

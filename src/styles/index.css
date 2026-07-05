@@ -276,6 +276,23 @@ body::before {
   50% { transform: translate(44px,-24px); } 75% { transform: translate(66px,-36px); }
   85%,100% { transform: translate(66px,-36px); }
 }
+/* blood cells streaming through the vessel (two offset trains) */
+.rex-flow { animation: rexFlow 2.2s linear infinite; }
+.rex-flow2 { animation-duration: 2.9s; }
+@keyframes rexFlow { from { transform: translateX(-22px); } to { transform: translateX(22px); } }
+/* heartbeat pulse */
+.rex-beat { animation: rexBeat 1.15s ease-in-out infinite; }
+@keyframes rexBeat { 0%,100% { transform: scale(.82); } 14% { transform: scale(1.12); } 28% { transform: scale(.9); } }
+/* recovery particles drifting up + fading */
+.rex-rise { transform-box: fill-box; animation: rexRise 2.8s ease-in infinite; }
+.rex-rise2 { animation-delay: .9s; } .rex-rise3 { animation-delay: 1.7s; }
+@keyframes rexRise { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-34px); opacity: 0; } }
+/* droplet falling into the glass */
+.rex-drip { transform-box: fill-box; animation: rexDrip 3s ease-in infinite; }
+@keyframes rexDrip { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 1; } 40%,100% { transform: translateY(46px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .rex-flow,.rex-beat,.rex-rise,.rex-drip { animation: none !important; }
+}
 
 /* ---- Tilt-reactive gold foil (FoilTilt.tsx) --------------------------------
    The card rotates on --tilt-x/--tilt-y and a two-layer specular sheen tracks
@@ -355,6 +372,25 @@ body::before {
   .bar-grow { animation: none; }
 }
 
+/* ---- Skeleton shimmer (initial load) --------------------------------------
+   A gold-tinted sweep travels across placeholder blocks so the first paint reads
+   as "loading your routine", not a frozen screen. GPU-only (background-position). */
+.skel {
+  position: relative; overflow: hidden;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.skel::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(198,174,120,0.14) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: skelSweep 1.5s ease-in-out infinite;
+}
+@keyframes skelSweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .skel::after { animation: none; }
+}
+
 /* ---- Récords: the podium blocks rise from the floor on entry ---- */
 .podium-block {
   background: linear-gradient(180deg, rgba(198,174,120,0.85), rgba(138,106,56,0.55));
@@ -370,6 +406,43 @@ body::before {
 @keyframes podiumRise { from { transform: scaleY(0); } }
 @media (prefers-reduced-motion: reduce) {
   .podium-block { animation: none; }
+}
+
+/* ---- Living streak flame (StreakFlame.tsx) --------------------------------
+   The flame flickers, a glow breathes behind it (brighter with the streak), and
+   embers rise + fade. All transform/opacity — no layout, iOS-safe. */
+.flame-flicker { animation: flameFlicker 1.9s ease-in-out infinite; transform-origin: 50% 80%; }
+@keyframes flameFlicker {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25%      { transform: scale(1.06, 0.96) rotate(-2deg); }
+  50%      { transform: scale(0.97, 1.05) rotate(1.5deg); }
+  75%      { transform: scale(1.04, 0.98) rotate(-1deg); }
+}
+.flame-glow {
+  position: absolute; inset: -35%; border-radius: 9999px; pointer-events: none;
+  background: radial-gradient(circle, rgba(198,174,120,0.55), transparent 68%);
+  animation: flameGlow 1.9s ease-in-out infinite;
+}
+.flame-glow-1 { opacity: 0.35; }
+.flame-glow-2 { opacity: 0.6; }
+.flame-glow-3 { opacity: 0.9; inset: -45%; }
+@keyframes flameGlow { 0%, 100% { transform: scale(0.9); opacity: .5; } 50% { transform: scale(1.12); opacity: .9; } }
+.flame-ember {
+  position: absolute; left: 50%; top: 30%; width: 3px; height: 3px; border-radius: 9999px;
+  background: #F0E2BE; pointer-events: none;
+  animation: flameEmber 1.8s ease-in infinite;
+}
+.flame-ember-1 { animation-delay: 0s; margin-left: -1px; }
+.flame-ember-2 { animation-delay: .6s; margin-left: -5px; }
+.flame-ember-3 { animation-delay: 1.2s; margin-left: 3px; }
+@keyframes flameEmber {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-16px) scale(0.3); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flame-flicker, .flame-glow, .flame-ember { animation: none; }
+  .flame-ember { display: none; }
 }
 
 /* Waving Argentina flag (subtle cloth skew) */

@@ -8,6 +8,9 @@ export interface RestEducationEntry {
   id: string
   title: string
   text: string
+  // Which animated line-art scene to show (see RestExplainer.tsx). Defaults to `id`
+  // when omitted, so several entries can share one animation without redrawing it.
+  scene?: string
 }
 
 export const REST_EDUCATION: RestEducationEntry[] = [
@@ -40,6 +43,64 @@ export const REST_EDUCATION: RestEducationEntry[] = [
     id: 'sobrecarga-progresiva',
     title: 'Por qué sube el peso',
     text: 'El cuerpo se adapta solo a lo que lo desafía: si siempre levantás lo mismo, ya aprendió a manejarlo y deja de cambiar. Por eso tu plan suma un poco de peso, de reps o de series semana a semana — un empujón apenas mayor al que ya podés tolerar. Ese aumento gradual y sostenido es la sobrecarga progresiva, el motor de todo progreso real.',
+  },
+  // ---- new scenes ----
+  {
+    id: 'riego-sanguineo',
+    title: 'La "congestión" del músculo',
+    text: 'Cuando entrenás, el músculo llama sangre: se abren más capilares y llega más oxígeno y nutrientes. Eso es la congestión (el "pump"). No es solo estética: ese riego trae combustible y se lleva desechos, y con el tiempo tu cuerpo construye más capilares para nutrir mejor las fibras que trabajás.',
+  },
+  {
+    id: 'frecuencia-cardiaca',
+    title: 'El corazón también se entrena',
+    text: 'Entre series, tu pulso baja mientras el corazón repone lo gastado. Cuanto más entrenás, más rápido se recupera esa frecuencia: es una señal directa de que tu condición física mejora. Un corazón que vuelve rápido a la calma es un corazón más eficiente.',
+  },
+  {
+    id: 'sueno-recuperacion',
+    title: 'Crecés mientras dormís',
+    text: 'Durante el sueño profundo, el cuerpo libera hormona de crecimiento y repara el músculo que estresaste hoy. Por eso una mala noche se siente en la barra al otro día. El entrenamiento es el estímulo; el sueño es donde ocurre casi toda la construcción.',
+  },
+  {
+    id: 'hidratacion',
+    title: 'El agua es rendimiento',
+    text: 'El músculo es en gran parte agua, y hasta una deshidratación leve baja la fuerza, la potencia y la concentración. Tomar agua a lo largo del día no es un detalle: mantiene el volumen de sangre, la temperatura y la contracción funcionando como deben. Aprovechá la pausa y tomá un trago.',
+  },
+  // ---- reuse existing scenes ----
+  {
+    id: 'mente-musculo',
+    scene: 'unidades-motoras',
+    title: 'La conexión mente-músculo',
+    text: 'Pensar en el músculo que trabaja no es un cliché: dirigir la atención al músculo objetivo aumenta cuánto lo activás en cada repetición. Tu cerebro recluta mejor lo que "mira". Por eso una serie concentrada rinde más que una hecha en piloto automático.',
+  },
+  {
+    id: 'agarre-fuerza',
+    scene: 'contraccion-muscular',
+    title: 'La fuerza empieza en las manos',
+    text: 'Apretar fuerte la barra activa un reflejo (la irradiación) que tensa todo el brazo y el hombro, y te vuelve más estable y fuerte al instante. Un buen agarre no solo sostiene el peso: le avisa a todo el cuerpo que es hora de generar tensión.',
+  },
+  {
+    id: 'excentrica',
+    scene: 'microdano-reparacion',
+    title: 'La bajada también construye',
+    text: 'La fase en la que bajás el peso (la excéntrica) genera un estímulo enorme de crecimiento y fuerza. Bajar con control, sin soltar la carga, es la mitad "gratis" de cada repetición que muchos desperdician. Frená el descenso y cobrala.',
+  },
+  {
+    id: 'volumen-semanal',
+    scene: 'sobrecarga-progresiva',
+    title: 'El volumen manda',
+    text: 'El crecimiento responde más al total de series efectivas de la semana que a un solo día heroico. Repartir el trabajo en varias sesiones te deja entrenar con calidad, recuperarte y sumar más volumen útil. Por eso el plan distribuye, no amontona.',
+  },
+  {
+    id: 'rir-esfuerzo',
+    scene: 'atp-pc-descanso',
+    title: 'Cerca del fallo, no siempre al fallo',
+    text: 'Dejar 1 o 2 repeticiones "en reserva" (RIR) estimula casi lo mismo que ir al fallo, pero te fatiga mucho menos y cuida la técnica. Entrenar fuerte no es terminar destruido cada serie: es acumular buen trabajo que puedas repetir mañana.',
+  },
+  {
+    id: 'core-antimovimiento',
+    scene: 'respiracion-bracing',
+    title: 'El core frena, no flexiona',
+    text: 'La función principal del core no es hacer abdominales: es resistir el movimiento para proteger la columna cuando cargás, girás o te agachás. Un core fuerte transfiere la fuerza de las piernas al resto del cuerpo sin fugas. Por eso la plancha enseña más que mil crunches apurados.',
   },
 ]
 

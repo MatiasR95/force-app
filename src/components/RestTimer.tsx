@@ -96,9 +96,13 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
         <div className="flex items-center gap-2 mb-3">
           <Timer size={16} className="text-gold" />
           <span className="kicker">Pausa</span>
-          {active && eduPref && (
-            <button onClick={() => choose(false)} className="ml-auto text-[0.58rem] text-white/35 flex items-center gap-1" aria-label="Ocultar datos">
-              <X size={11} /> datos
+          {/* datos toggle: reflects the current state so it's ALWAYS reversible —
+              hide when on, bring back when off (once the member has chosen once). */}
+          {active && eduPref != null && (
+            <button onClick={() => choose(!eduPref)}
+              className={`ml-auto text-[0.58rem] flex items-center gap-1 ${eduPref ? 'text-white/35' : 'text-gold/80'}`}
+              aria-label={eduPref ? 'Ocultar datos' : 'Mostrar datos'}>
+              {eduPref ? <><X size={11} /> datos</> : <><BookOpen size={11} /> datos</>}
             </button>
           )}
           {!active && <span className="text-[0.62rem] text-white/40 ml-auto">la manejás vos</span>}
