@@ -203,10 +203,10 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
       <div className="flex-1 overflow-y-auto px-5">
         {item.type === 'single'
-          ? <SingleView ex={item.ex} dayId={day.id} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
+          ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
           : item.type === 'warmup'
             ? <WarmupView text={item.text} />
-            : <CircuitView block={item.block} dayId={day.id} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
+            : <CircuitView block={item.block} dayId={day.id} dayLabel={day.label} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
 
         <button onClick={primary.onClick}
           className="mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow">
@@ -275,7 +275,7 @@ function Dots({ n, done, flash, label }: { n: number; done: number; flash: numbe
 }
 
 // Per-exercise observación (e.g. "no pude terminar", "bajé el peso"). Saved to Seguimiento.
-function NoteField({ id, dayId }: { id: string; dayId: string }) {
+function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; name?: string; dayLabel?: string }) {
   const [open, setOpen] = useState(() => !!getNote(id))
   const [text, setText] = useState(() => getNote(id))
   if (!open) {
@@ -288,7 +288,7 @@ function NoteField({ id, dayId }: { id: string; dayId: string }) {
   return (
     <div className="mt-5">
       <div className="kicker mb-1.5">Tu observación (la ve el coach)</div>
-      <textarea value={text} rows={2} onChange={(e) => setText(e.target.value)} onBlur={() => saveNote(id, dayId, text)}
+      <textarea value={text} rows={2} onChange={(e) => setText(e.target.value)} onBlur={() => saveNote(id, dayId, text, { exName: name, dayLabel })}
         placeholder="Ej: no pude terminar la última serie / bajé a 25 kg / molestó el hombro"
         className="w-full rounded-card bg-white/5 border border-white/10 p-3 text-white text-sm placeholder:text-white/30 focus:border-gold/40 outline-none resize-none" />
     </div>
@@ -366,8 +366,8 @@ function WarmupView({ text }: { text: string }) {
   )
 }
 
-function SingleView({ ex, dayId, section, week, done, target, flash }: {
-  ex: ExerciseRow; dayId: string; section: SectionTag; week: number; done: number; target: number; flash: number
+function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }: {
+  ex: ExerciseRow; dayId: string; dayLabel: string; section: SectionTag; week: number; done: number; target: number; flash: number
 }) {
   // non-linear weeks (e.g. "4X1+3X3") carry a per-series rep plan — show the reps
   // for each series and mark the current one so it's trainable, not just raw text.
@@ -388,14 +388,14 @@ function SingleView({ ex, dayId, section, week, done, target, flash }: {
       {plan && plan.length > 1
         ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
         : <Dots n={target} done={done} flash={flash} />}
-      <NoteField id={ex.id} dayId={dayId} />
+      <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />
       {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} week={week} />}
     </>
   )
 }
 
-function CircuitView({ block, dayId, noteId, week, round, rounds, flash, timed }: {
-  block: Block; dayId: string; noteId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
+function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flash, timed }: {
+  block: Block; dayId: string; dayLabel: string; noteId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
 }) {
   const g = groupInfo(block)
   const word = g.roundWord === 'series' ? 'Serie' : 'Vuelta'
@@ -431,7 +431,7 @@ function CircuitView({ block, dayId, noteId, week, round, rounds, flash, timed }
         ))}
       </div>
       {!timed && <Dots n={rounds} done={round} flash={flash} label={(s) => `V${s + 1}`} />}
-      <NoteField id={noteId} dayId={dayId} />
+      <NoteField id={noteId} dayId={dayId} name={block.title} dayLabel={dayLabel} />
     </>
   )
 }

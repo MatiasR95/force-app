@@ -31,6 +31,14 @@ var CLIENTES_FOLDER_ID = '1-V8PAlzz4nmlPXB8IGiI1fM6ksX8D7aF' // optional; for na
 // it. Leave '' to keep it in CONFIG_SHEET_ID.
 var NOVEDADES_SHEET_ID = ''
 
+// Where the coach-facing `Seguimiento` digest tab lives — ONE consolidated,
+// human-readable log of every member comment/observation (client · fecha ·
+// día · ejercicio · observación), so coaches don't have to open each client's
+// per-client log and scroll past machine rows. Put the "FORCE - Horarios" file's
+// ID here AND give the gym account EDIT access to that file. Leave '' to fall
+// back to NOVEDADES_SHEET_ID, then to CONFIG_SHEET_ID.
+var COACH_NOTES_SHEET_ID = ''
+
 // ---- routing --------------------------------------------------------------
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || ''
@@ -262,6 +270,10 @@ function logInput_(token, items) {
     ]
   })
   if (rows.length) sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows)
+  // Mirror the free-text comments into the gym-wide coach digest so coaches read
+  // them all in one place. Best-effort: a digest hiccup must never fail the member's
+  // sync (their input is already safely in the per-client sheet above).
+  try { mirrorCoachNotes_(c.nombre, items) } catch (err) { /* digest is best-effort */ }
   return { ok: true, written: rows.length }
 }
 
@@ -590,4 +602,120 @@ function seguimientoSheet_(folder, nombre) {
   DriveApp.getRootFolder().removeFile(file)
   ss.getSheets()[0].appendRow(['timestamp', 'tipo', 'dia', 'ejercicio', 'kg_real', 'reps_real', 'rpe', 'nota'])
   return ss
+}
+
+// ---- coach comments digest (gym-wide, human-readable) ---------------------
+// One `Seguimiento` tab (in the FORCE - Horarios file — see COACH_NOTES_SHEET_ID)
+// that gathers EVERY member comment as its own row: Fecha | Cliente | Día |
+// Ejercicio | Observación | Tipo. Written newest-first (each new batch is inserted
+// right under the header) so coaches never scroll — the latest note is always on top.
+var COACH_NOTES_HEAD = ['Fecha', 'Cliente', 'Día', 'Ejercicio', 'Observación', 'Tipo']
+
+/** The `Seguimiento` digest sheet, created + formatted on first use (staff-tab style). */
+function coachNotesSheet_() {
+  var ss = SpreadsheetApp.openById(COACH_NOTES_SHEET_ID || NOVEDADES_SHEET_ID || CONFIG_SHEET_ID)
+  var sh = ss.getSheetByName('Seguimiento')
+  if (sh) return sh
+  sh = ss.insertSheet('Seguimiento', 0) // front of the file so coaches land on it
+  sh.getRange(1, 1, 1, COACH_NOTES_HEAD.length).setValues([COACH_NOTES_HEAD])
+    .setFontWeight('bold').setBackground('#111111').setFontColor('#C6AE78')
+  sh.setFrozenRows(1)
+  sh.setColumnWidth(1, 100) // Fecha
+  sh.setColumnWidth(2, 160) // Cliente
+  sh.setColumnWidth(3, 80)  // Día
+  sh.setColumnWidth(4, 180) // Ejercicio
+  sh.setColumnWidth(5, 420) // Observación
+  sh.setColumnWidth(6, 90)  // Tipo
+  sh.getRange('A2:A').setNumberFormat('yyyy-mm-dd')
+  sh.getRange('E2:E').setWrap(true)
+  // band only the data rows (showHeader=false) so the gold header above stays intact
+  try {
+    sh.getRange(2, 1, sh.getMaxRows() - 1, COACH_NOTES_HEAD.length)
+      .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false)
+  } catch (e) { /* banding optional */ }
+  return sh
+}
+
+/** Insert digest rows directly under the header so the newest comment stays on top. */
+function prependCoachRows_(sh, rows) {
+  if (!rows.length) return
+  sh.insertRowsAfter(1, rows.length)
+  sh.getRange(2, 1, rows.length, rows[0].length).setValues(rows)
+}
+
+/** Turn logInput items into digest rows and prepend them. Only free-text comments
+ *  (a member's end-of-session note or a per-exercise observación) qualify — set logs,
+ *  check-ins, bodyweight/birthday meta and cell edits carry no `note` and are skipped. */
+function mirrorCoachNotes_(nombre, items) {
+  var out = []
+  ;(items || []).forEach(function (it) {
+    var p = it.payload || {}
+    var note = String(p.note || '').trim()
+    if (!note) return
+    if (it.kind === 'session') {
+      out.push([dateCell_(p.date || it.ts), nombre, dayName_(p.dayLabel || p.dayId), p.bigOne || '—', note, 'Sesión'])
+    } else if (it.kind === 'note') {
+      out.push([dateCell_(p.date || it.ts), nombre, dayName_(p.dayLabel || p.dayId), p.exName || p.exerciseId || '—', note, 'Ejercicio'])
+    }
+  })
+  prependCoachRows_(coachNotesSheet_(), out)
+}
+
+/** A date/timestamp (Date, 'YYYY-MM-DD' or ISO) → a real Date so the column sorts &
+ *  formats; anything unparseable passes through as text. */
+function dateCell_(v) {
+  if (!v) return ''
+  if (Object.prototype.toString.call(v) === '[object Date]') return v
+  var s = String(v).trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.length > 10 ? s : s + 'T00:00:00')
+  return s
+}
+
+/** True if a string is just a date/timestamp (used to skip session rows that stored
+ *  the date in the note column because the member left the note blank). */
+function isDateLike_(s) {
+  return /^\d{4}-\d{2}-\d{2}([T ]|$)/.test(String(s || '').trim())
+}
+
+/** "DÍA 1" → "Día 1"; a dayId like "d1-3" → "Día 1"; blank → "—". */
+function dayName_(v) {
+  var s = String(v || '').trim()
+  if (!s) return '—'
+  var m = s.match(/^d(?:[ií]a)?\s*(\d+)/i)
+  return m ? 'Día ' + m[1] : s
+}
+
+/**
+ * One-time bootstrap: pull the comments already sitting in every per-client
+ * "Seguimiento — …" sheet into the consolidated digest, newest first. Safe to run
+ * again — it re-reads the sources and PREPENDS, so run it once on an empty digest
+ * (right after adding this feature); running twice would duplicate. Run manually
+ * from the Apps Script editor.
+ */
+function backfillCoachNotes() {
+  var conf = SpreadsheetApp.openById(CONFIG_SHEET_ID).getSheetByName('clientes').getDataRange().getValues()
+  var collected = []
+  for (var i = 1; i < conf.length; i++) {
+    var nombre = conf[i][1], folderId = conf[i][2]
+    if (!folderId) continue
+    try {
+      var files = DriveApp.getFolderById(folderId).getFilesByName('Seguimiento — ' + (nombre || 'Cliente'))
+      if (!files.hasNext()) continue
+      var rows = SpreadsheetApp.openById(files.next().getId()).getSheets()[0].getDataRange().getValues()
+      for (var r = 1; r < rows.length; r++) {
+        var kind = String(rows[r][1] || '').toLowerCase() // per-client `tipo` = the outbox kind
+        if (kind !== 'note' && kind !== 'session') continue
+        var nota = String(rows[r][7] || '').trim()        // session rows w/o note store the date here
+        if (!nota || isDateLike_(nota)) continue
+        collected.push({
+          ts: rows[r][0],
+          row: [dateCell_(rows[r][0]), nombre, dayName_(rows[r][2]),
+            rows[r][3] || '—', nota, kind === 'session' ? 'Sesión' : 'Ejercicio'],
+        })
+      }
+    } catch (e) { /* skip any client sheet we can't open */ }
+  }
+  collected.sort(function (a, b) { return new Date(b.ts) - new Date(a.ts) }) // newest first
+  prependCoachRows_(coachNotesSheet_(), collected.map(function (x) { return x.row }))
+  return 'backfill: ' + collected.length + ' comentario(s) agregados al digest'
 }

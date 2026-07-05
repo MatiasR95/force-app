@@ -253,13 +253,14 @@ export function isBirthdayToday(): boolean {
 // ---- per-exercise observaciones (client notes during a session) -----------
 type NoteMap = Record<string, string>
 export const getNote = (exerciseId: string): string => read<NoteMap>(KEYS.notes, {})[exerciseId] ?? ''
-export function saveNote(exerciseId: string, dayId: string, text: string): void {
+export function saveNote(exerciseId: string, dayId: string, text: string, meta?: { exName?: string; dayLabel?: string }): void {
   const map = read<NoteMap>(KEYS.notes, {})
   const t = text.trim()
   if (t) map[exerciseId] = t
   else delete map[exerciseId]
   write(KEYS.notes, map)
-  enqueue('note', { exerciseId, dayId, note: t, date: localDate() })
+  // exName/dayLabel ride along so the coach digest reads "Sentadilla · Día 1", not the raw id.
+  enqueue('note', { exerciseId, dayId, note: t, date: localDate(), exName: meta?.exName, dayLabel: meta?.dayLabel })
 }
 
 // ---- actuals (client-edited weight/reps/series for what they really did) ----
