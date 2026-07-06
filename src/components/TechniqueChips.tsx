@@ -34,8 +34,13 @@ export function setsReps(ex: ExerciseRow, week = 1): string {
     return `${ord} · ${ex.repsRaw || (ex.reps != null ? String(ex.reps) : '—')}`
   }
   const r = resolveWeek(ex, week)
+  // timed HIIT/isometrics: show the WEEK's work-time (Semana 6 = 25″, not the base 20″)
+  if (r.timeSec != null) {
+    const sets = r.sets != null ? `${r.sets}` : r.setsRaw
+    return sets ? `${r.timeSec} s × ${sets}` : `${r.timeSec} s`
+  }
   if (r.complexRaw) return r.complexRaw
-  const reps = ex.timeSec != null ? `${ex.timeSec} s` : (r.repsRaw || (r.reps != null ? String(r.reps) : ''))
+  const reps = r.repsRaw || (r.reps != null ? String(r.reps) : '')
   const sets = r.sets != null ? `${r.sets}` : r.setsRaw
   if (sets && reps) return `${reps} × ${sets}`
   return reps || sets || '—'
@@ -43,8 +48,8 @@ export function setsReps(ex: ExerciseRow, week = 1): string {
 
 /** Just the reps portion (for circuit rows where series is on the header). */
 export function repsText(ex: ExerciseRow, week = 1): string {
-  if (ex.timeSec != null) return `${ex.timeSec} s`
   const r = resolveWeek(ex, week)
+  if (r.timeSec != null) return `${r.timeSec} s` // week-resolved work-time (25″ at Semana 6)
   if (r.complexRaw) return r.complexRaw
   return r.repsRaw || (r.reps != null ? String(r.reps) : '—')
 }

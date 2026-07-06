@@ -149,14 +149,28 @@ export default function App() {
   const eventTheme = currentEventTheme()
   const eventAccent = eventTheme?.accent ?? '#C6AE78'
 
-  // suggested day = next day NOT trained this week (miss a day → do the next one)
-  const trainedDayIds = new Set(getSessions().filter((s) => withinDays(s.date, 7)).map((s) => s.dayId))
-  const nextUndone = routine.days.findIndex((d) => !trainedDayIds.has(d.id))
-  let suggestedDay = nextUndone >= 0 ? nextUndone : 0
+  // Suggested day = the plan advancing ONE day at a time, in sequence:
+  //  • already trained today → keep THAT day highlighted (it's still "hoy")
+  //  • otherwise → the day AFTER your most recent session (wraps around; skip-aware,
+  //    so missing a day never strands you — you just continue from where you were)
+  //  • first run (nothing logged) → the day you chose on launch, else Día 1
+  // The old logic ("first day not trained in the last 7 days") ignored order and, for
+  // a 5–6×/week plan, would jump to whatever single day was still "undone" (e.g. Día 6)
+  // instead of the next day in your rotation.
+  const sessions = getSessions()
+  const dayIndexOf = (id: string) => routine.days.findIndex((d) => d.id === id)
+  const byDateDesc = [...sessions]
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .reverse()
+  const doneToday = byDateDesc.find((s) => s.date === localDate() && dayIndexOf(s.dayId) >= 0)
+  const mostRecent = byDateDesc.find((s) => dayIndexOf(s.dayId) >= 0)
+  let suggestedDay = 0
+  if (doneToday) suggestedDay = dayIndexOf(doneToday.dayId)
+  else if (mostRecent) suggestedDay = (dayIndexOf(mostRecent.dayId) + 1) % routine.days.length
   // first run (nothing trained yet): start from the day the member chose on launch
   const startDayId = getStartDay()
-  if (startDayId && getSessions().length === 0) {
-    const idx = routine.days.findIndex((d) => d.id === startDayId)
+  if (startDayId && sessions.length === 0) {
+    const idx = dayIndexOf(startDayId)
     if (idx >= 0) suggestedDay = idx
   }
 
@@ -327,12 +341,6 @@ function GateShell({ title, sub, children }: { title: string; sub: string; child
       </div>
     </div>
   )
-}
-
-function withinDays(date: string, n: number): boolean {
-  const today = localDate()
-  const a = new Date(date + 'T00:00:00'), b = new Date(today + 'T00:00:00')
-  return (b.getTime() - a.getTime()) / 86400000 < n
 }
 
 function NavBtn({ active, onClick, icon, label }: {

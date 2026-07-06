@@ -14,6 +14,7 @@ export interface Resolved {
   load: Load
   complexRaw: string | null // set when the week cell couldn't be split (show as-is)
   plan: number[] | null     // non-linear per-series reps ("4X1+3X3" → [4,3,3,3])
+  timeSec: number | null    // HIIT/timed work-time in seconds for this week ("25¨X4" → 25)
 }
 
 // Merge one "Semana N" cell onto the previous week's resolved prescription.
@@ -21,7 +22,7 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
   if (w.inherit) return prev // "Mismo semana ant."
   if (w.complex) {
     // a non-linear per-series plan ("4X1+3X3"): the series count IS the plan length,
-    // and the raw scheme stays as the label.
+    // and the raw scheme stays as the label. (timeSec carries through via ...prev.)
     if (w.plan && w.plan.length) {
       return { ...prev, sets: w.plan.length, plan: w.plan, load: w.load ?? prev.load, complexRaw: w.raw }
     }
@@ -37,6 +38,8 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
     load: w.load ?? prev.load,
     complexRaw: null,
     plan: null,
+    // a timed HIIT override ("25¨X4") carries new seconds; a plain cell inherits.
+    timeSec: w.timeSec ?? prev.timeSec,
   }
 }
 
@@ -46,6 +49,7 @@ function resolveRaw(ex: ExerciseRow, week: number): Resolved {
     load: ex.load,
     complexRaw: ex.plan && ex.plan.length ? (ex.raw.series || ex.raw.reps) : null,
     plan: ex.plan ?? null,
+    timeSec: ex.timeSec,
   }
   if (week <= 1) {
     // some coaches put week 1 in an explicit "Semana 1" column instead of the

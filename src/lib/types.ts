@@ -25,6 +25,7 @@ export interface WeekCell {
   inherit: boolean    // "Mismo semana ant." → use the previous week's prescription
   col: number         // 0-based sheet column of this "Semana N" cell (for writeback)
   plan?: number[]     // non-linear per-series reps: "4X1+3X3"→[4,3,3,3]; "10-10-8-8"→[10,10,8,8]
+  timeSec?: number | null // HIIT/timed override work-time in seconds: "25¨X4"→25 (with sets=4)
 }
 
 export type MovementPattern =

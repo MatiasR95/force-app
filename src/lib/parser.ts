@@ -166,6 +166,15 @@ export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | n
     const load = /kg|banda|gris|verde|roja|negra|azul|amarill|violet|naranj/i.test(sp.rest) ? parseLoad(sp.rest) : null
     return { week, reps: null, sets: sp.plan.length, load, raw: s, complex: true, inherit: false, col, plan: sp.plan }
   }
+  // a timed HIIT/isometric override — "25¨X4", "30\"x3", "20 s" → work-time in
+  // seconds (+ an optional trailing "×N" round count). Without this these fall to
+  // the "complex" bucket and the per-week work-time is lost (the base 20″ shows on
+  // every week even when Semana 6 says 25″).
+  const secs = parseTimeSec(s)
+  if (secs != null) {
+    const rounds = s.match(/[x×]\s*(\d+)\s*$/i)
+    return { week, reps: null, sets: rounds ? parseInt(rounds[1], 10) : null, load: null, raw: s, complex: false, inherit: false, col, timeSec: secs }
+  }
   // couldn't cleanly split → keep raw, surface any weight
   const load = /kg/i.test(s) ? parseLoad(s) : null
   return { week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col }
@@ -397,9 +406,17 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       // time + round count forward so every row shows it instead of a "—".
       if (bl.timed && bl.exercises.length > 1) {
         let lastTime: number | null = null, lastSets: number | null = null, lastTimeRaw = ''
+        let lastWeeks: Record<number, WeekCell> = {}
         for (const ex of bl.exercises) {
-          if (ex.timeSec != null) { lastTime = ex.timeSec; lastTimeRaw = ex.repsRaw }
-          else if (lastTime != null) { ex.timeSec = lastTime; if (!ex.repsRaw) ex.repsRaw = lastTimeRaw }
+          if (ex.timeSec != null) { lastTime = ex.timeSec; lastTimeRaw = ex.repsRaw; lastWeeks = ex.weeks }
+          else if (lastTime != null) {
+            ex.timeSec = lastTime
+            if (!ex.repsRaw) ex.repsRaw = lastTimeRaw
+            // the coach writes the per-week work-time ("25¨X4") once, on the first
+            // circuit row — the blanks below share it. Carry the week overrides too
+            // so every row resolves the same seconds/rounds per week (not just wk1).
+            if (Object.keys(ex.weeks).length === 0) ex.weeks = lastWeeks
+          }
           if (ex.sets != null) lastSets = ex.sets
           else if (lastSets != null) ex.sets = lastSets
         }
