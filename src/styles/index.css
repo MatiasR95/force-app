@@ -527,6 +527,29 @@ body::before {
   .flame-ember { display: none; }
 }
 
+/* ---- Entrenar: live volume ticker ------------------------------------------
+   Each marked set floats a "+kg" chip up from the footer counter — the session's
+   work visibly accumulates. Transform/opacity only, iOS-safe. */
+.vol-pop {
+  position: absolute; left: 50%; bottom: 100%;
+  color: #EADEB4; font-weight: 900; font-size: 0.72rem; white-space: nowrap;
+  pointer-events: none; animation: volPop .9s ease-out forwards;
+}
+@keyframes volPop {
+  0%   { opacity: 0; transform: translate(-50%, 8px); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -14px); }
+}
+
+/* ---- PR proximity bar: fills from the left when the exercise appears ---- */
+.pr-fill { transform-origin: left center; animation: prFill .8s cubic-bezier(.22,1,.36,1); }
+@keyframes prFill { from { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vol-pop { animation: none; opacity: 0; }
+  .pr-fill { animation: none; }
+}
+
 /* Waving Argentina flag (subtle cloth skew) */
 .flag-wave { transform-origin: left center; animation: flagWave 3.4s ease-in-out infinite; }
 @keyframes flagWave {

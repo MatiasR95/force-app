@@ -8,6 +8,7 @@ import emblem from '../assets/logo/emblem_gold_t.png'
 import { Dumbbell, History, Quote, TriangleAlert } from 'lucide-react'
 import { getClientName, lastSession, localDate } from '../lib/store'
 import { nextQuote } from '../lib/quotes'
+import { saludo } from './Home'
 
 const TODAY = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -60,7 +61,7 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <header className="flex items-center justify-between mb-3">
         <div>
-          <div className="kicker">{name ? `Hola, ${name.split(' ')[0]}` : 'Bienvenido'}</div>
+          <div className="kicker">{name ? `${saludo()}, ${name.split(' ')[0]}` : 'Bienvenido'}</div>
           <div className="text-white/40 text-xs mt-0.5 capitalize">{TODAY()}</div>
         </div>
         <img src={emblem} alt="FORCE" className="h-10 w-10 object-contain opacity-90" />

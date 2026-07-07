@@ -25,6 +25,12 @@ const TODAY_LONG = () =>
 const WD = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 const shortDay = (iso: string) => WD[new Date(iso + 'T00:00:00').getDay()]
 
+// time-aware greeting — the app says hello like the coach at the door would
+export const saludo = () => {
+  const h = new Date().getHours()
+  return h < 12 ? 'Buen día' : h < 19 ? 'Buenas tardes' : 'Buenas noches'
+}
+
 export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
   routine: Routine
   week: number
@@ -76,7 +82,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
           </div>
         </div>
         <h1 className="heading text-3xl text-white mt-4 glow-text">
-          {name ? <>Hola, <span className="text-gold">{name.split(' ')[0]}</span></> : 'Bienvenido a FORCE'}
+          {name ? <>{saludo()}, <span className="text-gold">{name.split(' ')[0]}</span></> : 'Bienvenido a FORCE'}
         </h1>
         <div className="text-white/45 text-sm mt-1 capitalize">{TODAY_LONG()}</div>
       </FoilTilt>

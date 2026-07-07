@@ -21,7 +21,7 @@ import { Celebration, FoilBurst } from '../components/Celebration'
 import { FoilTilt } from '../components/FoilTilt'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
-import { X, ChevronLeft, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -52,6 +52,26 @@ export function buildItems(day: RoutineDay): Item[] {
   return items
 }
 
+// ---- live session volume: prescription kg already lifted (mirrors sessionStats,
+// but only counts the sets the member has actually marked) ----
+function setKg(ex: ExerciseRow, week: number, setIdx: number): number {
+  const r = resolveWeek(ex, week)
+  if (r.load.value == null) return 0
+  const reps = r.plan?.[setIdx] ?? r.reps ?? 0
+  if (reps <= 0) return 0
+  return recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell') * reps
+}
+function itemKgDone(it: Item, week: number, n: number): number {
+  if (n <= 0 || it.type === 'warmup') return 0
+  let kg = 0
+  if (it.type === 'single') {
+    for (let s = 0; s < n; s++) kg += setKg(it.ex, week, s)
+  } else {
+    for (const ex of it.block.exercises) for (let s = 0; s < n; s++) kg += setKg(ex, week, s)
+  }
+  return kg
+}
+
 const SECTION_LABEL: Record<SectionTag, string> = {
   ramp: 'Aproximación', big: 'The Big One', accessory: 'Accesorio',
   hiit: 'HIIT', finisher: 'Finisher', core: 'Zona media', warmup: 'Calentamiento', other: 'Trabajo',
@@ -72,6 +92,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
   const [prHits, setPrHits] = useState<Set<string>>(new Set()) // exercise ids that set a PR this session
+  const [gain, setGain] = useState<{ kg: number; id: number } | null>(null) // "+kg" chip on each marked set
 
   // persist progress on every change so backgrounding / leaving keeps it
   useEffect(() => {
@@ -98,6 +119,8 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const target = unitsOf(item, week)
   const doneCount = done[key] ?? 0
   const isLast = i === items.length - 1
+  // running total of prescription kg already moved this session (footer ticker)
+  const totalKg = Math.round(items.reduce((a, it) => a + itemKgDone(it, week, done[keyOf(it)] ?? 0), 0))
 
   // Auto-capture a record when a record-eligible lift is completed (a PR vs the
   // member's own best). No manual entry — it just happens when they finish it.
@@ -151,6 +174,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const n = Math.min(target, doneCount + 1)
     setDone((d) => ({ ...d, [key]: n }))
     setFlash(n - 1); window.setTimeout(() => setFlash(-1), 420)
+    // float the kg this set just added over the footer volume ticker
+    const delta = itemKgDone(item, week, n) - itemKgDone(item, week, n - 1)
+    if (delta > 0) setGain({ kg: delta, id: Date.now() })
     if (!isTimed) setRestSignal((s) => s + 1) // start/reset the pause after marking
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
     if (item.type === 'single') {
@@ -234,14 +260,37 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
             </div>
           )
         })()}
+
+        {/* what's coming: prep the head (and the equipment) for the next station */}
+        {!isLast && (
+          <div className="mt-4 flex items-center justify-center gap-1.5 text-xs">
+            <span className="text-[0.55rem] uppercase tracking-micro font-bold text-white/35">Después</span>
+            <ChevronRight size={12} className="text-gold/60 shrink-0" />
+            <span className="font-bold text-white/60 truncate max-w-[65%]">{itemLabel(items[i + 1])}</span>
+          </div>
+        )}
         <div className="h-4" />
       </div>
 
       <div className="flex items-center gap-3 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10">
         <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0}
           className="p-3 rounded-full bg-white/5 text-white/70 disabled:opacity-30"><ChevronLeft size={20} /></button>
-        {!isLast && (
-          <button onClick={skip} className="text-white/45 text-sm font-bold px-3 py-2 ml-auto">Saltar →</button>
+        {/* live volume ticker: the session's work accumulates in plain sight */}
+        <div className="relative flex-1 text-center leading-tight">
+          {totalKg > 0 && (
+            <>
+              <div className="text-[0.5rem] uppercase tracking-micro text-white/40 font-bold">Volumen de hoy</div>
+              <div className="text-gold font-black text-sm tabular-nums">
+                <NumberTicker value={totalKg} /> kg
+              </div>
+            </>
+          )}
+          {gain && <span key={gain.id} className="vol-pop">+{Math.round(gain.kg).toLocaleString('es-AR')} kg</span>}
+        </div>
+        {!isLast ? (
+          <button onClick={skip} className="text-white/45 text-sm font-bold px-3 py-2">Saltar →</button>
+        ) : (
+          <div className="w-[70px]" />
         )}
       </div>
     </div>
@@ -366,6 +415,36 @@ function WarmupView({ text }: { text: string }) {
   )
 }
 
+// How close today's prescription is to the member's own record for this lift —
+// a quiet motivator ("estás al 87%"), gold call-out when today can beat it.
+function PrProximity({ ex, week }: { ex: ExerciseRow; week: number }) {
+  const lift = matchRecordLift(ex.name)
+  const gender = getGender()
+  const r = resolveWeek(ex, week)
+  if (!lift || !gender || r.load.value == null) return null
+  const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), getClientName() ?? 'Vos')
+  if (!prev || prev.kg <= 0) return null
+  const today = recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell')
+  if (today <= 0) return null
+  const pct = Math.min(100, Math.round((today / prev.kg) * 100))
+  const atPr = today >= prev.kg
+  const kg = (n: number) => n.toLocaleString('es-AR')
+  return (
+    <div className="mt-3">
+      <div className="flex items-baseline justify-between gap-2 text-[0.6rem] font-bold">
+        <span className="uppercase tracking-micro text-white/40">Hoy vs tu récord</span>
+        <span className={atPr ? 'text-gold' : 'text-white/50'}>
+          {atPr ? `¡Podés superar tus ${kg(prev.kg)} kg! 🏆` : `${pct}% de ${kg(prev.kg)} kg`}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+        <div className={`pr-fill h-full rounded-full ${atPr ? 'bg-gold-fill' : 'bg-gold/60'}`}
+          style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }: {
   ex: ExerciseRow; dayId: string; dayLabel: string; section: SectionTag; week: number; done: number; target: number; flash: number
 }) {
@@ -383,6 +462,7 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }:
         </div>
       )}
       {section !== 'ramp' && <div><LastTime exId={ex.id} /></div>}
+      {section !== 'ramp' && <PrProximity ex={ex} week={week} />}
       <TechniqueChips ex={ex} />
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       {plan && plan.length > 1
@@ -611,6 +691,10 @@ function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () 
   )
 }
 
+// effort word for the RPE equalizer — mirrors how coaches talk about esfuerzo
+const RPE_WORD = (v: number) =>
+  v <= 2 ? 'Muy suave' : v <= 4 ? 'Cómodo' : v <= 6 ? 'Exigente' : v <= 8 ? 'Muy duro' : v === 9 ? 'Al límite' : 'Máximo'
+
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
 function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
   day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; onClose: () => void; onBack: () => void
@@ -679,10 +763,22 @@ function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
           <span className="kicker">Esfuerzo de la sesión (RPE)</span>
           <span className="text-gold text-3xl font-black tabular-nums">{rpe}</span>
         </div>
-        <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(+e.target.value)}
-          className="w-full accent-[#C6AE78]" />
-        <div className="flex justify-between text-[0.6rem] text-white/40 font-bold mt-1">
-          <span>Suave</span><span>Máximo</span>
+        {/* tactile equalizer: ten bars that grow with the effort — tap to set */}
+        <div className="flex items-end gap-1" role="radiogroup" aria-label="Esfuerzo de la sesión">
+          {Array.from({ length: 10 }, (_, k) => k + 1).map((v) => (
+            <button key={v} role="radio" aria-checked={rpe === v} aria-label={`RPE ${v}`}
+              onClick={() => { setRpe(v); try { navigator.vibrate?.(8) } catch { /* no-op */ } }}
+              className="flex-1 flex flex-col justify-end items-stretch min-h-[44px] py-1">
+              <span
+                className={`w-full rounded-[5px] transition-all duration-200 ${v <= rpe ? 'bg-gold-fill' : 'bg-white/10'} ${v === rpe ? 'shadow-[0_0_10px_rgba(198,174,120,0.55)]' : ''}`}
+                style={{ height: 8 + v * 2.6 }} />
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between items-baseline text-[0.6rem] text-white/40 font-bold mt-1">
+          <span>Suave</span>
+          <span className="text-gold text-[0.68rem] uppercase tracking-micro">{RPE_WORD(rpe)}</span>
+          <span>Máximo</span>
         </div>
       </div>
 
