@@ -99,6 +99,33 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done })
   }, [i, done, finishing, day.id])
 
+  // Keep the screen awake for the whole session so the phone doesn't auto-lock
+  // mid-rest (the #1 way the timer alert used to get lost). Re-acquired on
+  // return from background — the lock is released by the OS every time the app
+  // is hidden. Released on unmount. No-op where Wake Lock isn't supported.
+  useEffect(() => {
+    type WL = { release?: () => Promise<void>; released?: boolean }
+    let lock: WL | null = null
+    let disposed = false
+    const acquire = async () => {
+      try {
+        const nav = navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<WL> } }
+        const wl = await nav.wakeLock?.request('screen')
+        if (!wl) return
+        if (disposed) wl.release?.().catch(() => {})
+        else lock = wl
+      } catch { /* denied / unsupported — audio chime still covers the alert */ }
+    }
+    acquire()
+    const onVis = () => { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      disposed = true
+      document.removeEventListener('visibilitychange', onVis)
+      lock?.release?.().catch(() => {})
+    }
+  }, [])
+
   // Baseline the medal board at session START: everything already earned before
   // today is marked seen, so the end-of-session unlock celebrates ONLY medals won
   // during THIS session — never a re-run of the member's whole trophy case.

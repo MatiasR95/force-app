@@ -2,6 +2,13 @@
 // so it keeps "running" while the app is backgrounded or reloaded, and fires an
 // alert — chime + vibration + system notification — when it finishes, no matter
 // which screen (or app) the member is on. State is shared app-wide + persisted.
+//
+// Locked-phone alert: page JS is SUSPENDED while the phone is locked, so the
+// chime is pre-scheduled on the Web Audio clock the moment the pause starts,
+// with a near-silent looping buffer keeping the audio session alive — the audio
+// pipeline keeps rendering under lock (like a music app) and the chime sounds
+// on time. The end-of-rest notification goes through the service worker
+// (registration.showNotification) so Android delivers it to the lock screen.
 
 const KEY = 'force.restTimer'
 
@@ -15,6 +22,9 @@ function load(): RestState {
 let state: RestState = load()
 const subs = new Set<() => void>()
 let audio: AudioContext | null = null
+let silence: AudioBufferSourceNode | null = null // keep-alive loop while the pause runs
+let scheduled: OscillatorNode[] = []             // chime pre-scheduled at start
+let chimeAt: number | null = null                // wall-clock ms the scheduled chime fires
 
 function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* quota */ } }
 function set(p: Partial<RestState>) { state = { ...state, ...p }; persist(); subs.forEach((f) => f()) }
@@ -34,16 +44,76 @@ function ensureAudio() {
     type W = typeof window & { webkitAudioContext?: typeof AudioContext }
     const Ctx = window.AudioContext ?? (window as W).webkitAudioContext
     if (Ctx) { audio ??= new Ctx(); audio.resume?.() }
+    // iOS 17+: declare a playback session so audio keeps running under lock and
+    // ignores the hardware silent switch (like a timer/music app).
+    const nav = navigator as unknown as { audioSession?: { type: string } }
+    if (nav.audioSession) nav.audioSession.type = 'playback'
   } catch { /* no-op */ }
 }
 function requestNotify() {
   try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {}) } catch { /* no-op */ }
 }
 
-export function startRest(sec: number) { ensureAudio(); requestNotify(); set({ status: 'running', endsAt: Date.now() + sec * 1000, remaining: null }) }
-export function pauseRest() { if (state.status !== 'running') return; set({ status: 'paused', remaining: restRemaining(), endsAt: null }) }
-export function resumeRest() { if (state.status !== 'paused') return; ensureAudio(); set({ status: 'running', endsAt: Date.now() + (state.remaining ?? 0) * 1000, remaining: null }) }
-export function resetRest() { set({ status: 'idle', endsAt: null, remaining: null }) }
+// iOS marks the context "interrupted" during a lock; kick it back on return.
+try {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') audio?.resume?.().catch(() => {})
+  })
+} catch { /* SSR/no-op */ }
+
+function tone(f: number, at: number, d = 0.18) {
+  if (!audio) return
+  const o = audio.createOscillator(), g = audio.createGain()
+  o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(audio.destination)
+  const s = audio.currentTime + at
+  g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.35, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + d)
+  o.start(s); o.stop(s + d + 0.02)
+  return o
+}
+
+function clearScheduled() {
+  scheduled.forEach((o) => { try { o.stop() } catch { /* already stopped */ } })
+  scheduled = []
+  if (silence) { try { silence.stop() } catch { /* already stopped */ } silence = null }
+  chimeAt = null
+}
+
+/** Pre-schedule the end-of-rest chime `sec` seconds ahead on the audio clock. */
+function scheduleChime(sec: number) {
+  if (!audio) return
+  clearScheduled()
+  try {
+    // near-silent loop: keeps the audio pipeline rendering while locked so the
+    // scheduled chime below fires on time. Not gain 0 — a fully silent graph
+    // can be optimized away.
+    const buf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate)
+    const src = audio.createBufferSource(); src.buffer = buf; src.loop = true
+    const g = audio.createGain(); g.gain.value = 0.001
+    src.connect(g); g.connect(audio.destination)
+    src.start()
+    src.stop(audio.currentTime + sec + 2) // release the session shortly after the chime
+    silence = src
+    const os = [tone(880, sec), tone(1318.5, sec + 0.2), tone(1760, sec + 0.42)]
+    scheduled = os.filter((o): o is OscillatorNode => !!o)
+    chimeAt = Date.now() + sec * 1000
+  } catch { /* no-op */ }
+}
+
+export function startRest(sec: number) {
+  ensureAudio(); requestNotify(); scheduleChime(sec)
+  set({ status: 'running', endsAt: Date.now() + sec * 1000, remaining: null })
+}
+export function pauseRest() {
+  if (state.status !== 'running') return
+  clearScheduled()
+  set({ status: 'paused', remaining: restRemaining(), endsAt: null })
+}
+export function resumeRest() {
+  if (state.status !== 'paused') return
+  ensureAudio(); scheduleChime(state.remaining ?? 0)
+  set({ status: 'running', endsAt: Date.now() + (state.remaining ?? 0) * 1000, remaining: null })
+}
+export function resetRest() { clearScheduled(); set({ status: 'idle', endsAt: null, remaining: null }) }
 export function completeRest() { if (state.status === 'done') return; set({ status: 'done', endsAt: null, remaining: 0 }); fireAlert() }
 
 /** Called by the app-wide watcher each tick / on focus. */
@@ -58,21 +128,22 @@ export function tickRest() {
 
 function fireAlert() {
   try { navigator.vibrate?.([140, 70, 140, 70, 220]) } catch { /* no-op */ }
+  // the scheduled chime is (or just was) sounding — don't double it; play live
+  // only if there was no schedule (e.g. audio was blocked at start).
+  const chimeHandled = chimeAt != null && Date.now() - chimeAt < 3_000
+  if (!chimeHandled) {
+    try { tone(880, 0); tone(1318.5, 0.2); tone(1760, 0.42) } catch { /* no-op */ }
+  }
+  window.setTimeout(clearScheduled, 2_500) // release the keep-alive after the chime rings out
   try {
-    if (audio) {
-      const tone = (f: number, at: number, d = 0.18) => {
-        const o = audio!.createOscillator(), g = audio!.createGain()
-        o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(audio!.destination)
-        const s = audio!.currentTime + at
-        g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.35, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + d)
-        o.start(s); o.stop(s + d + 0.02)
-      }
-      tone(880, 0); tone(1318.5, 0.2); tone(1760, 0.42)
-    }
-  } catch { /* no-op */ }
-  try {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('FORCE · ¡Descanso terminado!', { body: 'Metele a la próxima serie 💪', tag: 'force-rest', silent: false })
+    if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+      const title = 'FORCE · ¡Descanso terminado!'
+      const opts = { body: 'Metele a la próxima serie 💪', tag: 'force-rest', silent: false }
+      // service worker path delivers to the lock screen on Android; plain
+      // `new Notification` is a fallback (and throws on some Chrome versions).
+      navigator.serviceWorker?.getRegistration()
+        .then((r) => { if (r?.showNotification) r.showNotification(title, opts); else new Notification(title, opts) })
+        .catch(() => { try { new Notification(title, opts) } catch { /* no-op */ } })
     }
   } catch { /* no-op */ }
 }
