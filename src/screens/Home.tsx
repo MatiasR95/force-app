@@ -17,7 +17,8 @@ import {
   isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions,
 } from '../lib/store'
 import { WeekRing } from '../components/WeekRing'
-import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X } from 'lucide-react'
+import { recapMonth, dismissRecap, RecapStory } from '../components/MonthlyRecap'
+import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X, Disc3 } from 'lucide-react'
 
 const TODAY_LONG = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -40,6 +41,8 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 }) {
   const [weather, setWeather] = useState<WeatherBundle | null>(null)
   const [profile, setProfile] = useState(false)
+  const [recap, setRecap] = useState(() => recapMonth())
+  const [recapOpen, setRecapOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [rivals, setRivals] = useState(() => getRivalPending())
   const name = getClientName()
@@ -92,6 +95,23 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 
       {/* gym announcements (holiday hours / closures) — staff-managed */}
       <NewsBanner />
+
+      {/* last month's recap, offered once when the month turns */}
+      {recap && (
+        <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-3.5 mb-4 flex items-center gap-3">
+          <Disc3 size={22} className="text-gold shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-white text-sm">Tu <span className="capitalize">{recap.label}</span> en FORCE está listo</div>
+            <p className="text-white/70 text-xs mt-0.5">{recap.sessions} entrenamiento{recap.sessions === 1 ? '' : 's'} que valen la pena revivir.</p>
+          </div>
+          <button onClick={() => setRecapOpen(true)}
+            className="shrink-0 rounded-full bg-gold-fill text-ink text-xs font-black uppercase px-3.5 py-2 active:scale-95">Verlo</button>
+          <button onClick={() => { dismissRecap(recap.ym); setRecap(null) }} aria-label="Cerrar" className="text-white/40 shrink-0"><X size={16} /></button>
+        </div>
+      )}
+      {recapOpen && recap && (
+        <RecapStory data={recap} onClose={() => { setRecapOpen(false); setRecap(null) }} />
+      )}
 
       {/* someone in your category took a record → go for the revancha */}
       {rivals.length > 0 && (

@@ -3,6 +3,7 @@ import type { MovementPattern } from '../lib/types'
 import { StatHero, Spine } from '../components/ui'
 import {
   bigThreeE1RM, weeklySetVolume, routineTonnage, attendanceThisMonth, currentStreakWeeks, fmtTonnage, fmtKg,
+  lifetimeKg, tonnageComparison,
 } from '../lib/metrics'
 import { PATTERN_LABEL } from '../lib/media'
 import { getCheckins, getSessions, getMyRecords } from '../lib/store'
@@ -62,6 +63,11 @@ export function Dashboard({ routine }: { routine: Routine }) {
             <div><StatHero value={<CountUp to={racha} delay={320} />} label="Semanas seguidas" /></div>
           </div>
         </div>
+      </Reveal>
+
+      {/* lifetime odometer: everything you ever moved in FORCE, made tangible */}
+      <Reveal delay={110}>
+        <Odometer routine={routine} />
       </Reveal>
 
       {/* training heatmap — a scannable shape of your last 12 weeks */}
@@ -161,6 +167,35 @@ export function Dashboard({ routine }: { routine: Routine }) {
         Cómo se calcula: 1RM estimado con la fórmula de Epley (carga × [1 + reps/30]).
         Tonelaje = carga × reps × series. Barra olímpica de 20 kg; "x lado" = peso por lado.
       </p>
+    </div>
+  )
+}
+
+// Lifetime tonnage: a rolling odometer + a size comparison members can quote to
+// each other ("ya levanté un colectivo"). Hidden until the first session exists.
+function Odometer({ routine }: { routine: Routine }) {
+  const sessions = getSessions()
+  if (sessions.length === 0) return null
+  const { kg, approx } = lifetimeKg(routine, sessions)
+  if (kg <= 0) return null
+  const t = kg / 1000
+  const { passed, next } = tonnageComparison(kg)
+  return (
+    <div className="hero-card rounded-card p-4 mb-3">
+      <div className="kicker mb-1">Levantaste en total</div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-gold text-4xl font-black tabular-nums leading-none">
+          {t >= 1 ? <CountUp to={t} decimals={t < 10 ? 1 : 0} delay={150} /> : <CountUp to={kg} delay={150} />}
+        </span>
+        <span className="text-gold/70 font-black">{t >= 1 ? 'toneladas' : 'kg'}</span>
+        {approx && <span className="text-white/35 text-[0.6rem] font-bold ml-1">aprox.</span>}
+      </div>
+      {passed && <div className="text-white/75 text-sm mt-1.5">Más que <b className="text-white">{passed}</b></div>}
+      {next && (
+        <div className="text-white/40 text-[0.68rem] mt-0.5">
+          Camino a {next.text.replace(/ [^ ]+$/, '')} ({next.t} t)
+        </div>
+      )}
     </div>
   )
 }

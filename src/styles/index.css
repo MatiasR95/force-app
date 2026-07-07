@@ -550,6 +550,42 @@ body::before {
   .pr-fill { animation: none; }
 }
 
+/* ---- Medals: living metal ---------------------------------------------------
+   A slow specular sweep crosses each earned disc every few seconds (the medal
+   reads as metal, not a flat icon). The detail-sheet hero springs in with a
+   breathing tier-colored halo behind it. Transform/opacity only. */
+.medal-sheen {
+  position: absolute; top: -30%; bottom: -30%; width: 34%; left: -60%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.30), transparent);
+  pointer-events: none;
+  animation: medalSheen 4.2s ease-in-out infinite;
+}
+@keyframes medalSheen {
+  0%, 62% { left: -60%; }
+  86%, 100% { left: 130%; }
+}
+.medal-hero { animation: medalHero .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes medalHero { 0% { transform: scale(.7) rotate(-6deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.medal-halo {
+  position: absolute; inset: -38%; border-radius: 9999px; pointer-events: none;
+  animation: medalHalo 2.6s ease-in-out infinite;
+}
+@keyframes medalHalo { 0%, 100% { transform: scale(.92); opacity: .55; } 50% { transform: scale(1.1); opacity: .95; } }
+
+/* ---- PlateCalc: plates slide onto the sleeve, staggered like real loading ---- */
+.plate-in-l { animation: plateInL .45s cubic-bezier(.22,1,.36,1) backwards; }
+.plate-in-r { animation: plateInR .45s cubic-bezier(.22,1,.36,1) backwards; }
+@keyframes plateInL { from { transform: translateX(-16px); opacity: 0; } }
+@keyframes plateInR { from { transform: translateX(16px); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .medal-sheen, .medal-halo { animation: none; }
+  .medal-sheen { display: none; }
+  .medal-hero { animation: none; }
+  .plate-in-l, .plate-in-r { animation: none; }
+}
+
 /* Waving Argentina flag (subtle cloth skew) */
 .flag-wave { transform-origin: left center; animation: flagWave 3.4s ease-in-out infinite; }
 @keyframes flagWave {

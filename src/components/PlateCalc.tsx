@@ -26,15 +26,21 @@ export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false,
         </span>
       </div>
 
-      {/* visual: bar with plates per side */}
-      <div className="flex items-center justify-center gap-[3px] py-2">
-        {[...plan.plates].reverse().map((p, i) => (
-          <Plate key={`l${i}`} kg={p} />
-        ))}
-        <div className="h-1.5 w-10 bg-white/30 rounded-full mx-0.5" title="barra" />
-        {plan.plates.map((p, i) => (
-          <Plate key={`r${i}`} kg={p} />
-        ))}
+      {/* visual: side view of the loaded bar — shaft, collars, and the plates
+          sliding onto each sleeve (staggered, like loading them for real) */}
+      <div className="relative flex items-center justify-center py-3">
+        <div className="absolute inset-x-1 h-[7px] rounded-full bg-gradient-to-b from-white/40 via-white/22 to-white/8" />
+        <div className="relative flex items-center gap-[3px]">
+          {[...plan.plates].reverse().map((p, i) => (
+            <Plate key={`l${i}`} kg={p} delay={(plan.plates.length - 1 - i) * 80} side="l" />
+          ))}
+          <div className="h-4 w-1.5 rounded-[2px] bg-white/55 shrink-0" title="tope" />
+          <div className="h-[7px] w-14 rounded-full bg-gradient-to-b from-white/55 via-white/32 to-white/14 mx-0.5 shrink-0" title="barra" />
+          <div className="h-4 w-1.5 rounded-[2px] bg-white/55 shrink-0" title="tope" />
+          {plan.plates.map((p, i) => (
+            <Plate key={`r${i}`} kg={p} delay={i * 80} side="r" />
+          ))}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 justify-center">
@@ -56,15 +62,21 @@ export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false,
   )
 }
 
-function Plate({ kg }: { kg: number }) {
+function Plate({ kg, delay = 0, side = 'r' }: { kg: number; delay?: number; side?: 'l' | 'r' }) {
   const color = PLATE_COLOR[kg] ?? '#8A6A38'
   // larger plates render taller
   const h = 26 + Math.min(kg, 25) * 1.4
   const light = kg === 5
   return (
     <div
-      className="w-2.5 rounded-[2px] flex items-center justify-center shrink-0"
-      style={{ height: h, background: color, border: light ? '1px solid #999' : 'none' }}
+      className={`w-2.5 rounded-[3px] shrink-0 ${side === 'l' ? 'plate-in-l' : 'plate-in-r'}`}
+      style={{
+        height: h,
+        background: `linear-gradient(90deg, ${color}, ${color} 55%, rgba(0,0,0,0.28))`,
+        border: light ? '1px solid #999' : 'none',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
+        animationDelay: `${delay}ms`,
+      }}
       title={`${kg} kg`}
     />
   )

@@ -740,6 +740,7 @@ function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
   // "Saltar" still saves the session (without RPE) so the day is NEVER lost.
   const persist = (withRpe: boolean) => logSession({
     date: localDate(), dayId: day.id, week, dayLabel: day.label, bigOne,
+    kg: sessionStats(day, week).kg, // feeds the lifetime odometer + monthly recap
     ...(withRpe ? { rpe, note: note.trim() || undefined } : {}),
   })
   const finishData = (): ShareData => {

@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import type { Routine, ExerciseRow } from '../lib/types'
 import { DayView } from '../components/DayView'
-import { Pill } from '../components/ui'
-import { WeekBar } from '../components/WeekBar'
+import { BottomSheet } from '../components/ui'
 import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
-import { Dumbbell, History, Quote, TriangleAlert } from 'lucide-react'
-import { getClientName, lastSession, localDate } from '../lib/store'
+import { Dumbbell, History, Quote, TriangleAlert, Repeat, CheckCircle2, Circle } from 'lucide-react'
+import { getClientName, lastSession, localDate, getSessions } from '../lib/store'
+import { weekStartOf } from '../lib/metrics'
 import { nextQuote } from '../lib/quotes'
-import { saludo } from './Home'
 
 const TODAY = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -25,31 +24,29 @@ function relativeDay(date: string | null | undefined): string | null {
   return `hace ${Math.floor(days / 7)} semanas`
 }
 
-export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }: {
+// HOY = only today. No week stepper, no day-pill carousel — that navigation
+// lives in Plan. One session, unmistakable, with a single escape hatch ("cambiar
+// el día") for the member who swaps their training day.
+export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
   routine: Routine
-  week: number
   currentWk: number
-  setWeek: (w: number) => void
   suggestedDay: number
   onTrain: (dayIdx: number, week: number) => void
 }) {
   const [dayIdx, setDayIdx] = useState(suggestedDay)
+  const [picker, setPicker] = useState(false)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [quote] = useState(() => nextQuote())
   const day = routine.days[dayIdx] ?? routine.days[0]
-  const name = getClientName()
   const weekly = routine.style === 'weekly'
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
-  // clamp to the day's last DEFINED week (never snap back to week 1): if the member
-  // is on a week this day doesn't list, repeat-previous shows the last real week.
-  const effWeek = Math.min(Math.max(1, week), Math.max(1, ...dayWeeks))
-  const isLastWeek = weekly && routine.totalWeeks > 1 && week >= routine.totalWeeks
-  // "Hoy te toca" only when this really is today's session: the suggested day AND
-  // (for weekly plans) the member's current week. Browsing other weeks → "Estás viendo".
-  const onCurrentWeek = !weekly || week === currentWk
-  const isToday = dayIdx === suggestedDay && onCurrentWeek
+  // clamp to the day's last DEFINED week (repeat-previous), never snap back to week 1
+  const effWeek = Math.min(Math.max(1, currentWk), Math.max(1, ...dayWeeks))
+  const isLastWeek = weekly && routine.totalWeeks > 1 && currentWk >= routine.totalWeeks
+  const isToday = dayIdx === suggestedDay
   const bigNames = day.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
   const focus = bigNames || day.blocks.flatMap((b) => b.exercises)[0]?.name || 'Entrenamiento'
+  const name = getClientName()
 
   // last-session recap (day · week · Big One · when)
   const ls = lastSession()
@@ -57,22 +54,25 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
   const lastBig = ls?.bigOne || lastDay?.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
   const lastWhen = relativeDay(ls?.date)
 
+  // which plan days were already trained THIS week (ticks in the day picker)
+  const weekKey = weekStartOf(localDate())
+  const trainedThisWeek = getSessions().filter((s) => weekStartOf(s.date) === weekKey)
+  const dayDone = (d: { id: string; label: string }) =>
+    trainedThisWeek.some((s) => s.dayId === d.id || (!!s.dayLabel && s.dayLabel === d.label))
+
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       <header className="flex items-center justify-between mb-3">
-        <div>
-          <div className="kicker">{name ? `${saludo()}, ${name.split(' ')[0]}` : 'Bienvenido'}</div>
-          <div className="text-white/40 text-xs mt-0.5 capitalize">{TODAY()}</div>
-        </div>
-        <img src={emblem} alt="FORCE" className="h-10 w-10 object-contain opacity-90" />
+        <div className="kicker capitalize">Hoy · {TODAY()}</div>
+        <img src={emblem} alt="FORCE" className="h-9 w-9 object-contain opacity-90" />
       </header>
 
-      {/* welcome hero: WHAT to do today, unmistakably */}
+      {/* the session, unmistakably */}
       <div className="hero-card rounded-card p-4 mb-3">
-        <div className="kicker">{isToday ? '🔥 Hoy te toca' : 'Estás viendo'}</div>
+        <div className="kicker">{isToday ? `🔥 ${name ? `${name.split(' ')[0]}, hoy` : 'Hoy'} te toca` : 'Estás viendo'}</div>
         <h1 className="heading text-3xl text-white mt-1 glow-text">
           {day.label.replace('DÍA', 'Día')}
-          {weekly && <><span className="text-white/30"> · </span><span className="text-gold">Sem {week}</span></>}
+          {weekly && <><span className="text-white/30"> · </span><span className="text-gold">Sem {effWeek}</span></>}
         </h1>
         <div className="text-gold/90 font-bold text-sm mt-1">{focus}</div>
         <div className="flex gap-2.5 mt-3 pt-3 border-t border-white/10">
@@ -81,7 +81,7 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
         </div>
       </div>
 
-      {/* last session recap */}
+      {/* last session recap + the one escape hatch */}
       <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
         {lastWhen && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-white/60">
@@ -89,6 +89,12 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
             Últ.: {ls?.dayLabel?.replace('DÍA', 'Día') ?? lastDay?.label.replace('DÍA', 'Día') ?? '—'}
             {ls?.week ? ` · Sem ${ls.week}` : ''}{lastBig ? ` · ${lastBig}` : ''} ({lastWhen})
           </span>
+        )}
+        {routine.days.length > 1 && (
+          <button onClick={() => setPicker(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/[0.07] px-3 py-1.5 text-gold/90 font-bold active:scale-95">
+            <Repeat size={12} /> {isToday ? '¿Entrenás otro día?' : 'Volver a hoy'}
+          </button>
         )}
       </div>
 
@@ -101,22 +107,6 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
         </div>
       )}
 
-      {weekly && <div className="mb-4"><WeekBar week={week} totalWeeks={routine.totalWeeks} onChange={setWeek} /></div>}
-
-      {/* day selector — the suggested (next undone) day is tagged HOY */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 -mx-1 px-1 pt-2">
-        {routine.days.map((d, i) => (
-          <div key={d.id} className="relative shrink-0">
-            {i === suggestedDay && (
-              <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 text-[0.5rem] font-black uppercase tracking-wide text-ink bg-gold px-1.5 py-0.5 rounded-full">Hoy</span>
-            )}
-            <Pill active={i === dayIdx} onClick={() => setDayIdx(i)}>
-              {d.label.replace('DÍA', 'Día')}
-            </Pill>
-          </div>
-        ))}
-      </div>
-
       {/* start training — inline so nothing covers the day content */}
       <button
         onClick={() => onTrain(dayIdx, effWeek)}
@@ -127,6 +117,38 @@ export function Hoy({ routine, week, currentWk, setWeek, suggestedDay, onTrain }
       </button>
 
       <DayView day={day} week={effWeek} onPick={setPicked} />
+
+      {/* day switcher: which day is HOY, which are already done this week */}
+      {picker && (
+        <BottomSheet open onClose={() => setPicker(false)}>
+          <div className="px-5 pb-8 pt-1">
+            <div className="kicker mb-1">Cambiar el día</div>
+            <p className="text-white/45 text-xs mb-3">¿Adelantás o recuperás un día? El plan completo vive en la pestaña Plan.</p>
+            <div className="space-y-1.5">
+              {routine.days.map((d, i) => {
+                const done = dayDone(d)
+                const isSug = i === suggestedDay
+                const cur = i === dayIdx
+                return (
+                  <button key={d.id} onClick={() => { setDayIdx(i); setPicker(false) }}
+                    className={`w-full flex items-center gap-3 rounded-card border p-3 text-left active:scale-[0.99]
+                      ${cur ? 'border-gold/50 bg-gold/[0.10]' : 'border-white/8 bg-white/[0.03]'}`}>
+                    {done ? <CheckCircle2 size={18} className="text-gold shrink-0" /> : <Circle size={18} className={`shrink-0 ${cur ? 'text-gold' : 'text-white/25'}`} />}
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-bold text-sm truncate ${done ? 'text-white/50' : 'text-white'}`}>{d.label.replace('DÍA', 'Día')}</div>
+                      <div className="text-xs text-white/45 truncate">
+                        {d.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name ?? d.blocks.flatMap((b) => b.exercises)[0]?.name ?? '—'}
+                        {done ? ' · hecho esta semana' : ''}
+                      </div>
+                    </div>
+                    {isSug && <span className="text-[0.5rem] font-black uppercase tracking-wide text-ink bg-gold px-1.5 py-0.5 rounded-full shrink-0">Hoy</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </BottomSheet>
+      )}
 
       <ExerciseSheet ex={picked} week={effWeek} onClose={() => setPicked(null)} />
     </div>

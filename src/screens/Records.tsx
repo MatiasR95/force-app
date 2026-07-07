@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { RecordEntry, Gender, StreakEntry } from '../lib/records'
 import { RECORD_LIFTS, rank, bestOf, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
 import { fetchRecords, syncStreak, cachedRecords, cachedStreaks } from '../lib/api'
-import { getToken, getGender, getClientName, getCheckins, getMaxStreak } from '../lib/store'
+import { getToken, getGender, getClientName, getCheckins, getMaxStreak, getMyRecords } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
 import { Pill } from '../components/ui'
 import { StreakFlame } from '../components/StreakFlame'
@@ -103,6 +103,7 @@ function RecordsView({ client }: { client: string }) {
                 : gap != null ? <>Te faltan <b className="text-gold">{gap} kg</b> para el #1</> : null}
             </div>
           </div>
+          <PrTimeline lift={lift} gender={gender} />
         </div>
       )}
 
@@ -135,6 +136,47 @@ function RecordsView({ client }: { client: string }) {
         })}
       </div>
     </>
+  )
+}
+
+// Your PR history for this lift, drawn as a self-tracing gold line — every dot a
+// record you set. Appears once there are 2+ marks (a line needs a story).
+function PrTimeline({ lift, gender }: { lift: string; gender: Gender }) {
+  const hist = getMyRecords()
+    .filter((e) => e.lift === lift && e.gender === gender)
+    .sort((a, b) => (a.ts < b.ts ? -1 : 1))
+  if (hist.length < 2) return null
+  const values = hist.map((e) => e.kg)
+  const gain = Math.round((values[values.length - 1] - values[0]) * 10) / 10
+  const W = 280, H = 56, pad = 8
+  const lo = Math.min(...values), hi = Math.max(...values)
+  const span = Math.max(0.01, hi - lo)
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (W - pad * 2)
+    const y = pad + (1 - (v - lo) / span) * (H - pad * 2)
+    return [x, y] as const
+  })
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+  const fmtMon = (ts: string) => new Date(ts).toLocaleDateString('es-AR', { month: 'short' })
+  return (
+    <div className="mt-3 pt-3 border-t border-white/10">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[0.58rem] uppercase tracking-micro text-white/40 font-bold">Tu camino en este ejercicio</span>
+        {gain > 0 && <span className="text-gold text-xs font-black">+{gain.toLocaleString('es-AR')} kg desde tu primera marca</span>}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 12}`} className="w-full" style={{ height: (H + 12) * (280 / W) }}>
+        <path d={d} pathLength={1} className="spark-draw" fill="none"
+          stroke="#C6AE78" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        {pts.map((p, i) => (
+          <g key={i} className="spark-dot" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
+            <circle cx={p[0]} cy={p[1]} r={i === pts.length - 1 ? 4 : 3}
+              fill={i === pts.length - 1 ? '#F0E2BE' : '#C6AE78'} />
+            <text x={p[0]} y={p[1] - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="rgba(255,255,255,.6)">{values[i]}</text>
+            <text x={p[0]} y={H + 9} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,.35)">{fmtMon(hist[i].ts)}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }
 

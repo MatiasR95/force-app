@@ -43,6 +43,45 @@ export function routineTonnage(r: Routine, barKg = DEFAULT_BAR_KG): number {
   return r.days.reduce((s, d) => s + dayTonnage(d, barKg), 0)
 }
 
+// ---- lifetime tonnage (the Panel odometer) ---------------------------------
+// Sessions logged since Jul 2026 carry their own kg; older ones are estimated
+// from the known average (or, with no known kg at all, from the plan's average
+// day) so long-time members still see a lifetime figure, flagged "aprox".
+export function lifetimeKg(
+  routine: Routine,
+  sessions: ReadonlyArray<{ kg?: number }>,
+): { kg: number; approx: boolean } {
+  const known = sessions.filter((s) => s.kg != null && s.kg > 0)
+  const knownKg = known.reduce((a, s) => a + (s.kg ?? 0), 0)
+  const missing = sessions.length - known.length
+  if (missing === 0) return { kg: Math.round(knownKg), approx: false }
+  const perSession = known.length > 0
+    ? knownKg / known.length
+    : routineTonnage(routine) / Math.max(1, routine.days.length)
+  return { kg: Math.round(knownKg + missing * perSession), approx: true }
+}
+
+// Rioplatense size comparisons for the odometer — largest one you've passed.
+const TON_MILESTONES: Array<{ t: number; text: string }> = [
+  { t: 1, text: 'un auto chico 🚗' },
+  { t: 3, text: 'una camioneta 4x4 🛻' },
+  { t: 6, text: 'un elefante africano 🐘' },
+  { t: 12, text: 'un colectivo de línea 🚌' },
+  { t: 25, text: 'un camión de bomberos 🚒' },
+  { t: 41, text: 'un Boeing 737 vacío ✈️' },
+  { t: 80, text: 'una locomotora 🚂' },
+  { t: 130, text: 'una ballena azul 🐋' },
+  { t: 200, text: 'la Estatua de la Libertad 🗽' },
+  { t: 640, text: 'un Antonov cargado ✈️' },
+]
+export function tonnageComparison(kg: number): { passed: string | null; next: { t: number; text: string } | null } {
+  const t = kg / 1000
+  let passed: string | null = null
+  for (const m of TON_MILESTONES) { if (t >= m.t) passed = m.text; else break }
+  const next = TON_MILESTONES.find((m) => m.t > t) ?? null
+  return { passed, next }
+}
+
 export interface BigLiftE1RM {
   name: string
   slug: string

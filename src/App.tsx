@@ -202,8 +202,8 @@ export default function App() {
         <ErrorBoundary key={tab}>
           <div className={navDir === 0 ? 'screen-in' : navDir > 0 ? 'screen-in-right' : 'screen-in-left'}>
             {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} />}
-            {tab === 'hoy' && <Hoy routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
-            {tab === 'semana' && <Semana routine={routine} week={wk} setWeek={setWeek} />}
+            {tab === 'hoy' && <Hoy routine={routine} currentWk={currentWk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
+            {tab === 'semana' && <Semana routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} />}
             {tab === 'panel' && <Dashboard routine={routine} />}
             {tab === 'records' && <Records />}
           </div>

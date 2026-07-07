@@ -22,6 +22,7 @@ export interface SessionLog {
   week?: number       // plan week trained
   dayLabel?: string   // e.g. "DÍA 1"
   bigOne?: string     // the Big One performed (for the "last time" recap)
+  kg?: number         // session tonnage (prescription-based) — feeds the lifetime odometer
 }
 
 export interface OutboxItem {
@@ -54,6 +55,7 @@ const KEYS = {
   progress: 'force.progress',
   restEdu: 'force.restEdu',
   installNudge: 'force.installNudge',
+  recapSeen: 'force.recapSeen',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -294,6 +296,10 @@ export interface SessionProgress { dayId: string; date: string; i: number; done:
 export const getSessionProgress = (): SessionProgress | null => read<SessionProgress | null>(KEYS.progress, null)
 export function saveSessionProgress(p: SessionProgress): void { write(KEYS.progress, p) }
 export function clearSessionProgress(): void { write(KEYS.progress, null) }
+
+// ---- monthly recap (the "tu mes en FORCE" story, shown once per month) ----
+export const getRecapSeen = (): string => read<string>(KEYS.recapSeen, '')
+export const setRecapSeen = (ym: string): void => write(KEYS.recapSeen, ym)
 
 // ---- medals already celebrated (so a new one triggers the unlock card once) ----
 export const getSeenMedals = (): string[] => read<string[]>(KEYS.seenMedals, [])
