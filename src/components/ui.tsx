@@ -101,9 +101,9 @@ export function BottomSheet({ open, onClose, children }: {
       style={{ height: 'var(--app-vh, 100vh)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
-      <div className="relative w-full max-h-[88vh] overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10
-        bg-surface-2 pb-[env(safe-area-inset-bottom)] animate-[slideup_.25s_ease]"
-        style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
+      <div className="relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10
+        bg-surface-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] animate-[slideup_.25s_ease]"
+        style={{ maxHeight: 'calc(var(--app-vh, 100vh) - 8px)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
         <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"
           onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}>
           <div className="h-1.5 w-12 rounded-full bg-white/25" />

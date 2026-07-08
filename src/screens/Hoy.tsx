@@ -27,13 +27,15 @@ function relativeDay(date: string | null | undefined): string | null {
 // HOY = only today. No week stepper, no day-pill carousel — that navigation
 // lives in Plan. One session, unmistakable, with a single escape hatch ("cambiar
 // el día") for the member who swaps their training day.
-export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
+export function Hoy({ routine, currentWk, suggestedDay, onPickWeek, onTrain }: {
   routine: Routine
   currentWk: number
   suggestedDay: number
+  onPickWeek: (week: number) => void
   onTrain: (dayIdx: number, week: number) => void
 }) {
   const [dayIdx, setDayIdx] = useState(suggestedDay)
+  const [wk, setWk] = useState(currentWk) // the member's current cycle week (they can adjust it)
   const [picker, setPicker] = useState(false)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [quote] = useState(() => nextQuote())
@@ -41,8 +43,15 @@ export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
   const weekly = routine.style === 'weekly'
   const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
   // clamp to the day's last DEFINED week (repeat-previous), never snap back to week 1
-  const effWeek = Math.min(Math.max(1, currentWk), Math.max(1, ...dayWeeks))
-  const isLastWeek = weekly && routine.totalWeeks > 1 && currentWk >= routine.totalWeeks
+  const effWeek = Math.min(Math.max(1, wk), Math.max(1, ...dayWeeks))
+  const isLastWeek = weekly && routine.totalWeeks > 1 && wk >= routine.totalWeeks
+  const multiWeek = weekly && routine.totalWeeks > 1
+  // adjust + persist the cycle week (re-anchors so it advances one/real-week and the
+  // whole app follows — Plan, Inicio, next launch). Day suggestion keeps auto-advancing.
+  const pickWeek = (w: number) => {
+    const clamped = Math.min(routine.totalWeeks, Math.max(1, w))
+    setWk(clamped); onPickWeek(clamped)
+  }
   const isToday = dayIdx === suggestedDay
   const bigNames = day.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
   const focus = bigNames || day.blocks.flatMap((b) => b.exercises)[0]?.name || 'Entrenamiento'
@@ -93,7 +102,7 @@ export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
         {routine.days.length > 1 && (
           <button onClick={() => (isToday ? setPicker(true) : setDayIdx(suggestedDay))}
             className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/[0.07] px-3 py-1.5 text-gold/90 font-bold active:scale-95">
-            <Repeat size={12} /> {isToday ? '¿Entrenás otro día?' : 'Volver a hoy'}
+            <Repeat size={12} /> {isToday ? (multiWeek ? 'Cambiar día o semana' : '¿Entrenás otro día?') : 'Volver a hoy'}
           </button>
         )}
       </div>
@@ -129,8 +138,28 @@ export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
       {picker && (
         <BottomSheet open onClose={() => setPicker(false)}>
           <div className="px-5 pb-8 pt-1">
-            <div className="kicker mb-1">Cambiar el día</div>
+            <div className="kicker mb-1">{multiWeek ? 'Cambiar día y semana' : 'Cambiar el día'}</div>
             <p className="text-white/45 text-xs mb-3">¿Adelantás o recuperás un día? El plan completo vive en la pestaña Plan.</p>
+
+            {/* week of the cycle: choose it once and it advances one per real week,
+                so finishing a day always continues from where you left off */}
+            {multiWeek && (
+              <div className="rounded-card border border-gold/25 bg-gold/[0.06] p-3 mb-4">
+                <div className="text-[0.62rem] uppercase tracking-kicker font-black text-gold/85 mb-2">Semana del ciclo</div>
+                <div className="flex items-center justify-center gap-4">
+                  <button onClick={() => pickWeek(wk - 1)} disabled={wk <= 1} aria-label="Semana anterior"
+                    className="h-11 w-11 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white text-2xl font-black disabled:opacity-30 active:scale-90">−</button>
+                  <div className="text-center min-w-[4.5rem]">
+                    <div className="text-gold text-3xl font-black tabular-nums leading-none">{wk}</div>
+                    <div className="text-white/45 text-[0.62rem] mt-0.5">de {routine.totalWeeks}</div>
+                  </div>
+                  <button onClick={() => pickWeek(wk + 1)} disabled={wk >= routine.totalWeeks} aria-label="Semana siguiente"
+                    className="h-11 w-11 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white text-2xl font-black disabled:opacity-30 active:scale-90">+</button>
+                </div>
+                <p className="text-white/40 text-[0.68rem] text-center mt-2">Avanza sola cada semana. Ajustala si te salteaste o adelantaste.</p>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               {routine.days.map((d, i) => {
                 const done = dayDone(d)
