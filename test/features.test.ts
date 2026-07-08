@@ -121,16 +121,16 @@ describe('multi-tab routine (tabs stitched by the backend)', () => {
   })
 })
 
-describe('disc policy (Jul 2026): 10s/5s always; 20s only for deadlift > 50/side', () => {
-  it('gates the 20 kg discs to heavy deadlifts', () => {
+describe('disc inventory (Jul 2026): full 20·15·10·5 + micros', () => {
+  it('stocks 20 and 15 kg discs for every lift', () => {
     expect(inventoryFor(true, 60)).toContain(20)
-    expect(inventoryFor(true, 45)).not.toContain(20)
-    expect(inventoryFor(false, 80)).not.toContain(20)
+    expect(inventoryFor(false, 45)).toContain(20)
+    expect(inventoryFor(false, 80)).toContain(15)
   })
   it('a ramp only ADDS plates — never swaps what is already on the bar', () => {
-    // 15 = {10,5} → 25 adds a 10 → 42.5 adds {10,5,2.5}; the original 10+5 stay on
+    // 15 = {15} → 25 adds a 10 → 42.5 adds {15,2.5}; the original 15+10 stay on
     const plan = planPlatesProgressive(42.5, [15, 25], 20, inventoryFor(false, 42.5))
-    expect(plan.plates).toEqual([10, 10, 10, 5, 5, 2.5])
+    expect(plan.plates).toEqual([15, 15, 10, 2.5])
     expect(plan.achievable).toBe(true)
   })
   it('a heavy deadlift ramp builds on 20s additively', () => {
@@ -139,7 +139,7 @@ describe('disc policy (Jul 2026): 10s/5s always; 20s only for deadlift > 50/side
   })
   it('a back-off set below an earlier load plans fresh (re-racking is real there)', () => {
     const plan = planPlatesProgressive(20, [40], 20, inventoryFor(false, 40))
-    expect(plan.plates).toEqual([10, 10])
+    expect(plan.plates).toEqual([20])
   })
 })
 

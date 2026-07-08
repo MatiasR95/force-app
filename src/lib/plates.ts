@@ -12,15 +12,15 @@ export interface PlatePlan {
 }
 
 export const DEFAULT_BAR_KG = 20
-// FORCE disc policy (Jul 2026, per Matías): everything builds from 10s and 5s
-// (+ change plates for fine jumps). 20 kg discs are suggested ONLY on deadlifts
-// whose working load exceeds 50 kg per side. 15/25 kg discs are never suggested.
-export const DEFAULT_PLATES_KG = [10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
-export const DEADLIFT_PLATES_KG = [20, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+// FORCE disc inventory (Jul 2026, per Matías): the gym has full 20 · 15 · 10 · 5 kg
+// discs plus change plates (2,5 · 2 · 1,5 · 1,25 · 1 · 0,5) for fine jumps. 25s aren't
+// stocked. Greedy loading favours the fewest discs, so 30/lado = 20+10, not 3×10.
+export const DEFAULT_PLATES_KG = [20, 15, 10, 5, 2.5, 2, 1.5, 1.25, 1, 0.5]
+export const DEADLIFT_PLATES_KG = DEFAULT_PLATES_KG
 
 /** The disc set for a lift, given the heaviest per-side load it reaches today. */
-export function inventoryFor(deadlift: boolean, workingMaxKg: number): number[] {
-  return deadlift && workingMaxKg > 50 ? DEADLIFT_PLATES_KG : DEFAULT_PLATES_KG
+export function inventoryFor(_deadlift: boolean, _workingMaxKg: number): number[] {
+  return DEFAULT_PLATES_KG
 }
 
 export const isDeadliftName = (name: string): boolean =>

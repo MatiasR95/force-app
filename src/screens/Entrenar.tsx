@@ -21,7 +21,7 @@ import { Celebration, FoilBurst } from '../components/Celebration'
 import { FoilTilt } from '../components/FoilTilt'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
-import { X, ChevronLeft, ChevronRight, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ChevronUp, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -399,27 +399,43 @@ function AdjustField({ ex, dayId, dayLabel, week, showSets = true, compact = fal
   const perSide = r.load.perSide
   const saved = getActual(ex.id)
   const [open, setOpen] = useState(() => !!saved)
+  const [touched, setTouched] = useState(() => !!saved) // has the member logged something?
   const [kg, setKg] = useState(() => saved?.kg ?? r.load.value ?? 0)
   const [reps, setReps] = useState(() => saved?.reps ?? r.reps ?? 0)
   const [sets, setSets] = useState(() => saved?.sets ?? r.sets ?? 0)
   const commit = (a: { kg?: number; reps?: number; sets?: number }) => {
     if (a.kg != null) setKg(a.kg); if (a.reps != null) setReps(a.reps); if (a.sets != null) setSets(a.sets)
+    setTouched(true)
     saveActual(ex.id, dayId, { kg, reps, sets, ...a }, { exName: ex.name, dayLabel })
     // overwrite the matching prescription cell(s) in the routine sheet (only the
     // field the member just changed). Queued + flushed; no-op offline / in demo.
     const writes = buildCellWrites(ex, week, { kg: a.kg, reps: a.reps, series: a.sets })
     if (writes.length) { queueCellWrites(writes); syncOutbox(getToken()).catch(() => {}) }
   }
+  // Collapsed: a plain prompt if nothing logged yet, or a compact summary chip once
+  // the member has set a value — so it can live minimised and out of the way.
   if (!open) {
+    const fmt = (n: number) => n.toLocaleString('es-AR')
+    const summary = touched
+      ? [`${fmt(kg)}${perSide ? ' kg/lado' : ' kg'}`, reps ? `${fmt(reps)} reps` : '', showSets && sets ? `${fmt(sets)} series` : ''].filter(Boolean).join(' · ')
+      : ''
     return (
-      <button onClick={() => setOpen(true)} className={`flex items-center gap-2 text-white/55 font-bold ${compact ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
-        <SlidersHorizontal size={compact ? 14 : 16} className="text-gold/70" /> {compact ? 'Anotar peso / reps' : 'Ajustar lo que hiciste'}
+      <button onClick={() => setOpen(true)}
+        className={`flex items-center gap-2 font-bold ${compact ? 'mt-2 text-xs' : 'mt-3 text-sm'} ${touched ? 'text-gold/90' : 'text-white/55'}`}>
+        {touched ? <Check size={compact ? 14 : 16} className="text-gold" /> : <SlidersHorizontal size={compact ? 14 : 16} className="text-gold/70" />}
+        {touched ? <>Registraste <span className="text-white/70">{summary}</span> · editar</> : (compact ? 'Anotar peso / reps' : 'Ajustar lo que hiciste')}
       </button>
     )
   }
   return (
     <div className={`rounded-card bg-white/5 border border-white/10 p-3 ${compact ? 'mt-2' : 'mt-3'}`}>
-      <div className="kicker mb-2">Lo que hiciste de verdad</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="kicker">Lo que hiciste de verdad</div>
+        <button onClick={() => setOpen(false)} aria-label="Minimizar"
+          className="flex items-center gap-1 text-white/50 text-[0.62rem] font-bold active:scale-95">
+          Listo <ChevronUp size={14} />
+        </button>
+      </div>
       <Stepper label={perSide ? 'Kg x lado' : 'Kg'} value={kg} step={perSide ? 1.25 : 2.5}
         steps={perSide ? DISC_STEPS : LOAD_STEPS} onChange={(v) => commit({ kg: v })} />
       <div className={`grid ${showSets ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5 mt-3`}>

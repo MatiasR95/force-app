@@ -5,12 +5,12 @@ import { ENERO_2026 } from '../src/data/fixtureEnero2026'
 import { bigThreeE1RM, epley1RM, exerciseLoadKg, attendanceThisMonth, currentStreak, currentStreakWeeks } from '../src/lib/metrics'
 
 describe('planPlates', () => {
-  it('decomposes 27.5/side on a 20kg bar from 10s + 5s (Jul 2026 disc policy)', () => {
+  it('decomposes 27.5/side on a 20kg bar with the fewest discs (20·15·10·5 + micros)', () => {
     const p = planPlates(27.5)
     expect(p.totalKg).toBe(75)
     expect(p.achievable).toBe(true)
-    expect(p.plates).toEqual([10, 10, 5, 2.5])
-    expect(groupPlates(p.plates)).toEqual([{ kg: 10, count: 2 }, { kg: 5, count: 1 }, { kg: 2.5, count: 1 }])
+    expect(p.plates).toEqual([20, 5, 2.5])
+    expect(groupPlates(p.plates)).toEqual([{ kg: 20, count: 1 }, { kg: 5, count: 1 }, { kg: 2.5, count: 1 }])
   })
   it('flags an unachievable load with remainder', () => {
     const p = planPlates(1, 20, [25, 20, 10]) // 1kg can't be made

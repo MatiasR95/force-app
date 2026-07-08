@@ -67,16 +67,16 @@ describe('noteWeight', () => {
   })
 })
 
-describe('plate inventory (Jul 2026 policy: 10s/5s; 20s only heavy deadlift)', () => {
-  it('never suggests 15/20/25 kg discs by default', () => {
+describe('plate inventory (Jul 2026: full 20·15·10·5 + micros; no 25s)', () => {
+  it('stocks 20 and 15 kg discs, never 25s', () => {
+    expect(DEFAULT_PLATES_KG).toContain(20)
+    expect(DEFAULT_PLATES_KG).toContain(15)
     expect(DEFAULT_PLATES_KG).not.toContain(25)
-    expect(DEFAULT_PLATES_KG).not.toContain(20)
-    expect(DEFAULT_PLATES_KG).not.toContain(15)
     const p = planPlates(27.5, 20, DEFAULT_PLATES_KG)
-    expect(p.plates).toEqual([10, 10, 5, 2.5]) // built from 10s + 5s
+    expect(p.plates).toEqual([20, 5, 2.5]) // fewest discs
     expect(p.achievable).toBe(true)
   })
-  it('the deadlift inventory adds 20s (never 25s)', () => {
+  it('loads a heavy deadlift with the fewest discs', () => {
     expect(DEADLIFT_PLATES_KG).toContain(20)
     expect(DEADLIFT_PLATES_KG).not.toContain(25)
     const p = planPlates(60, 20, DEADLIFT_PLATES_KG)

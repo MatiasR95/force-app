@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 // FORCE visual vocabulary as small primitives (see brand §4).
@@ -96,14 +97,19 @@ export function BottomSheet({ open, onClose, children }: {
   }
   const onEnd = () => { dragging.current = false; if (dragY > 90) onClose(); else setDragY(0); startY.current = null }
 
-  return (
-    <div className="fixed inset-x-0 top-0 z-50 flex items-end" role="dialog" aria-modal="true"
+  // Portal to <body>: the app shell's screen-transition wrappers use CSS `transform`,
+  // which turns any ancestor into the containing block for `position: fixed`. Rendered
+  // inline, the sheet was clipped to that box (ending at the nav) instead of the real
+  // viewport, so its action button fell under the nav / home indicator. At body level
+  // it fills the true screen and covers the nav while open.
+  return createPortal(
+    <div className="fixed inset-x-0 top-0 z-[70] flex items-end max-w-md mx-auto" role="dialog" aria-modal="true"
       style={{ height: 'var(--app-vh, 100vh)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
       <div className="relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10
-        bg-surface-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] animate-[slideup_.25s_ease]"
-        style={{ maxHeight: 'calc(var(--app-vh, 100vh) - 8px)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
+        bg-surface-2 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] animate-[slideup_.25s_ease]"
+        style={{ maxHeight: 'var(--app-vh, 100vh)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
         <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"
           onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}>
           <div className="h-1.5 w-12 rounded-full bg-white/25" />
@@ -118,6 +124,7 @@ export function BottomSheet({ open, onClose, children }: {
         @keyframes slideup { from { transform: translateY(12%); opacity:.6 } to { transform: none; opacity:1 } }
         @keyframes fade { from { opacity:0 } to { opacity:1 } }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   )
 }
