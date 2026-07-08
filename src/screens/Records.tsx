@@ -52,6 +52,7 @@ function RecordsView({ client }: { client: string }) {
   const mine = bestOf(board, client)
   const top = board[0]
   const gap = mine && top ? Math.round((top.kg - mine.kg) * 10) / 10 : null
+  const myPos = mine ? board.findIndex((e) => e.id === mine.id) + 1 : 0
 
   return (
     <>
@@ -95,7 +96,14 @@ function RecordsView({ client }: { client: string }) {
 
       {mine && (
         <div className="hero-card rounded-card p-4 mb-5">
-          <div className="kicker mb-1">Tu mejor marca</div>
+          <div className="flex items-baseline justify-between mb-1">
+            <div className="kicker">Tu mejor marca</div>
+            {myPos > 0 && (
+              <span className="text-[0.62rem] font-black uppercase tracking-micro text-gold/90">
+                #{myPos} del ranking
+              </span>
+            )}
+          </div>
           <div className="flex items-end justify-between">
             <div className="text-gold text-3xl font-black tabular-nums">{mine.kg}<span className="text-lg"> kg</span> <span className="text-white/50 text-base font-bold">× {mine.reps}</span></div>
             <div className="text-right text-xs text-white/60">
@@ -200,8 +208,9 @@ function Podium({ top3, client }: { top3: RecordEntry[]; client: string }) {
         const first = place === 1
         return (
           <div key={e.id} className="flex flex-col items-center min-w-0">
-            {first && <Crown size={18} className="text-gold mb-1" />}
-            <div className={`grid place-items-center rounded-full bg-gold-fill text-ink font-black shrink-0
+            {first && <Crown size={18} className="podium-crown text-gold mb-1" />}
+            <div style={{ animationDelay: `${col * 90 + 300}ms` }}
+              className={`podium-avatar grid place-items-center rounded-full bg-gold-fill text-ink font-black shrink-0
               ${first ? 'h-12 w-12 text-base' : 'h-10 w-10 text-sm opacity-80'} ${isMe ? 'ring-2 ring-gold-pale' : ''}`}>
               {initials(e.client)}
             </div>
@@ -214,7 +223,7 @@ function Podium({ top3, client }: { top3: RecordEntry[]; client: string }) {
                 <span className="text-white/45 font-bold text-[0.62rem]"> × {e.reps}</span>
               </div>
             </div>
-            <div className={`podium-block ${first ? '' : 'podium-block--dim'} w-full rounded-t-lg ${block}`}
+            <div className={`podium-block ${first ? 'podium-block--champ' : 'podium-block--dim'} w-full rounded-t-lg ${block}`}
               style={{ animationDelay: `${col * 90}ms` }}>
               <span className={`grid place-items-center h-full font-black text-sm ${first ? 'text-ink/70' : 'text-gold/80'}`}>{place}</span>
             </div>

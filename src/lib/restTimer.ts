@@ -115,6 +115,14 @@ export function resumeRest() {
   ensureAudio(); scheduleChime(state.remaining ?? 0)
   set({ status: 'running', endsAt: Date.now() + (state.remaining ?? 0) * 1000, remaining: null })
 }
+/** Add seconds to a RUNNING pause (coach busy, machine taken) — chime moves too. */
+export function extendRest(sec = 30) {
+  if (state.status !== 'running') return
+  ensureAudio()
+  const remaining = restRemaining() + sec
+  scheduleChime(remaining)
+  set({ endsAt: Date.now() + remaining * 1000 })
+}
 export function resetRest() { clearScheduled(); set({ status: 'idle', endsAt: null, remaining: null }) }
 export function completeRest() { if (state.status === 'done') return; set({ status: 'done', endsAt: null, remaining: 0 }); fireAlert() }
 

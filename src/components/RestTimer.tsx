@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getRestPref, setRestPref, getRestEduPref, setRestEduPref } from '../lib/store'
-import { getRest, subscribeRest, restRemaining, startRest, pauseRest, resumeRest, resetRest, tickRest } from '../lib/restTimer'
+import { getRest, subscribeRest, restRemaining, startRest, pauseRest, resumeRest, resetRest, tickRest, extendRest } from '../lib/restTimer'
 import { nextEducation } from '../lib/restEducation'
 import { RestExplainer } from './RestExplainer'
 import { BreathePacer } from './BreathePacer'
@@ -125,6 +125,12 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
           <div className="flex flex-col items-center gap-3">
             <RestRing remaining={remaining} total={pref} done={done} />
             <div className="flex items-center gap-3">
+              {state.status === 'running' && (
+                <button onClick={() => extendRest(30)}
+                  className="h-10 px-3.5 rounded-full bg-white/5 border border-gold/30 text-gold text-sm font-black active:scale-95">
+                  +30s
+                </button>
+              )}
               {active && (
                 <button onClick={() => (state.status === 'running' ? pauseRest() : resumeRest())} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70">
                   {state.status === 'running' ? <Pause size={18} /> : <Play size={18} />}

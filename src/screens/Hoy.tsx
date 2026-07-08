@@ -5,7 +5,7 @@ import { BottomSheet } from '../components/ui'
 import { ExerciseSheet } from './ExerciseSheet'
 import emblem from '../assets/logo/emblem_gold_t.png'
 import { Dumbbell, History, Quote, TriangleAlert, Repeat, CheckCircle2, Circle } from 'lucide-react'
-import { getClientName, lastSession, localDate, getSessions } from '../lib/store'
+import { getClientName, lastSession, localDate, getSessions, getSession } from '../lib/store'
 import { weekStartOf } from '../lib/metrics'
 import { nextQuote } from '../lib/quotes'
 
@@ -104,6 +104,13 @@ export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
           <p className="text-white/85 text-sm leading-snug">
             <b>Última semana de tu planificación.</b> Avisale a tu coach para que prepare el próximo ciclo. 💪
           </p>
+        </div>
+      )}
+
+      {/* already logged this day today → say so before they double-book it */}
+      {getSession(localDate(), day.id) && (
+        <div className="mb-2 text-center text-xs text-gold/90 font-bold">
+          ✅ Ya completaste este día hoy. Si entrenás de nuevo, se registra igual.
         </div>
       )}
 

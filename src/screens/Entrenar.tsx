@@ -254,7 +254,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-5">
+      <div className="flex-1 overflow-y-auto px-5" data-sheet-lock>
         {item.type === 'single'
           ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
           : item.type === 'warmup'

@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
 // FORCE visual vocabulary as small primitives (see brand §4).
@@ -77,6 +77,16 @@ export function BottomSheet({ open, onClose, children }: {
   const [dragY, setDragY] = useState(0)
   const startY = useRef<number | null>(null)
   const dragging = useRef(false)
+  // Freeze every scroller behind the sheet (the app shell AND full-screen
+  // overlays like Entrenar): otherwise a swipe on the sheet scrolls the
+  // BACKGROUND and long content (e.g. the medal story) can't reach its button.
+  useEffect(() => {
+    if (!open) return
+    const els = [...document.querySelectorAll<HTMLElement>('.app-scroll, [data-sheet-lock]')]
+    const prev = els.map((el) => el.style.overflow)
+    els.forEach((el) => { el.style.overflow = 'hidden' })
+    return () => els.forEach((el, i) => { el.style.overflow = prev[i] })
+  }, [open])
   if (!open) return null
   const onStart = (e: React.TouchEvent) => { startY.current = e.touches[0].clientY; dragging.current = true }
   const onMove = (e: React.TouchEvent) => {
@@ -88,8 +98,9 @@ export function BottomSheet({ open, onClose, children }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]" onClick={onClose} />
-      <div className="relative w-full max-h-[88vh] overflow-y-auto rounded-t-[22px] border-t border-white/10
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
+        onClick={onClose} style={{ touchAction: 'none' }} />
+      <div className="relative w-full max-h-[88vh] overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10
         bg-surface-2 pb-[env(safe-area-inset-bottom)] animate-[slideup_.25s_ease]"
         style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
         <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"

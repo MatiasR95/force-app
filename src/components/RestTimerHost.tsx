@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRest } from './RestTimer'
-import { resetRest, pauseRest, resumeRest, getRest } from '../lib/restTimer'
+import { resetRest, pauseRest, resumeRest, extendRest, getRest } from '../lib/restTimer'
 import { getRestPref } from '../lib/store'
 import { Flame, Pause, Play, X } from 'lucide-react'
 
@@ -95,6 +95,12 @@ export function RestTimerHost({ showPill }: { showPill: boolean }) {
             </div>
           </div>
           <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+            {!done && !paused && (
+              <button onClick={() => extendRest(30)} aria-label="Sumar 30 segundos"
+                className="h-8 px-2.5 rounded-full bg-white/8 border border-gold/30 text-gold text-xs font-black active:scale-90">
+                +30s
+              </button>
+            )}
             {!done && (
               <button onClick={() => (getRest().status === 'running' ? pauseRest() : resumeRest())}
                 aria-label={paused ? 'Reanudar' : 'Pausar'}
