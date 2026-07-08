@@ -91,7 +91,7 @@ export function Hoy({ routine, currentWk, suggestedDay, onTrain }: {
           </span>
         )}
         {routine.days.length > 1 && (
-          <button onClick={() => setPicker(true)}
+          <button onClick={() => (isToday ? setPicker(true) : setDayIdx(suggestedDay))}
             className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/[0.07] px-3 py-1.5 text-gold/90 font-bold active:scale-95">
             <Repeat size={12} /> {isToday ? '¿Entrenás otro día?' : 'Volver a hoy'}
           </button>

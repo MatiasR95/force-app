@@ -25,6 +25,7 @@ let audio: AudioContext | null = null
 let silence: AudioBufferSourceNode | null = null // keep-alive loop while the pause runs
 let scheduled: OscillatorNode[] = []             // chime pre-scheduled at start
 let chimeAt: number | null = null                // wall-clock ms the scheduled chime fires
+let chimeGen = 0                                 // bumps per schedule — stale cleanups no-op
 
 function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* quota */ } }
 function set(p: Partial<RestState>) { state = { ...state, ...p }; persist(); subs.forEach((f) => f()) }
@@ -96,6 +97,7 @@ function scheduleChime(sec: number) {
     const os = [tone(880, sec), tone(1318.5, sec + 0.2), tone(1760, sec + 0.42)]
     scheduled = os.filter((o): o is OscillatorNode => !!o)
     chimeAt = Date.now() + sec * 1000
+    chimeGen++
   } catch { /* no-op */ }
 }
 
@@ -134,7 +136,10 @@ function fireAlert() {
   if (!chimeHandled) {
     try { tone(880, 0); tone(1318.5, 0.2); tone(1760, 0.42) } catch { /* no-op */ }
   }
-  window.setTimeout(clearScheduled, 2_500) // release the keep-alive after the chime rings out
+  // release the keep-alive after the chime rings out — but ONLY if the member
+  // hasn't started a new pause meanwhile (a stale cleanup would kill its chime)
+  const g = chimeGen
+  window.setTimeout(() => { if (g === chimeGen) clearScheduled() }, 2_500)
   try {
     if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
       const title = 'FORCE · ¡Descanso terminado!'

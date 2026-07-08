@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getSessions, getMyRecords, getRecapSeen, setRecapSeen, getClientName } from '../lib/store'
 import { tonnageComparison } from '../lib/metrics'
 import { liftLabel } from '../lib/records'
@@ -26,7 +26,12 @@ export function recapMonth(): RecapData | null {
   const sessions = getSessions().filter((s) => s.date.startsWith(ym))
   if (sessions.length === 0) return null
   const kg = Math.round(sessions.reduce((a, s) => a + (s.kg ?? 0), 0))
-  const prs = getMyRecords().filter((r) => r.ts.startsWith(ym)).sort((a, b) => b.kg - a.kg)
+  // record ts is UTC ISO — compare in LOCAL time so a 21:00 PR doesn't slide
+  // into the next month (UTC-3 here)
+  const prs = getMyRecords().filter((r) => {
+    const d = new Date(r.ts)
+    return d.getFullYear() === prev.getFullYear() && d.getMonth() === prev.getMonth()
+  }).sort((a, b) => b.kg - a.kg)
   const bestPr = prs[0] ? { lift: liftLabel(prs[0].lift), kg: prs[0].kg, reps: prs[0].reps } : null
   return { ym, label: prev.toLocaleDateString('es-AR', { month: 'long' }), sessions: sessions.length, kg, bestPr }
 }
@@ -37,7 +42,7 @@ export function dismissRecap(ym: string) { setRecapSeen(ym) }
 // Tap-through story (IG style): progress bars on top, tap right = next,
 // tap left third = back. Marked seen on open so it never nags twice.
 export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => void }) {
-  useMemo(() => setRecapSeen(data.ym), [data.ym])
+  useEffect(() => setRecapSeen(data.ym), [data.ym]) // side effect, not render work
   const slides = useMemo(() => {
     const s: Array<'intro' | 'sessions' | 'kg' | 'pr' | 'end'> = ['intro', 'sessions']
     if (data.kg > 0) s.push('kg')
