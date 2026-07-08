@@ -97,7 +97,8 @@ export function BottomSheet({ open, onClose, children }: {
   const onEnd = () => { dragging.current = false; if (dragY > 90) onClose(); else setDragY(0); startY.current = null }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-x-0 top-0 z-50 flex items-end" role="dialog" aria-modal="true"
+      style={{ height: 'var(--app-vh, 100vh)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
       <div className="relative w-full max-h-[88vh] overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10

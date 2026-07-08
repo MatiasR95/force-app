@@ -6,7 +6,7 @@ import type { Tier } from '../lib/medals'
 import { TIER_LABEL } from '../lib/medals'
 
 export interface ShareData {
-  kind: 'finish' | 'medal'
+  kind: 'finish' | 'medal' | 'record'
   name: string
   dayLabel?: string
   week?: number
@@ -20,6 +20,7 @@ export interface ShareData {
   thresholdText?: string
   category?: string
   nextText?: string
+  prevText?: string     // record cards: "Tu marca anterior: 95 kg × 5"
 }
 
 const HANDLE = '@force.ok'
@@ -71,7 +72,7 @@ function Card({ data }: { data: ShareData }) {
         <img src={lockupUrl} alt="FORCE" className="h-16 object-contain" />
         <div className="text-[0.52rem] tracking-[0.34em] uppercase text-white/40 font-bold mt-1">{HANDLE}</div>
         <div className="h-px w-16 bg-gradient-to-r from-transparent via-gold/60 to-transparent my-3.5" />
-        {data.kind === 'medal' ? <MedalBody data={data} /> : <FinishBody data={data} />}
+        {data.kind === 'medal' ? <MedalBody data={data} /> : data.kind === 'record' ? <RecordBody data={data} /> : <FinishBody data={data} />}
         <div className="mt-auto text-[0.58rem] tracking-[0.28em] uppercase text-gold/70 font-bold">#TrustTheProcess</div>
       </div>
     </div>
@@ -129,6 +130,22 @@ function MedalBody({ data }: { data: ShareData }) {
   )
 }
 
+function RecordBody({ data }: { data: ShareData }) {
+  return (
+    <>
+      <div className="text-[0.58rem] tracking-[0.32em] uppercase text-gold/90 font-bold">Récord personal</div>
+      <div className="my-3.5 h-[122px] w-[122px] rounded-full grid place-items-center"
+        style={{ background: 'radial-gradient(circle at 50% 34%, rgba(198,174,120,.22), rgba(198,174,120,.05))', boxShadow: 'inset 0 0 0 2px rgba(198,174,120,.55), 0 0 34px rgba(198,174,120,.28)' }}>
+        <Trophy size={54} className="text-gold-pale" />
+      </div>
+      <h1 className="heading text-2xl text-white mt-1 uppercase leading-none">{data.lift}</h1>
+      <div className="text-gold text-2xl font-black mt-1.5 tabular-nums">{data.thresholdText}</div>
+      {data.prevText && <div className="text-white/45 text-xs mt-2.5">{data.prevText}</div>}
+      {data.category && <div className="inline-block mt-2.5 rounded-full bg-white/6 border border-white/12 px-3 py-1 text-white/80 text-[0.7rem] font-bold">{data.name.split(' ')[0]} · {data.category}</div>}
+    </>
+  )
+}
+
 function Stat({ v, l }: { v: string; l: string }) {
   return (
     <div className="rounded-[10px] py-2.5 px-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' }}>
@@ -174,7 +191,19 @@ async function buildBlob(d: ShareData): Promise<Blob | null> {
   x.strokeStyle = 'rgba(198,174,120,.55)'; x.lineWidth = 2; x.beginPath(); x.moveTo(W / 2 - 90, afterLogo + 34); x.lineTo(W / 2 + 90, afterLogo + 34); x.stroke()
   let y = afterLogo + 120
 
-  if (d.kind === 'medal') {
+  if (d.kind === 'record') {
+    cx('RÉCORD PERSONAL', y, '700 34px Montserrat, sans-serif', '#C6AE78')
+    // gold ring + trophy
+    const rcx = W / 2, rcy = y + 210, rr = 165
+    x.beginPath(); x.arc(rcx, rcy, rr, 0, Math.PI * 2); x.strokeStyle = '#C6AE78'; x.lineWidth = 6; x.stroke()
+    x.beginPath(); x.arc(rcx, rcy, rr - 4, 0, Math.PI * 2); x.fillStyle = 'rgba(198,174,120,.08)'; x.fill()
+    x.font = '900 180px Montserrat, sans-serif'; x.fillStyle = '#e9dcc0'; x.textAlign = 'center'; x.textBaseline = 'middle'
+    x.fillText('🏆', rcx, rcy + 8); x.textBaseline = 'alphabetic'
+    cx((d.lift ?? '').toUpperCase(), y + 470, '900 72px Montserrat, sans-serif', '#fff')
+    cx(d.thresholdText ?? '', y + 560, '900 60px Montserrat, sans-serif', '#C6AE78')
+    if (d.prevText) cx(d.prevText, y + 630, '600 30px Montserrat, sans-serif', 'rgba(255,255,255,.5)')
+    if (d.category) cx(`${d.name.split(' ')[0]} · ${d.category}`, y + 700, '700 32px Montserrat, sans-serif', 'rgba(255,255,255,.7)')
+  } else if (d.kind === 'medal') {
     cx('NUEVA MEDALLA', y, '700 34px Montserrat, sans-serif', 'rgba(255,255,255,.7)')
     drawMedal(x, W / 2, y + 220, 175, d.tier)
     cx((d.tier ? TIER_LABEL[d.tier] : '').toUpperCase(), y + 450, '900 40px Montserrat, sans-serif', tierColor(d.tier))

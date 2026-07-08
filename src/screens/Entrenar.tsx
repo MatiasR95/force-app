@@ -92,6 +92,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
   const [prHits, setPrHits] = useState<Set<string>>(new Set()) // exercise ids that set a PR this session
+  const [prCards, setPrCards] = useState<ShareData[]>([]) // shareable "récord" cards, celebrated at finish
   const [gain, setGain] = useState<{ kg: number; id: number } | null>(null) // "+kg" chip on each marked set
 
   // persist progress on every change so backgrounding / leaving keeps it
@@ -136,7 +137,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     markMedalsSeen(earnedMedalIds(getMyRecords(), gender, cat, currentStreakWeeks(getCheckins()), getSessions().length))
   }, [])
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} onClose={onClose} onBack={() => setFinishing(false)} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -173,6 +174,18 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     setPrHits((s) => new Set(s).add(ex.id))
     setPr({ lift: liftLabel(lift), kg, reps })
     window.setTimeout(() => setPr(null), 3600)
+    // stash a shareable "récord" card for the finish celebration (one per lift)
+    const isDom = lift === 'dominadas'
+    const fmt = (n: number) => n.toLocaleString('es-AR')
+    setPrCards((cs) => {
+      const card: ShareData = {
+        kind: 'record', name: client, lift: liftLabel(lift),
+        thresholdText: `${fmt(kg)}${isDom ? ' kg lastre' : ' kg'} × ${reps}`,
+        prevText: prev ? `Superaste tu marca de ${fmt(prev.kg)} kg × ${prev.reps}` : 'Tu primer récord en este movimiento',
+        category: wc ? wcLabel(wc) : undefined,
+      }
+      return [...cs.filter((c) => c.lift !== card.lift), card] // keep the best/last per lift
+    })
   }
 
   // snapshot what was done for this exercise, to show as "la vez pasada" next time
@@ -681,9 +694,16 @@ function computeUnlockCards(): ShareData[] {
     .slice(0, 3)
 }
 
-// Full-screen "you unlocked a medal" beat: foil burst + trophy pop + the medal
+// Full-screen "you earned it" beat: foil burst + trophy pop + the record/medal
 // name(s) — the congratulation the member earns BEFORE the shareable card appears.
+// Handles both personal records ('record') and unlocked medal tiers ('medal').
 function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () => void }) {
+  const hasRec = cards.some((c) => c.kind === 'record')
+  const hasMed = cards.some((c) => c.kind === 'medal')
+  const kicker = hasRec && hasMed ? '¡Lo lograste!' : hasRec ? '¡Récord nuevo!' : '¡Medalla nueva!'
+  const heading = cards.length > 1
+    ? `Hoy sumaste ${cards.length} logros`
+    : hasRec ? '¡Rompiste tu marca!' : 'La ganaste hoy'
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/90 backdrop-blur-sm max-w-md mx-auto">
       <FoilBurst />
@@ -691,16 +711,14 @@ function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () 
         <div className="ring-pop mx-auto mb-4 h-24 w-24 rounded-full border-2 border-gold bg-gold/[0.12] grid place-items-center">
           <Trophy size={44} className="text-gold-pale" />
         </div>
-        <div className="kicker">¡Medalla nueva!</div>
-        <h1 className="heading text-3xl text-white mt-1 mb-5">
-          {cards.length > 1 ? `Hoy ganaste ${cards.length} medallas` : 'La ganaste hoy'}
-        </h1>
+        <div className="kicker">{kicker}</div>
+        <h1 className="heading text-3xl text-white mt-1 mb-5">{heading}</h1>
         <div className="space-y-2 mb-6">
           {cards.map((c, i) => (
             <FoilTilt key={i} className="rounded-card border border-gold/40 bg-gold/[0.10] px-4 py-3 flex items-center gap-3 text-left">
-              <Award size={22} className="text-gold shrink-0" />
+              {c.kind === 'record' ? <Trophy size={22} className="text-gold shrink-0" /> : <Award size={22} className="text-gold shrink-0" />}
               <div className="min-w-0">
-                <div className="text-white font-black truncate">{c.lift}</div>
+                <div className="text-white font-black truncate">{c.kind === 'record' ? `Récord · ${c.lift}` : c.lift}</div>
                 <div className="text-gold text-sm font-bold truncate">
                   {c.tier ? TIER_LABEL[c.tier] : ''}{c.tier && c.thresholdText ? ' · ' : ''}{c.thresholdText ?? ''}
                 </div>
@@ -723,8 +741,8 @@ const RPE_WORD = (v: number) =>
   v <= 2 ? 'Muy suave' : v <= 4 ? 'Cómodo' : v <= 6 ? 'Exigente' : v <= 8 ? 'Muy duro' : v === 9 ? 'Al límite' : 'Máximo'
 
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
-function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
-  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; onClose: () => void; onBack: () => void
+function Finish({ day, week, lastWeek, prHits, prCards, onClose, onBack }: {
+  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; onClose: () => void; onBack: () => void
 }) {
   const [rpe, setRpe] = useState(7)
   const [note, setNote] = useState('')
@@ -751,7 +769,8 @@ function Finish({ day, week, lastWeek, prHits, onClose, onBack }: {
       bigOnes: (bigBlock?.exercises ?? []).map((ex) => bigOneRow(ex, week, prHits)), quote,
     }
   }
-  const finish = (withRpe: boolean) => { persist(withRpe); clearSessionProgress(); setQueue(computeUnlockCards()); setPhase('celebrate') }
+  // records first (the personal high), then any medal tiers they unlocked
+  const finish = (withRpe: boolean) => { persist(withRpe); clearSessionProgress(); setQueue([...prCards, ...computeUnlockCards()]); setPhase('celebrate') }
   const save = () => finish(true)
   const skip = () => finish(false)
 
