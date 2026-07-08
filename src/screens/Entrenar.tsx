@@ -384,10 +384,19 @@ function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; n
   )
 }
 
-// Adjust what the member actually did (weight per side / reps). Saved to
+// Increment options the ± buttons can step by. Per-side (barbell) = the real
+// disc set at the gym; free-weight/machine = typical dumbbell/stack jumps.
+const DISC_STEPS = [0.5, 1, 1.25, 1.5, 2, 2.5]
+const LOAD_STEPS = [0.5, 1, 2, 2.5, 5]
+
+// Adjust what the member actually did (weight / reps / series). Saved to
 // Seguimiento and used for records + progress. Prefilled with the prescription.
-function AdjustField({ ex, dayId, dayLabel, week }: { ex: ExerciseRow; dayId: string; dayLabel: string; week: number }) {
+// `showSets` is off for circuit exercises (series come from the round count there).
+function AdjustField({ ex, dayId, dayLabel, week, showSets = true, compact = false }: {
+  ex: ExerciseRow; dayId: string; dayLabel: string; week: number; showSets?: boolean; compact?: boolean
+}) {
   const r = resolveWeek(ex, week)
+  const perSide = r.load.perSide
   const saved = getActual(ex.id)
   const [open, setOpen] = useState(() => !!saved)
   const [kg, setKg] = useState(() => saved?.kg ?? r.load.value ?? 0)
@@ -403,33 +412,51 @@ function AdjustField({ ex, dayId, dayLabel, week }: { ex: ExerciseRow; dayId: st
   }
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-3 flex items-center gap-2 text-white/55 text-sm font-bold">
-        <SlidersHorizontal size={16} className="text-gold/70" /> Ajustar lo que hiciste
+      <button onClick={() => setOpen(true)} className={`flex items-center gap-2 text-white/55 font-bold ${compact ? 'mt-2 text-xs' : 'mt-3 text-sm'}`}>
+        <SlidersHorizontal size={compact ? 14 : 16} className="text-gold/70" /> {compact ? 'Anotar peso / reps' : 'Ajustar lo que hiciste'}
       </button>
     )
   }
   return (
-    <div className="mt-3 rounded-card bg-white/5 border border-white/10 p-3">
+    <div className={`rounded-card bg-white/5 border border-white/10 p-3 ${compact ? 'mt-2' : 'mt-3'}`}>
       <div className="kicker mb-2">Lo que hiciste de verdad</div>
-      <div className="grid grid-cols-3 gap-2.5">
-        <Stepper label={r.load.perSide ? 'Kg x lado' : 'Kg'} value={kg} step={1.25} onChange={(v) => commit({ kg: v })} />
+      <Stepper label={perSide ? 'Kg x lado' : 'Kg'} value={kg} step={perSide ? 1.25 : 2.5}
+        steps={perSide ? DISC_STEPS : LOAD_STEPS} onChange={(v) => commit({ kg: v })} />
+      <div className={`grid ${showSets ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5 mt-3`}>
         <Stepper label="Reps" value={reps} step={1} onChange={(v) => commit({ reps: v })} />
-        <Stepper label="Series" value={sets} step={1} onChange={(v) => commit({ sets: v })} />
+        {showSets && <Stepper label="Series" value={sets} step={1} onChange={(v) => commit({ sets: v })} />}
       </div>
       <p className="text-[0.62rem] text-white/40 mt-2">Esto manda. Se usa para tu récord y progreso, y lo ve el coach.</p>
     </div>
   )
 }
 
-function Stepper({ label, value, step, onChange }: { label: string; value: number; step: number; onChange: (v: number) => void }) {
+// A ± number field. When `steps` is given, a small chip row lets the member pick
+// how much each ± tap moves — so they can nudge by 0,5 / 1 / 1,25 / 1,5 / 2 / 2,5.
+function Stepper({ label, value, step, steps, onChange }: { label: string; value: number; step: number; steps?: number[]; onChange: (v: number) => void }) {
+  const [active, setActive] = useState(step)
+  const bump = (dir: -1 | 1) => onChange(Math.max(0, Math.round((value + dir * active) * 100) / 100))
   return (
     <div>
-      <div className="text-[0.52rem] uppercase tracking-micro text-white/45 font-bold mb-1.5 truncate">{label}</div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onChange(Math.max(0, Math.round((value - step) * 100) / 100))} className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Minus size={13} /></button>
-        <div className="flex-1 text-center text-gold text-base font-black tabular-nums">{value}</div>
-        <button onClick={() => onChange(Math.round((value + step) * 100) / 100)} className="h-7 w-7 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={13} /></button>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[0.52rem] uppercase tracking-micro text-white/45 font-bold truncate">{label}</span>
+        {steps && <span className="text-[0.52rem] text-white/35 font-bold">de a {active.toLocaleString('es-AR')}</span>}
       </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => bump(-1)} className="h-8 w-8 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Minus size={14} /></button>
+        <div className="flex-1 text-center text-gold text-lg font-black tabular-nums">{value.toLocaleString('es-AR')}</div>
+        <button onClick={() => bump(1)} className="h-8 w-8 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-90"><Plus size={14} /></button>
+      </div>
+      {steps && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {steps.map((s) => (
+            <button key={s} onClick={() => setActive(s)}
+              className={`px-2 py-0.5 rounded-full text-[0.62rem] font-bold border active:scale-95 ${active === s ? 'bg-gold/20 border-gold/50 text-gold' : 'border-white/12 text-white/45'}`}>
+              {s.toLocaleString('es-AR')}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -509,7 +536,9 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }:
         ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
         : <Dots n={target} done={done} flash={flash} />}
       <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />
-      {section !== 'ramp' && ex.load.value != null && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
+      {/* let members log their real weight/reps — including accessories with no
+          prescribed load (dumbbell curls, machine work, bodyweight + lastre) */}
+      {section !== 'ramp' && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
     </>
   )
 }
@@ -540,13 +569,17 @@ function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flas
 
       <div className="space-y-2">
         {block.exercises.map((ex, idx) => (
-          <div key={ex.id} className="flex items-center gap-3 rounded-card bg-white/[0.04] border border-white/10 p-2.5">
-            <span className="text-gold/70 font-black text-sm w-3 shrink-0">{idx + 1}</span>
-            <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-white text-sm truncate">{ex.name}</div>
-              <div className="text-xs text-white/55">{repsCol(ex, week)}{loadText(ex, week) !== '—' ? ` · ${loadText(ex, week)}` : ''}</div>
+          <div key={ex.id} className="rounded-card bg-white/[0.04] border border-white/10 p-2.5">
+            <div className="flex items-center gap-3">
+              <span className="text-gold/70 font-black text-sm w-3 shrink-0">{idx + 1}</span>
+              <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-white text-sm truncate">{ex.name}</div>
+                <div className="text-xs text-white/55">{repsCol(ex, week)}{loadText(ex, week) !== '—' ? ` · ${loadText(ex, week)}` : ''}</div>
+              </div>
             </div>
+            {/* accessories in a superset/circuit can now record the weight they used */}
+            <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} showSets={false} compact />
           </div>
         ))}
       </div>

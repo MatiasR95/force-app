@@ -1,11 +1,17 @@
-import { planPlatesProgressive, groupPlates, inventoryFor, DEFAULT_BAR_KG } from '../lib/plates'
+import { Lightbulb } from 'lucide-react'
+import { planPlates, planPlatesProgressive, groupPlates, inventoryFor, DEFAULT_BAR_KG } from '../lib/plates'
 
-// Plate sizes → a color, loosely matching IPF/competition plates so the visual
-// reads fast on the gym floor. Micro plates (≤2kg) render small and gold.
+// Plate sizes → a color, loosely matching this gym's real plates so the visual
+// reads fast on the floor. FORCE's 5 kg discs are BLACK; micro plates (≤2kg) gold.
 const PLATE_COLOR: Record<number, string> = {
   25: '#C0392B', 20: '#2C6FB5', 15: '#E0A92B', 10: '#3B7A3B',
-  5: '#E8E6E2', 2.5: '#1A1916', 2: '#C6AE78', 1.5: '#C6AE78', 1.25: '#8A6A38', 1: '#8A6A38', 0.5: '#EADEB4',
+  5: '#17150E', 2.5: '#1A1916', 2: '#C6AE78', 1.5: '#C6AE78', 1.25: '#8A6A38', 1: '#8A6A38', 0.5: '#EADEB4',
 }
+
+// Same per-side weight, but built with the FEWEST discs (greedy). Shown as a second
+// option when the ramp-progressive plan stacks discs the member could combine.
+const fmtG = (g: Array<{ kg: number; count: number }>) =>
+  g.map((x) => `${x.kg.toLocaleString('es-AR')}×${x.count}`).join('  ')
 
 // `priorLoads` = this lift's earlier per-side loads today (aproximación sets),
 // so the plan only ADDS plates set to set; `dayMaxKg` = the heaviest load the
@@ -16,6 +22,13 @@ export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false,
   const inventory = inventoryFor(deadlift, Math.max(dayMaxKg ?? 0, perSideKg))
   const plan = planPlatesProgressive(perSideKg, priorLoads, barKg, inventory)
   const groups = groupPlates(plan.plates)
+  // the same weight with the fewest discs — offered as an alternative when the
+  // ramp plan repeats a disc (so they can combine instead of stacking the same one)
+  const fewest = groupPlates(planPlates(perSideKg, barKg, inventory).plates)
+  // only nudge to combine when a fewer-disc loading actually exists (a bigger disc
+  // can replace the stack). At 30/lado the gym tops out at 10s, so 10×3 is the only
+  // way — showing "avoid 3×" there would be wrong.
+  const altDiffers = fmtG(fewest) !== fmtG(groups) && plan.achievable
 
   return (
     <div className="rounded-card bg-black/30 border border-white/10 p-4">
@@ -53,6 +66,24 @@ export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false,
         <span className="text-gold text-sm font-bold">· {perSideKg.toLocaleString('es-AR')} kg/lado</span>
       </div>
 
+      {altDiffers && (
+        <div className="mt-2.5 flex items-center justify-center gap-1.5 text-xs">
+          <span className="text-[0.55rem] uppercase tracking-micro font-bold text-white/35">Con menos discos</span>
+          <span className="font-bold text-white/70">{fmtG(fewest)}</span>
+        </div>
+      )}
+
+      {/* combiná discos: don't stack the same one three-plus times (10+5, not 5+5+5) */}
+      {altDiffers && (
+        <div className="mt-3 flex gap-2 rounded-card border border-gold/20 bg-gold/[0.05] p-2.5">
+          <Lightbulb size={14} className="text-gold/80 shrink-0 mt-0.5" />
+          <p className="text-white/70 text-[0.7rem] leading-snug">
+            Combiná discos distintos para el mismo peso. Evitá apilar el mismo disco 3 veces o más
+            (por ejemplo, 15 kg = un 10 + un 5, no tres de 5).
+          </p>
+        </div>
+      )}
+
       {!plan.achievable && (
         <p className="mt-2 text-center text-[0.7rem] text-white/45">
           Faltan {plan.remainder} kg para el valor exacto con los discos del gimnasio.
@@ -66,14 +97,15 @@ function Plate({ kg, delay = 0, side = 'r' }: { kg: number; delay?: number; side
   const color = PLATE_COLOR[kg] ?? '#8A6A38'
   // larger plates render taller
   const h = 26 + Math.min(kg, 25) * 1.4
-  const light = kg === 5
+  // the black 5 kg disc needs a light edge to read against the dark bar
+  const edge = kg === 5 ? '1px solid rgba(255,255,255,0.28)' : 'none'
   return (
     <div
       className={`w-2.5 rounded-[3px] shrink-0 ${side === 'l' ? 'plate-in-l' : 'plate-in-r'}`}
       style={{
         height: h,
         background: `linear-gradient(90deg, ${color}, ${color} 55%, rgba(0,0,0,0.28))`,
-        border: light ? '1px solid #999' : 'none',
+        border: edge,
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
         animationDelay: `${delay}ms`,
       }}
