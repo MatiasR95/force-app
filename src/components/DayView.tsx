@@ -2,7 +2,7 @@ import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { Spine } from './ui'
 import { setsReps, loadText, repsText } from './TechniqueChips'
 import { AnimatedExercise } from './AnimatedExercise'
-import { circuitRounds } from '../lib/week'
+import { circuitRounds, liftOfWeek } from '../lib/week'
 import { Flame, ChevronRight, Repeat, Layers, Zap } from 'lucide-react'
 
 // Human label for a grouped block. "Circuito" is reserved for HIIT; accessories
@@ -53,7 +53,10 @@ function PlainBlock({ block, week, onPick }: {
     <section>
       <BlockHeader title={block.title} big={block.tag === 'big'} />
       <div className="space-y-2">
-        {block.exercises.map((ex) => (
+        {block.exercises.map((row) => {
+          // on a variation week the coach swapped the lift inside the "Semana N" cell
+          const ex = liftOfWeek(row, week)
+          return (
           <button
             key={ex.id}
             onClick={() => onPick(ex)}
@@ -70,7 +73,8 @@ function PlainBlock({ block, week, onPick }: {
             </div>
             <ChevronRight size={18} className="self-center text-white/30 shrink-0" />
           </button>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
@@ -94,7 +98,9 @@ function CircuitCard({ block, week, onPick }: {
           <span className="text-[0.62rem] text-white/45 ml-auto">{g.hint}</span>
         </div>
         <div className="divide-y divide-white/8">
-          {block.exercises.map((ex, i) => (
+          {block.exercises.map((row, i) => {
+            const ex = liftOfWeek(row, week)
+            return (
             <button key={ex.id} onClick={() => onPick(ex)}
               className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 active:bg-white/5">
               <span className="text-gold/60 font-black text-xs w-3 shrink-0">{i + 1}</span>
@@ -107,7 +113,8 @@ function CircuitCard({ block, week, onPick }: {
               </div>
               <ChevronRight size={16} className="text-white/30 shrink-0" />
             </button>
-          ))}
+            )
+          })}
         </div>
       </div>
     </section>

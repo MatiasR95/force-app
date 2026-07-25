@@ -5,7 +5,10 @@ import { slugify, classifyPattern, deburr } from './normalize'
 
 // ---- cell helpers -------------------------------------------------------
 
-const norm = (v: unknown): string => (v == null ? '' : String(v)).trim()
+// Cells can hold hard line breaks (coaches type "Sentadilla ⏎ 4x4 20kg x lado" in a
+// single week cell). Flatten them to spaces so one cell = one parseable string.
+const norm = (v: unknown): string =>
+  (v == null ? '' : String(v)).replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ').trim()
 
 const SECTION_TITLES: Record<SectionTag, string> = {
   warmup: 'Entrada en calor',
@@ -76,13 +79,41 @@ const toNum = (s: string): number | null => {
   return m ? parseFloat(m[0]) : null
 }
 
+// A set/rep scheme ("5X4", "6 x 4") — never a weight, even though it leads with a
+// number. Coaches write whole prescriptions into OBSERVACIONES and into week cells.
+const SCHEME = /\d+\s*[xX]\s*\d+/g
+
+// Resistance-band colours as coaches actually write them — any gender, singular or
+// plural ("Naranjas", "Violetas", "GRISES"): the load IS the band.
+const BAND = /\b(banda[s]?\s+\w+|gris(?:es)?|verdes?|roj[ao]s?|negr[ao]s?|azul(?:es)?|amarill[ao]s?|violetas?|naranjas?|celestes?|marron(?:es)?)\b/i
+
 export function parseLoad(obs: string): Load {
   const raw = obs.trim()
   const perSide = PER_SIDE.test(raw)
-  const bandMatch = raw.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
-  const hasKg = /kg/i.test(raw) || /^\s*-?\d/.test(raw)
-  const value = hasKg ? toNum(raw) : null
+  const bandMatch = raw.match(BAND)
+  // The weight is the number tagged "kg" — NOT simply the first number in the cell.
+  // Real case (Matias, Agosto 2026): OBSERVACIONES = "5X4 43,75kg x lado" is a full
+  // prescription; reading the first number showed the member a 5 kg squat instead of
+  // 43,75. Only when no "kg" tag exists do we fall back to a bare number, and then
+  // only after dropping any set×rep scheme ("25 X4 20 x lado" → 20). A bracketed
+  // coach comment is never the prescription either ("60 x lado (la próxima subí
+  // 2,5kg)" is 60), so brackets are ignored while hunting for the weight.
+  // (an UNCLOSED bracket is a comment too — coaches forget the closing one)
+  const scan = raw.replace(/\([^)]*\)/g, ' ').replace(/\([^)]*$/, ' ')
+  const kg = scan.match(/([+↑↓]?)\s*(-?\d+(?:[.,]\d+)?)\s*kg/i)
+  let value: number | null = null
+  let delta = false
+  if (kg) {
+    value = toNum(kg[2])
+    // "+5kg" / "↑2,5kg" is an INCREMENT on last week's weight, not the weight itself
+    delta = kg[1] === '+' || kg[1] === '↑' || kg[1] === '↓'
+    if (kg[1] === '↓' && value != null) value = -value
+  } else {
+    const bare = scan.replace(SCHEME, ' ').trim()
+    if (/^-?\d/.test(bare)) value = toNum(bare)
+  }
   const load: Load = { value, perSide, unit: 'kg', raw }
+  if (delta) load.delta = true
   if (bandMatch && value == null) load.band = bandMatch[0]
   return load
 }
@@ -97,7 +128,7 @@ export function parseTechniques(name: string, reps: string, obs: string): Techni
   if (/myo\s*reps?/i.test(hay)) t.push({ type: 'myoreps' })
   const cluster = hay.match(/cluster\s*(\d+)?\s*["¨'']?/i)
   if (cluster) t.push({ type: 'cluster', restSeconds: cluster[1] ? parseInt(cluster[1], 10) : null })
-  const band = obs.match(/\b(banda\s+\w+|gris|verde|roja|negra|azul|amarilla|violeta)\b/i)
+  const band = obs.match(BAND)
   if (band) t.push({ type: 'band', color: band[1] })
   if (PER_SIDE.test(hay)) t.push({ type: 'perSide' })
   if (/amrap|al\s*fallo|max/i.test(hay)) t.push({ type: 'amrap' })
@@ -138,18 +169,150 @@ export function parseSeriesPlan(raw: string): { plan: number[]; rest: string } |
   return null
 }
 
+// ---- per-week exercise substitutions ------------------------------------
+// On a variation/deload week many coaches replace the LIFT inside the "Semana N"
+// cell instead of adding a row: "Semana 4: 8X5 Polea Pronado 27,5kg x lado" for a
+// base row of Dominadas. Until now the member trained that week seeing the base
+// lift's name, animation and cues. Detection has to be conservative: most cells
+// with letters are NOT swaps — they're band colours ("Naranjas"), technique notes
+// ("NORMAL", "mas peso", "Tempo 2:2:0") or the member's own comments in brackets.
+// So we strip everything that is known noise and only call it a swap when what's
+// left actually NAMES an exercise (vocabulary vetted by the S&C coach).
+
+// Head nouns that make a leftover phrase an exercise name.
+const EXERCISE_NOUN = new RegExp([
+  'sentadilla', 'squat', 'bulgara', 'zancada', 'estocada', 'desplante', 'lunge', 'split',
+  'step ?up', 'incorporacion', 'pistol', 'prensa', 'hack', 'sissy', 'hatfield',
+  'peso muerto', 'deadlift', 'rdl', 'hip thrust', 'buenos dias', 'good ?morning', 'ghd',
+  'puente', 'gluteo', 'bisagra', 'hyper', 'nordic', 'isquio', 'swing', 'back extension',
+  'remo', 'dominada', 'jalon', 'polea', 'face ?pull', 'pull ?apart', 'band ?pull', 'traccion', 'menton',
+  'encogimiento', 'shrug', 'pajaro', 'biceps', 'curl',
+  'press', 'flexion', 'fondos?', 'empuje', 'push ?up', 'militar', 'frances', 'tricep',
+  'apertura', 'vuelo', 'elevacion', 'patada', 'gemelos', 'calf',
+  'caminata', 'carry', 'farmer', 'valijero', 'paseo', 'traslado',
+  'abdominal', 'plancha', 'pallof', 'hollow', 'bird ?dog', 'dead ?bug', 'oblicuo',
+  'rueda', 'ruedita', 'sierra',
+].join('|'), 'i')
+
+// Words that must NEVER, on their own, be read as an exercise: band colours (in
+// every gender/plural, incl. ALL CAPS), technique/effort notes, filler.
+const NOISE_WORD = new RegExp('^(?:' + [
+  'naranjas?', 'verdes?', 'violetas?', 'amarill[ao]s?', 'gris(?:es)?', 'roj[ao]s?',
+  'negr[ao]s?', 'celestes?', 'azul(?:es)?', 'blanc[ao]s?', 'marr(?:o|ó)n(?:es)?',
+  'orange', 'green', 'purple', 'yellow', 'gr[ae]y', 'red', 'black', 'blue', 'white', 'brown',
+  'banda', 'bandas', 'goma', 'gomas',
+  // NB: "peso" alone is NOT noise — it heads "Peso Muerto". The "mas peso" /
+  // "menos peso" phrasings are stripped as phrases before tokenizing.
+  'normal', 'mas', 'm(?:a|á)s', 'menos', 'tempo', 'pausa', 'pausado', 'sin', 'con',
+  'explosivo', 'lento', 'myo', 'reps?', 'rep', 'cluster', 'dropset', 'serie', 'series',
+  'x', 'lado', 'lad', 'side', 'per',
+  'kg', 'kgs', 'idem', 'igual',
+  '\\d+\\s*reps?', '\\d+\\s*seg(?:s|undos)?', // "6reps", "20seg"
+].join('|') + ')$', 'i')
+
+// Tokens that neither name an exercise nor end a phrase: bare numbers, connectors
+// and stray signs. They must not SPLIT a name ("Tracciones a la frente",
+// "Remo Landmine 1 brazo") but never start or end one either.
+const SOFT_WORD = /^(?:a|al|de|del|la|el|los|las|y|o|e|con|sin|en|para|the)$/i
+const isSoftToken = (t: string): boolean =>
+  /^[+\-–]?\d+(?:[.,]\d+)?[+\-–]?$/.test(t) || /^[+\-–]+$/.test(t) || SOFT_WORD.test(deburr(t))
+
+/**
+ * The exercise a "Semana N" cell prescribes INSTEAD of the base one, or null when
+ * the cell only tweaks the base lift. `base` is the base row's name, so a coach
+ * simply restating it ("Sentadilla 4x4 20kg x lado") isn't read as a swap.
+ */
+export function detectSwap(raw: string, base: string): string | null {
+  const s = raw
+    .replace(/\([^)]*\)/g, ' ')          // member/coach comments: "(hice con amarillas)"
+    .replace(/\b(?:m[aá]s|menos|mismo|igual)\s+(?:peso|carga)\b/gi, ' ') // "mas peso"
+    .replace(/\d+\s*[xX]\s*\d+/g, ' ')   // set×rep schemes
+    .replace(/\d+(?:[.,]\d+)?\s*kg\b/gi, ' ')
+    .replace(/\bc\/\s*\w+/gi, ' ')       // "c/bandas", "c/barra"
+    .replace(/\d+\s*:\s*\d+\s*:\s*\d+/g, ' ') // tempo
+    .replace(/x\s*lad\s*o|x\s*lado|\/\s*lado|por\s*lado|x\s*side|per\s*side|e\/?\s*side/gi, ' ')
+    .replace(/[."¨'´`;:!¿?/|]+/g, ' ')
+  const tokens = s.split(/[\s,]+/).filter(Boolean)
+  // longest run of consecutive real words
+  let best: string[] = []
+  let run: string[] = []
+  const flush = () => {
+    while (run.length && isSoftToken(run[run.length - 1])) run.pop()
+    if (run.length > best.length) best = run
+    run = []
+  }
+  for (const t of tokens) {
+    if (isSoftToken(t)) { if (run.length) run = [...run, t]; continue }
+    if (NOISE_WORD.test(deburr(t))) { flush(); continue }
+    run = [...run, t]
+  }
+  flush()
+  if (!best.length) return null
+  const name = best.join(' ').trim()
+  // the exercise has to be what the phrase is ABOUT: the head noun sits in the first
+  // couple of words. Otherwise coach prose that merely mentions a lift ("trabajar el
+  // remo mas lento") would be read as a substitution — and a wrongly detected swap
+  // week drops out of the progression chain, silently under-loading later weeks.
+  if (!EXERCISE_NOUN.test(deburr(best.slice(0, 2).join(' ')))) return null
+  // A restatement of the base lift adds nothing — not a swap. Compared as sets of
+  // singular word stems, so "Sentadillas Búlgaras" restates "Sentadilla Búlgara",
+  // while a phrase that brings a NEW word is a real swap ("Sentadillas" →
+  // "Sentadillas al banco" = box squat).
+  const stems = (v: string) => new Set(deburr(v).split(/[^a-z0-9]+/)
+    .filter((t) => t && !SOFT_WORD.test(t)).map((t) => t.replace(/(?:es|s)$/, '')))
+  const baseStems = stems(base)
+  const novel = [...stems(name)].filter((t) => !baseStems.has(t))
+  if (!novel.length) return null
+  return name
+}
+
+/**
+ * Drop a leading restatement of the base lift so the prescription behind it parses:
+ * "Sentadilla +1\" 5x4 21,25kg x lado" → "5x4 21,25kg x lado". Only strips text BEFORE
+ * the first set×rep scheme, and only when every word in it belongs to the base name
+ * (technique/pause marks aside) — so a real swap name is never silently discarded.
+ */
+function stripLeadingName(s: string, base: string): string {
+  if (!base) return s
+  const at = s.search(/\d+\s*[xX]\s*\d+/)
+  if (at <= 0) return s
+  const prefix = s.slice(0, at)
+  if (/\d+(?:[.,]\d+)?\s*kg/i.test(prefix)) return s // a weight can't be part of a name
+  const stem = (t: string) => deburr(t).replace(/(?:es|s)$/, '')
+  const baseStems = new Set(deburr(base).split(/[^a-z0-9]+/).filter(Boolean).map(stem))
+  const words = prefix.split(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+/).filter(Boolean)
+  if (!words.length) return s
+  const known = words.every((w) => /^\d+$/.test(w) || SOFT_WORD.test(deburr(w)) || baseStems.has(stem(w)))
+  return known ? s.slice(at) : s
+}
+
 // A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
 // "Mismo semana ant." (inherit previous week).
-export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | null {
+export function parseWeekCell(raw: string, week: number, col = -1, base = ''): WeekCell | null {
   const s = raw.trim()
   if (!s) return null
-  if (/mism[oa]\s+sem|sem(ana)?\s*ant|^=$|^idem$|^igual/i.test(deburr(s))) {
-    return { week, reps: null, sets: null, load: null, raw: s, complex: false, inherit: true, col }
+  if (/mism[oa]s?\s+sem|sem(ana)?\s*ant|^=$|^idem$|^igual/i.test(deburr(s))) {
+    // "Mismo semana 4" points at a SPECIFIC week, not simply the previous one — real
+    // case (Rodri Leuzzi): S5 "Mismo semana 4", S8 "Mismo semana 7".
+    const from = deburr(s).match(/sem(?:ana)?\s*(\d+)/)
+    const cell: WeekCell = { week, reps: null, sets: null, load: null, raw: s, complex: false, inherit: true, col }
+    if (from) {
+      const n = parseInt(from[1], 10)
+      if (n >= 1 && n < week) cell.inheritFrom = n
+    }
+    return cell
   }
-  const m = s.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
+  const swap = base ? detectSwap(s, base) : null
+  const withSwap = (c: WeekCell): WeekCell => (swap ? { ...c, name: swap } : c)
+  // With the lift's NAME lifted out, what's left is an ordinary prescription — so
+  // "Sentadillas al banco 6X4 40kg x lado" reads as 6×4 @ 40 kg per side instead of
+  // falling into the unparseable "complex" bucket. Same when the coach merely RESTATES
+  // the base lift ("Sentadilla +1\" 5x4 21,25kg x lado" — real case, Marisol).
+  const body = (swap ? s.replace(swap, ' ') : stripLeadingName(s, base)).replace(/\s+/g, ' ').trim()
+  const m = body.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
   if (m && !/[x+]/i.test(m[3].replace(/x\s*lado/i, ''))) {
     const rest = m[3].trim()
-    return {
+    return withSwap({
       week,
       reps: parseInt(m[1], 10),
       sets: parseInt(m[2], 10),
@@ -158,26 +321,48 @@ export function parseWeekCell(raw: string, week: number, col = -1): WeekCell | n
       complex: false,
       inherit: false,
       col,
-    }
+    })
+  }
+  // Bilateral / two-part reps × sets: "4+4x4", "10+8x3", "6+6x3 Gris" — "4+4" is ONE
+  // set (4 per side, or 4+4 of two movements), done N times. Without this the set
+  // count silently stayed on the previous week's (real case: Marisol's Skater squats
+  // showed 3 series for the whole cycle while the coach wrote 4).
+  const pair = body.match(/^(\d+)\s*\+\s*(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
+  if (pair) {
+    const rest = pair[4].trim()
+    return withSwap({
+      week,
+      reps: null,
+      sets: parseInt(pair[3], 10),
+      load: rest ? parseLoad(rest) : null,
+      raw: s,
+      complex: true, // the "4+4" label is shown as written
+      inherit: false,
+      col,
+    })
   }
   // a non-linear per-series plan ("4X1+3X3", "10-10-8-8") → expand to per-set reps
-  const sp = parseSeriesPlan(s)
+  const sp = parseSeriesPlan(body)
   if (sp) {
     const load = /kg|banda|gris|verde|roja|negra|azul|amarill|violet|naranj/i.test(sp.rest) ? parseLoad(sp.rest) : null
-    return { week, reps: null, sets: sp.plan.length, load, raw: s, complex: true, inherit: false, col, plan: sp.plan }
+    return withSwap({ week, reps: null, sets: sp.plan.length, load, raw: s, complex: true, inherit: false, col, plan: sp.plan })
   }
   // a timed HIIT/isometric override — "25¨X4", "30\"x3", "20 s" → work-time in
   // seconds (+ an optional trailing "×N" round count). Without this these fall to
   // the "complex" bucket and the per-week work-time is lost (the base 20″ shows on
   // every week even when Semana 6 says 25″).
-  const secs = parseTimeSec(s)
+  // …but a PAUSE mark ('+1"') is not work time, and neither is a stray second count in
+  // a cell that already carries a reps×sets scheme.
+  const secs = /\+\s*\d+\s*["¨'']/.test(body) || /\d+\s*[xX]\s*\d+/.test(body)
+    ? null : parseTimeSec(body)
   if (secs != null) {
-    const rounds = s.match(/[x×]\s*(\d+)\s*$/i)
-    return { week, reps: null, sets: rounds ? parseInt(rounds[1], 10) : null, load: null, raw: s, complex: false, inherit: false, col, timeSec: secs }
+    const rounds = body.match(/[x×]\s*(\d+)\s*$/i)
+    return withSwap({ week, reps: null, sets: rounds ? parseInt(rounds[1], 10) : null, load: null, raw: s, complex: false, inherit: false, col, timeSec: secs })
   }
-  // couldn't cleanly split → keep raw, surface any weight
-  const load = /kg/i.test(s) ? parseLoad(s) : null
-  return { week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col }
+  // couldn't cleanly split → keep raw, surface any weight. With the substituted lift's
+  // name removed, a bare number left behind IS its weight ("remo pronado 12.5 6reps").
+  const load = /kg/i.test(body) || (swap && /^\d/.test(body)) ? parseLoad(body) : null
+  return withSwap({ week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col })
 }
 
 // Work time in seconds from a reps cell: "30''", "30s", "40 seg", "30\"".
@@ -254,7 +439,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const basePlan = setOrdinalMatch ? null : (parseSeriesPlan(d)?.plan ?? parseSeriesPlan(c)?.plan ?? null)
     const weeks: Record<number, WeekCell> = {}
     for (const wc of weekCols) {
-      const cell = parseWeekCell(norm(cells[wc.col]), wc.week, wc.col)
+      const cell = parseWeekCell(norm(cells[wc.col]), wc.week, wc.col, b)
       if (cell) weeks[wc.week] = cell
     }
     const row: ExerciseRow = {

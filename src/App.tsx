@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, fetchRecords, isDemo, syncOutbox } from './lib/api'
 import { runRivalWatch } from './lib/rivalWatch'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, setStartDay, setStartWeek, getIntroSeen, setIntroSeen, extractToken } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, getStartDayAfter, setStartDay, setStartWeek, getSessionProgress, getIntroSeen, setIntroSeen, extractToken, routineFingerprint, getRoutineId, setRoutineId, resetForNewRoutine, dropStaleWeekAnchor } from './lib/store'
 import type { Gender } from './lib/records'
-import { memberCurrentWeek } from './lib/week'
+import { memberCurrentWeek, parseStartDate } from './lib/week'
 import { currentEventTheme } from './lib/eventTheme'
 import { Home } from './screens/Home'
 import { Hoy } from './screens/Hoy'
@@ -72,7 +72,38 @@ export default function App() {
   const [intro, setIntro] = useState(!getIntroSeen())
   const [slow, setSlow] = useState(false)
   const [askStartDay, setAskStartDay] = useState(getStartDay() == null && getSessions().length === 0)
+  const [newCycle, setNewCycle] = useState(false)
   const [showInstall, setShowInstall] = useState(false)
+
+  // A NEW routine arrived (the coach loaded next month's plan). Everything the app
+  // remembers per exercise is keyed by a POSITION in the plan ("d1-1-x3"), and the
+  // week anchor belongs to the cycle that just ended — carrying either one over shows
+  // the member the previous plan's weights on their new plan. Reset that state and
+  // ask again which day/week they're starting on (defaulting to week 1).
+  useEffect(() => {
+    if (!routine || routine.days.length === 0) return
+    // Never mid-workout: the gate would cover the training screen and the reset would
+    // drop the sets/weights of the session in progress. (A session left unfinished on
+    // an EARLIER day is stale and must not block this forever.)
+    if (training != null || getSessionProgress()?.date === localDate()) return
+    const fp = routineFingerprint(routine)
+    const prev = getRoutineId()
+    setRoutineId(fp)
+    if (prev == null) {
+      // first run on this build: no fingerprint stored yet, so we can't compare — but
+      // an anchor set well before the plan started belongs to a previous cycle. Ask
+      // rather than silently moving them, since we can't tell which plan it was for.
+      if (dropStaleWeekAnchor(parseStartDate(routine.meta.startDate)?.getTime() ?? null)) {
+        setWeek(null); setNewCycle(true); setAskStartDay(true)
+      }
+      return
+    }
+    if (prev === fp) return
+    resetForNewRoutine()
+    setWeek(null)
+    setNewCycle(true)
+    setAskStartDay(true)
+  }, [routine, training])
 
   // Close of a training session → if they just finished their first one and we can
   // still install, offer the branded "add to home" nudge (once, at peak goodwill).
@@ -167,9 +198,13 @@ export default function App() {
   let suggestedDay = 0
   if (doneToday) suggestedDay = dayIndexOf(doneToday.dayId)
   else if (mostRecent) suggestedDay = (dayIndexOf(mostRecent.dayId) + 1) % routine.days.length
-  // first run (nothing trained yet): start from the day the member chose on launch
+  // The day the member told us they're starting on wins until they log a session
+  // AFTER telling us. That covers first run AND a brand-new routine: their sessions
+  // on the finished plan must not decide where the new plan starts.
   const startDayId = getStartDay()
-  if (startDayId && sessions.length === 0) {
+  const chosenAfter = getStartDayAfter()
+  const chosenStillFresh = sessions.length === 0 || (chosenAfter >= 0 && sessions.length <= chosenAfter)
+  if (startDayId && chosenStillFresh) {
     const idx = dayIndexOf(startDayId)
     if (idx >= 0) suggestedDay = idx
   }
@@ -247,11 +282,14 @@ export default function App() {
       {askStartDay && !askGender && !intro && routine.days.length > 1 && (
         <StartGate
           routine={routine}
-          defaultWeek={currentWk}
+          // a brand-new plan starts at week 1 — its sheet often carries the PREVIOUS
+          // cycle's "Fecha de Inicio", which would otherwise open it on week 9.
+          defaultWeek={newCycle ? 1 : currentWk}
+          newCycle={newCycle}
           onPick={(dayId, startWeek) => {
             setStartDay(dayId)
             if (startWeek != null) { setStartWeek(startWeek); setWeek(null) }
-            setAskStartDay(false); go('inicio')
+            setAskStartDay(false); setNewCycle(false); go('inicio')
           }}
         />
       )}
@@ -279,8 +317,9 @@ function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
 
 // First-run: the member picks which DAY they're starting on, and (for multi-week
 // plans) which WEEK they're on — many join mid-cycle ("arranco en la semana 5").
-function StartGate({ routine, defaultWeek, onPick }: {
-  routine: Routine; defaultWeek: number; onPick: (dayId: string, startWeek: number | null) => void
+function StartGate({ routine, defaultWeek, newCycle = false, onPick }: {
+  routine: Routine; defaultWeek: number; newCycle?: boolean
+  onPick: (dayId: string, startWeek: number | null) => void
 }) {
   const weekly = routine.style === 'weekly' && routine.totalWeeks > 1
   const [day, setDay] = useState<string | null>(null)
@@ -289,7 +328,12 @@ function StartGate({ routine, defaultWeek, onPick }: {
   // step 1: choose the day
   if (!day) {
     return (
-      <GateShell title="¿Con qué día arrancás hoy?" sub="Después la app te va guiando sola, día a día.">
+      <GateShell
+        kicker={newCycle ? `Rutina nueva · ${routine.title}` : 'Para arrancar'}
+        title={newCycle ? 'Tenés rutina nueva 💪' : '¿Con qué día arrancás hoy?'}
+        sub={newCycle
+          ? 'Tu coach te cargó un plan nuevo. Elegí con qué día arrancás y seguimos.'
+          : 'Después la app te va guiando sola, día a día.'}>
         <div className="space-y-2 text-left">
           {routine.days.map((d) => {
             const focus = d.blocks.find((b) => b.tag === 'big')?.exercises.map((e) => e.name).join(' + ')
@@ -312,7 +356,10 @@ function StartGate({ routine, defaultWeek, onPick }: {
 
   // step 2 (weekly plans): choose the starting week
   return (
-    <GateShell title="¿En qué semana estás?" sub="Si arrancás el ciclo a mitad de camino, elegí tu semana. Va a avanzar sola cada semana.">
+    <GateShell title="¿En qué semana estás?"
+      sub={newCycle
+        ? 'Arrancás un ciclo nuevo: normalmente es la semana 1. Si no, elegí la tuya.'
+        : 'Si arrancás el ciclo a mitad de camino, elegí tu semana. Va a avanzar sola cada semana.'}>
       <div className="flex items-center justify-center gap-4 my-2">
         <button onClick={() => setWk((w) => Math.max(1, w - 1))} disabled={wk <= 1}
           className="h-12 w-12 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white text-2xl font-black disabled:opacity-30 active:scale-90">−</button>
@@ -331,12 +378,14 @@ function StartGate({ routine, defaultWeek, onPick }: {
   )
 }
 
-function GateShell({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
+function GateShell({ title, sub, kicker = 'Para arrancar', children }: {
+  title: string; sub: string; kicker?: string; children: React.ReactNode
+}) {
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
       <div className="w-full max-h-full overflow-y-auto py-6 text-center">
         <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
-        <div className="kicker">Para arrancar</div>
+        <div className="kicker">{kicker}</div>
         <h1 className="heading text-2xl text-white mt-1 mb-1">{title}</h1>
         <p className="text-white/45 text-xs mb-5">{sub}</p>
         {children}

@@ -220,13 +220,59 @@ function tabDayNumber_(name, fallback) {
  */
 function currentRoutineFile_(folder) {
   var files = folder.getFilesByType(MimeType.GOOGLE_SHEETS)
-  var best = null
+  var best = null, bestMonth = -1
   while (files.hasNext()) {
     var f = files.next()
     if (isNonRoutineFile_(f.getName())) continue
-    if (!best || f.getLastUpdated() > best.getLastUpdated()) best = f
+    var m = titleMonthKey_(f.getName())
+    // A month-titled sheet ("Agosto 2026") always beats one that isn't, and the
+    // LATEST month wins. Coaches leave the previous cycle loose in the folder while
+    // they write the next one, and any touch of the old sheet made it the "most
+    // recently modified" — serving last month's plan. Same-month/untitled ties still
+    // fall back to the modified date.
+    if (!best || m > bestMonth || (m === bestMonth && f.getLastUpdated() > best.getLastUpdated())) {
+      best = f
+      bestMonth = m
+    }
   }
   return best
+}
+
+/**
+ * "Agosto 2026" → 2026*12+7 for ordering. -1 when the title isn't a cycle name.
+ *
+ * The title must BE the cycle ("Agosto 2026", "Rutina Julio 2026", "Agosto 2026 (v2)")
+ * — not merely mention a month. Client folders also hold things like "Evaluación
+ * inicial Julio 2026" or "Test de fuerza junio 2026"; treating those as the newest
+ * plan would serve an assessment sheet as the routine, and (unlike the old
+ * modified-date rule) editing the real plan would never win it back.
+ */
+function titleMonthKey_(name) {
+  var s = String(name || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\.(xlsx?|gsheet)$/, '')
+    .replace(/[([].*$/, '')          // drop a trailing "(copia)" / "[v2]"
+    .replace(/\b(?:rutina|plan|programa|mes)\b/g, ' ')
+    .replace(/\bde\b/g, ' ')
+    .replace(/[-–_]+/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+  var MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+    'septiembre|setiembre', 'octubre', 'noviembre', 'diciembre']
+  for (var i = 0; i < MONTHS.length; i++) {
+    var m = s.match(new RegExp('^(?:' + MONTHS[i] + ')\\s*(20\\d{2})?$'))
+    if (!m) continue
+    if (m[1]) return parseInt(m[1], 10) * 12 + i
+    // No year written: pick the year that puts this month nearest to today, so a
+    // leftover "DICIEMBRE" doesn't outrank "Enero 2027" every January.
+    var now = new Date(), key = now.getFullYear() * 12 + now.getMonth()
+    var best = null
+    for (var dy = -1; dy <= 1; dy++) {
+      var cand = (now.getFullYear() + dy) * 12 + i
+      if (best === null || Math.abs(cand - key) < Math.abs(best - key)) best = cand
+    }
+    return best
+  }
+  return -1
 }
 
 /** App-managed sheets that must never be mistaken for a routine. */

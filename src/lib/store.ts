@@ -56,6 +56,7 @@ const KEYS = {
   restEdu: 'force.restEdu',
   installNudge: 'force.installNudge',
   recapSeen: 'force.recapSeen',
+  routineId: 'force.routineId',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -199,14 +200,87 @@ export const setGender = (g: Gender): void => write(KEYS.gender, g)
 // On first launch (before any session is logged) the member tells us which day
 // of their plan they're starting on, so the app suggests the right one. After
 // that, the suggestion follows what they've actually completed. '' = skipped.
-export const getStartDay = (): string | null => read<string | null>(KEYS.startDay, null)
-export const setStartDay = (dayId: string): void => write(KEYS.startDay, dayId)
+// Stored as { dayId, date } so a NEW cycle's choice outranks sessions logged on the
+// previous plan; legacy plain-string values still read fine.
+export const getStartDay = (): string | null => {
+  const v = read<string | { dayId: string } | null>(KEYS.startDay, null)
+  return typeof v === 'string' ? v : v?.dayId ?? null
+}
+/**
+ * How many sessions the member had logged when they last told us which day they're
+ * starting on. Their choice outranks older sessions (incl. every session from the
+ * cycle that just ended) until they train again — a date comparison wasn't enough,
+ * since a member who trained this morning gets a new plan at midday.
+ * -1 = never asked (legacy value).
+ */
+export const getStartDayAfter = (): number => {
+  const v = read<string | { nSessions?: number } | null>(KEYS.startDay, null)
+  return typeof v === 'string' || !v ? -1 : v.nSessions ?? -1
+}
+export const setStartDay = (dayId: string): void =>
+  write(KEYS.startDay, { dayId, date: localDate(), nSessions: getSessions().length })
 
 // Members often join mid-cycle (e.g. "I start on week 5"). We anchor their week to
 // the date they told us, so it advances on its own each real week afterwards.
 export interface WeekAnchor { week: number; date: string }
 export const getStartWeek = (): WeekAnchor | null => read<WeekAnchor | null>(KEYS.startWeek, null)
 export const setStartWeek = (week: number): void => write(KEYS.startWeek, { week, date: localDate() })
+
+// ---- routine identity: detecting a NEW cycle ------------------------------
+// Everything the app remembers per exercise (completed sets, "última vez", the
+// weights the member edited, the in-progress session) is keyed by an id like
+// "d1-1-x3" — a POSITION in the plan, not a lift. When the coach loads a new
+// routine ("Julio 2026" → "Agosto 2026") those ids point at different exercises,
+// and the week anchor ("estoy en la semana 9") belongs to the finished cycle. Both
+// made members open the app on a new plan and see the previous plan's numbers.
+// So we fingerprint the served plan and reset that state when it changes.
+// Deliberately NOT reset: sessions, check-ins, streaks, records, bodyweight,
+// birthday, gender, the outbox — that's the member's history, it must survive.
+interface FingerprintRoutine {
+  title: string
+  meta: { startDate: string }
+}
+/**
+ * Stable id for "which plan is this": the sheet's title + its declared start date.
+ * Deliberately NOT derived from day/exercise content — a coach mid-edit (a day tab
+ * momentarily cleared, a typo fixed in a lift name) would otherwise look like a new
+ * cycle to whoever refreshes in that window, and the routine is refetched on every
+ * phone unlock.
+ */
+export function routineFingerprint(r: FingerprintRoutine): string {
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+  return `${norm(r.title)}#${norm(r.meta.startDate)}`
+}
+export const getRoutineId = (): string | null => read<string | null>(KEYS.routineId, null)
+export const setRoutineId = (id: string): void => write(KEYS.routineId, id)
+
+/**
+ * Retire the plan-scoped local state so a new routine starts clean. Values are MOVED
+ * to a "<key>.prev" slot rather than deleted: if this ever fires when it shouldn't
+ * (a renamed sheet, a corrected start date), nothing the member did is destroyed.
+ */
+export function resetForNewRoutine(): void {
+  for (const k of [KEYS.startWeek, KEYS.startDay, KEYS.progress, KEYS.actuals, KEYS.lastDone, KEYS.sets, KEYS.notes]) {
+    try {
+      const v = localStorage.getItem(k)
+      if (v != null) localStorage.setItem(`${k}.prev`, v)
+      localStorage.removeItem(k)
+    } catch { /* quota/private mode */ }
+  }
+}
+
+/** A week anchor set BEFORE the plan even started belongs to the previous cycle —
+ *  drop it so the week comes from the new plan's own start date. */
+export function dropStaleWeekAnchor(planStartMs: number | null): boolean {
+  const a = getStartWeek()
+  if (!a || planStartMs == null) return false
+  const set = Date.parse(a.date + 'T00:00:00')
+  // 2 weeks of slack: a coach correcting the sheet's start date by a few days must not
+  // look like an anchor from a previous cycle.
+  if (Number.isNaN(set) || set >= planStartMs - 14 * 86_400_000) return false
+  try { localStorage.removeItem(KEYS.startWeek) } catch { /* no-op */ }
+  return true
+}
 
 export const getMyRecords = (): RecordEntry[] => read<RecordEntry[]>(KEYS.myRecords, [])
 export function addMyRecord(entry: RecordEntry): RecordEntry[] {

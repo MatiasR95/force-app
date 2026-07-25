@@ -8,7 +8,7 @@ import { AnimatedExercise, detectImpl } from '../components/AnimatedExercise'
 import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { SegmentRail, BottomSheet } from '../components/ui'
-import { resolveWeek, circuitRounds } from '../lib/week'
+import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
 import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress } from '../lib/store'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
 import { currentStreakWeeks } from '../lib/metrics'
@@ -33,8 +33,13 @@ type Item =
   // circuits must NOT share a progress key (marking one advanced the other).
   | { type: 'circuit'; block: Block; dup: number }
 
-export function buildItems(day: RoutineDay): Item[] {
+export function buildItems(day: RoutineDay, week = 1): Item[] {
   const items: Item[] = []
+  // On a variation week the coach swaps the lift inside the "Semana N" cell. Resolve
+  // that here, once, so every screen below (title, animation, cues, plate calc,
+  // records) trains the exercise actually prescribed this week. Ids/rows are kept, so
+  // set logging and sheet writeback still point at the same cell.
+  const forWeek = (ex: ExerciseRow) => liftOfWeek(ex, week)
   // the day's entrada en calor is the first step — same as Hoy/Plan, so it's never
   // skipped just because the member jumped straight into "Entrenar".
   if (day.warmup) items.push({ type: 'warmup', text: day.warmup })
@@ -46,8 +51,8 @@ export function buildItems(day: RoutineDay): Item[] {
     if (b.circuit) {
       const dup = (circuitsSeen.get(b.tag) ?? 0) + 1
       circuitsSeen.set(b.tag, dup)
-      items.push({ type: 'circuit', block: b, dup })
-    } else for (const ex of b.exercises) items.push({ type: 'single', ex, section: b.tag })
+      items.push({ type: 'circuit', block: { ...b, exercises: b.exercises.map(forWeek) }, dup })
+    } else for (const ex of b.exercises) items.push({ type: 'single', ex: forWeek(ex), section: b.tag })
   }
   return items
 }
@@ -80,7 +85,7 @@ const SECTION_LABEL: Record<SectionTag, string> = {
 export function Entrenar({ day, week, lastWeek, onClose }: {
   day: RoutineDay; week: number; lastWeek?: boolean; onClose: () => void
 }) {
-  const items = useMemo(() => buildItems(day), [day])
+  const items = useMemo(() => buildItems(day, week), [day, week])
   // restore an in-progress session for THIS day today (so leaving never wipes it)
   const saved = getSessionProgress()
   const restored = saved && saved.dayId === day.id && saved.date === localDate() ? saved : null
@@ -533,10 +538,13 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }:
 }) {
   // non-linear weeks (e.g. "4X1+3X3") carry a per-series rep plan — show the reps
   // for each series and mark the current one so it's trainable, not just raw text.
-  const plan = resolveWeek(ex, week).plan
+  const r = resolveWeek(ex, week)
+  const plan = r.plan
   return (
     <>
-      <div className="kicker">{SECTION_LABEL[section]}</div>
+      <div className="kicker">
+        {SECTION_LABEL[section]}{r.substitution ? ' · variante de esta semana' : ''}
+      </div>
       <h1 className="heading text-3xl text-white mt-1 mb-1">{ex.name || '—'}</h1>
       <div className="text-gold text-lg font-black">{setsReps(ex, week)} · {loadText(ex, week)}</div>
       {plan && plan.length > 1 && (
@@ -690,7 +698,8 @@ const COMMIT_QUOTES = [
 
 function sessionStats(day: RoutineDay, week: number): { kg: number; series: number } {
   let kg = 0, series = 0
-  for (const b of day.blocks) for (const ex of b.exercises) {
+  for (const b of day.blocks) for (const row of b.exercises) {
+    const ex = liftOfWeek(row, week) // a variation week may swap the implement (bar → KB)
     const r = resolveWeek(ex, week)
     const s = r.sets ?? r.plan?.length ?? 0
     series += s
@@ -702,7 +711,8 @@ function sessionStats(day: RoutineDay, week: number): { kg: number; series: numb
   return { kg: Math.round(kg), series }
 }
 
-function bigOneRow(ex: ExerciseRow, week: number, prHits: Set<string>): { name: string; detail: string; record: boolean } {
+function bigOneRow(row: ExerciseRow, week: number, prHits: Set<string>): { name: string; detail: string; record: boolean } {
+  const ex = liftOfWeek(row, week)
   const r = resolveWeek(ex, week)
   const reps = r.reps != null ? `${r.reps}` : (r.plan?.length ? r.plan.join('·') : '')
   const detail = r.load.value != null

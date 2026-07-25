@@ -26,12 +26,13 @@ describe('parseRoutine — real Enero 2026 sheet', () => {
     const bigOf = (label: string) =>
       r.days.find((d) => d.label === label)!.blocks.find((b) => b.tag === 'big')!.exercises
     expect(bigOf('DÍA 1')[0].name).toBe('Press Plano')
-    expect(bigOf('DÍA 2')[0].name).toBe('Sentadillas  Low Bar')
+    // the sheet has a double space ("Sentadillas  Low Bar"); cells are whitespace-normalized
+    expect(bigOf('DÍA 2')[0].name).toBe('Sentadillas Low Bar')
     expect(bigOf('DÍA 4')[0].name).toBe('Peso Muerto')
     // DÍA 3 is a superset: Press + Sentadilla both under THE BIG ONE
     expect(bigOf('DÍA 3').map((e) => e.name)).toEqual([
       'Press Plano TEMPO 3:1:0',
-      'Sentadilla  High Bar + 2"',
+      'Sentadilla High Bar + 2"',
     ])
   })
 

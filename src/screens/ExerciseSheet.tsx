@@ -6,12 +6,15 @@ import { LastTime } from '../components/LastTime'
 import { isDeadliftName } from '../lib/plates'
 import { ExerciseMedia } from '../components/ExerciseMedia'
 import { PATTERN_LABEL } from '../lib/media'
-import { resolveWeek } from '../lib/week'
+import { resolveWeek, liftOfWeek } from '../lib/week'
 
-export function ExerciseSheet({ ex, week = 1, onClose }: {
+export function ExerciseSheet({ ex: row, week = 1, onClose }: {
   ex: ExerciseRow | null; week?: number; onClose: () => void
 }) {
-  const load = ex ? resolveWeek(ex, week).load : null
+  // a variation week trains a different lift — show THAT one (name, media, cues)
+  const ex = row ? liftOfWeek(row, week) : null
+  const res = ex ? resolveWeek(ex, week) : null
+  const load = res?.load ?? null
   return (
     <BottomSheet open={!!ex} onClose={onClose}>
       {ex && (
@@ -20,7 +23,9 @@ export function ExerciseSheet({ ex, week = 1, onClose }: {
             <ExerciseMedia slug={ex.slug} pattern={ex.pattern} name={ex.name} />
             <div className="absolute inset-0" style={{ background: 'var(--grad-photo)' }} />
             <div className="absolute bottom-3 left-5 right-5">
-              <div className="kicker">{PATTERN_LABEL[ex.pattern]}</div>
+              <div className="kicker">
+                {PATTERN_LABEL[ex.pattern]}{res?.substitution ? ` · variante semana ${week}` : ''}
+              </div>
               <h2 className="heading text-2xl text-white mt-1">{ex.name}</h2>
             </div>
           </div>

@@ -68,9 +68,25 @@ where possible, grounded in respected sources.
      load), `3X1+2X3` / `8-8-6-6` (complex → shown as-is), `Mismo semana ant.` (inherit). **An empty
      week cell = repeat the last non-empty week** (load + reps + series). HIIT/timed circuits may write
      the `30″ × N` scheme once on the first row; blanks below inherit it.
-   - **Gotchas:** the routine sheet must be the newest non-`Seguimiento`/`records`/`rachas` sheet in the
-     client folder; mixed Spanish/English day labels are fine; a sheet whose header looks like the
-     Seguimiento log (`timestamp`+`kg_real`…) is rejected as "not a routine".
+   - **Per-week exercise SWAPS** (variation/deload weeks): a week cell may name a DIFFERENT lift —
+     `8X5 Polea Pronado 27,5kg x lado`, `Sentadillas al banco 6X4 40kg x lado` (name before or after the
+     scheme). `detectSwap` (parser.ts) reads it and `resolveWeek` returns that lift's name/slug for the
+     week, so title, animation, cues and record matching all follow the substitute. **A swap applies to
+     that ONE week**: blank weeks after it resume the base lift's progression, and per-side convention is
+     NOT inherited across a swap. Band colours, tempo/`NORMAL`/`mas peso` notes and bracketed member
+     comments are explicitly NOT swaps (see `NOISE_WORD`) — extend the vocabulary there, with tests.
+   - **A weight is the number tagged `kg`**, not the first number in the cell: coaches write whole
+     prescriptions into OBSERVACIONES (`5X4 43,75kg x lado` = 4×5 @ 43,75/lado, not 5 kg), and a
+     bracketed comment (`60 x lado (subí 2,5kg)`, closing bracket optional) is never the load.
+     `+5kg` / `↑2,5kg` is an INCREMENT on last week's weight (`Load.delta`), not the weight.
+   - **Gotchas:** the served routine is the sheet in the client folder whose TITLE names the latest month
+     (`Agosto 2026`, `Rutina Julio 2026`); prose titles that merely mention a month
+     (`Evaluación inicial Julio 2026`) are ignored, and ties fall back to last-modified. Never
+     `Seguimiento`/`records`/`rachas`. Mixed Spanish/English day labels are fine; a sheet whose header
+     looks like the Seguimiento log (`timestamp`+`kg_real`…) is rejected as "not a routine".
+   - **A new cycle** (new sheet title or new `Fecha de Inicio`) makes the app reset the member's
+     plan-scoped local state and re-ask which day/week they're starting on — so a fresh plan never opens
+     on the previous cycle's week or weights. Keep `Fecha de Inicio` correct when copying a sheet.
 
 ## How you work
 - Read the relevant source files first; reuse existing utilities (`pickMove`/`detectImpl` in
