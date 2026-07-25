@@ -59,19 +59,31 @@ function buildCompartirTab_(config, dataRows) {
   var sh = config.getSheetByName('compartir') || config.insertSheet('compartir')
   sh.clear()
 
+  // The QR is an =IMAGE formula (single argument — locale-safe). The WhatsApp
+  // button is a RICH TEXT link, not a HYPERLINK formula: es-AR sheets expect ";"
+  // as the formula separator and a comma-separated HYPERLINK written as a value
+  // shows "Error de análisis de fórmula". A rich-text link needs no parsing at all.
   var out = [['NOMBRE', 'QR', 'LINK DE ACCESO', 'COMPARTIR']]
+  var qrFormulas = []
+  var waLinks = []
   for (var i = 1; i < dataRows.length; i++) {
     var nombre = dataRows[i][1]
     var link = dataRows[i][3]
     var qr = dataRows[i][4]
-    out.push([
-      nombre,
-      '=IMAGE("' + qr + '")',
-      link,
-      '=HYPERLINK("' + waShareUrl_(nombre, link) + '","Enviar por WhatsApp")',
+    out.push([nombre, '', link, ''])
+    qrFormulas.push(['=IMAGE("' + qr + '")'])
+    waLinks.push([
+      SpreadsheetApp.newRichTextValue()
+        .setText('Enviar por WhatsApp')
+        .setLinkUrl(waShareUrl_(nombre, link))
+        .build(),
     ])
   }
   sh.getRange(1, 1, out.length, 4).setValues(out)
+  if (qrFormulas.length) {
+    sh.getRange(2, 2, qrFormulas.length, 1).setFormulas(qrFormulas)
+    sh.getRange(2, 4, waLinks.length, 1).setRichTextValues(waLinks)
+  }
 
   // formatting: readable header, QR big enough to scan, frozen header
   sh.setFrozenRows(1)
