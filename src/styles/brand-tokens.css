@@ -132,6 +132,11 @@
   --stage-in-rgb:  253 250 244;
   --stage-out-rgb: 236 229 216;
   --cream-rgb:     20 18 14;      /* `cream` means "the readable one" — flips on light */
+  /* Re-declared per theme ON PURPOSE: a custom property's var() references are
+     substituted where the property is DECLARED, so a `--grad-dark-stage` written
+     only on :root would inherit the root theme's colours into a subtree that pins
+     the other theme (the theme swatches, the share cards). */
+  --grad-dark-stage: radial-gradient(125% 90% at 72% 8%, rgb(var(--stage-in-rgb)) 0%, rgb(var(--stage-out-rgb)) 70%);
   --theme-color:   #F6F2EA;
   --bad-fg:        #6B665E;
   --nav-active-ink: var(--gold-ink);
@@ -165,6 +170,7 @@
   --stage-out-rgb: 0 0 0;
   --cream-rgb:     245 244 242;
   --theme-color:   #000000;
+  --grad-dark-stage: radial-gradient(125% 90% at 72% 8%, rgb(var(--stage-in-rgb)) 0%, rgb(var(--stage-out-rgb)) 70%);
   --bad-fg:        #9A948C;
 }
 
