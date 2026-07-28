@@ -60,6 +60,9 @@ const KEYS = {
   routineId: 'force.routineId',
   awakeIdle: 'force.ui.awakeIdleSec',
   finishDraft: 'force.finishDraft',
+  fontScale: 'force.ui.fontScale',
+  theme: 'force.ui.theme',
+  simple: 'force.ui.simple',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -414,6 +417,31 @@ export interface FinishDraft { rpe?: number; note?: string }
 export const getFinishDraft = (): FinishDraft => read<FinishDraft>(KEYS.finishDraft, {})
 export const saveFinishDraft = (d: FinishDraft): void => write(KEYS.finishDraft, d)
 export const clearFinishDraft = (): void => write(KEYS.finishDraft, {})
+
+// ---- appearance preferences (font scale, theme, simple mode) ----------------
+// Members told us the app is hard to READ and, for some, hard to follow. These
+// three are the whole of that answer; everything else is applied from them in
+// `uiPrefs.ts`. A corrupted value must never brick the layout — hence the clamps.
+export const FONT_SCALES = [0.9, 1, 1.15, 1.3, 1.45] as const
+export type ThemePref = 'auto' | 'dark' | 'light'
+
+export const getFontScale = (): number => {
+  const n = read<number>(KEYS.fontScale, 1)
+  return (FONT_SCALES as readonly number[]).includes(n) ? n : 1
+}
+export const setFontScale = (s: number): void =>
+  write(KEYS.fontScale, (FONT_SCALES as readonly number[]).includes(s) ? s : 1)
+
+export const getThemePref = (): ThemePref => {
+  const v = read<ThemePref>(KEYS.theme, 'auto')
+  return v === 'dark' || v === 'light' || v === 'auto' ? v : 'auto'
+}
+export const setThemePref = (t: ThemePref): void =>
+  write(KEYS.theme, t === 'dark' || t === 'light' ? t : 'auto')
+
+// Simple mode is STRICTLY opt-in: default false, never inferred from anything.
+export const getSimpleMode = (): boolean => read<boolean>(KEYS.simple, false) === true
+export const setSimpleMode = (v: boolean): void => write(KEYS.simple, v === true)
 
 // ---- screen-awake preference (seconds of inactivity before we let the phone sleep)
 // 0 = never release (the old always-on behaviour). Default 30 s.

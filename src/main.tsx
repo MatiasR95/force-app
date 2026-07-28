@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { applyUiPrefs, readUiPrefs, subscribeUiPrefs } from './lib/uiPrefs'
+import { UiPrefsProvider } from './lib/UiPrefsContext'
 import './styles/index.css'
 
 // Keep the installed PWA current. iOS keeps a home-screen PWA suspended on its OLD
@@ -92,10 +94,25 @@ if (isStandalone()) {
   }, 500)
 }
 
+// Appearance prefs BEFORE the first paint: a member on 1.45 / light must never see
+// a frame at the default size or in the wrong theme. `--app-vh` above is in px and
+// is independent of the font scale — but taller chrome changes the usable viewport,
+// so re-run the geometry sync (and the iOS nudge) whenever the scale changes.
+applyUiPrefs(readUiPrefs())
+let lastScale = readUiPrefs().fontScale
+subscribeUiPrefs((p) => {
+  if (p.fontScale === lastScale) return
+  lastScale = p.fontScale
+  syncAppHeight()
+  window.setTimeout(nudgeViewport, 60)
+})
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <UiPrefsProvider>
+        <App />
+      </UiPrefsProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 )

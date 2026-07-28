@@ -32,6 +32,11 @@
   --bad-fg:  #9A948C; --bad-bg:  rgba(140,140,140,0.12);
   --alert-fg:#9C3B2B; --alert-bg:#FBF2F0; --alert-border:#E9CFC8;
 
+  /* The colour the OS paints browser/PWA chrome with. `uiPrefs.ts` copies this
+     into <meta name="theme-color"> on every change, so the light theme only has
+     to override this var — there's no second list to keep in sync. */
+  --theme-color: #000000;
+
   /* ---- Gradients ---- */
   --grad-dark-stage: radial-gradient(125% 90% at 72% 8%, #15140F 0%, #000000 70%);
   --grad-gold-rule:  linear-gradient(180deg,#8A6A38,#C6AE78 18%,#C6AE78 82%,#8A6A38);
