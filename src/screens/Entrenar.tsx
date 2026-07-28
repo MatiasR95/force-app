@@ -11,6 +11,7 @@ import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
 import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft } from '../lib/store'
 import { keepAwake, stopAwake } from '../lib/screenAwake'
+import { useUiPrefs } from '../lib/UiPrefsContext'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
 import { currentStreakWeeks } from '../lib/metrics'
 import {
@@ -87,6 +88,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   day: RoutineDay; week: number; lastWeek?: boolean; onClose: () => void
 }) {
   const items = useMemo(() => buildItems(day, week), [day, week])
+  // Modo Simple reuses THIS screen (never a fork): same set logging, same rest
+  // timer, same locked-phone chime and wake lock. What it drops is the secondary
+  // controls — RPE, observaciones, plate detail, per-set weight edits.
+  const { prefs } = useUiPrefs()
+  const simple = prefs.simple
   // restore an in-progress session for THIS day today (so leaving never wipes it)
   const saved = getSessionProgress()
   const restored = saved && saved.dayId === day.id && saved.date === localDate() ? saved : null
@@ -147,7 +153,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     markMedalsSeen(earnedMedalIds(getMyRecords(), gender, cat, currentStreakWeeks(getCheckins()), getSessions().length))
   }, [])
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} onClose={onClose} onBack={() => setFinishing(false)} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} simple={simple} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -287,19 +293,19 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
       <div className="flex-1 overflow-y-auto px-5" data-sheet-lock>
         {item.type === 'single'
-          ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
+          ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} simple={simple} />
           : item.type === 'warmup'
             ? <WarmupView text={item.text} />
-            : <CircuitView block={item.block} dayId={day.id} dayLabel={day.label} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} />}
+            : <CircuitView block={item.block} dayId={day.id} dayLabel={day.label} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} simple={simple} />}
 
         <button onClick={primary.onClick}
-          className="mt-5 w-full rounded-full py-4 font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow">
+          className={`mt-5 w-full rounded-full font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow ${simple ? 'py-6 text-lg' : 'py-4'}`}>
           {primary.icon} {primary.label}
         </button>
 
         {item.type !== 'warmup' && !isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
 
-        {item.type === 'single' && singleLoad(item.ex, week) && (() => {
+        {!simple && item.type === 'single' && singleLoad(item.ex, week) && (() => {
           // this lift's per-side loads across today's items: earlier sets feed the
           // "only add plates" plan; the day max decides if 20s are allowed (DL >50).
           const prior: number[] = []
@@ -580,8 +586,8 @@ function PrProximity({ ex, week }: { ex: ExerciseRow; week: number }) {
   )
 }
 
-function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }: {
-  ex: ExerciseRow; dayId: string; dayLabel: string; section: SectionTag; week: number; done: number; target: number; flash: number
+function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, simple }: {
+  ex: ExerciseRow; dayId: string; dayLabel: string; section: SectionTag; week: number; done: number; target: number; flash: number; simple?: boolean
 }) {
   // non-linear weeks (e.g. "4X1+3X3") carry a per-series rep plan — show the reps
   // for each series and mark the current one so it's trainable, not just raw text.
@@ -599,23 +605,23 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash }:
           {plan.length} series · reps {plan.join(' · ')}
         </div>
       )}
-      {section !== 'ramp' && <div><LastTime exId={ex.id} /></div>}
-      {section !== 'ramp' && <PrProximity ex={ex} week={week} />}
-      <TechniqueChips ex={ex} />
+      {!simple && section !== 'ramp' && <div><LastTime exId={ex.id} /></div>}
+      {!simple && section !== 'ramp' && <PrProximity ex={ex} week={week} />}
+      {!simple && <TechniqueChips ex={ex} />}
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       {plan && plan.length > 1
         ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
         : <Dots n={target} done={done} flash={flash} />}
-      <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />
+      {!simple && <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />}
       {/* let members log their real weight/reps — including accessories with no
           prescribed load (dumbbell curls, machine work, bodyweight + lastre) */}
-      {section !== 'ramp' && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
+      {!simple && section !== 'ramp' && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
     </>
   )
 }
 
-function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flash, timed }: {
-  block: Block; dayId: string; dayLabel: string; noteId: string; week: number; round: number; rounds: number; flash: number; timed: boolean
+function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flash, timed, simple }: {
+  block: Block; dayId: string; dayLabel: string; noteId: string; week: number; round: number; rounds: number; flash: number; timed: boolean; simple?: boolean
 }) {
   const g = groupInfo(block)
   const word = g.roundWord === 'series' ? 'Serie' : 'Vuelta'
@@ -655,7 +661,7 @@ function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flas
         ))}
       </div>
       {!timed && <Dots n={rounds} done={round} flash={flash} label={(s) => `V${s + 1}`} />}
-      <NoteField id={noteId} dayId={dayId} name={block.title} dayLabel={dayLabel} />
+      {!simple && <NoteField id={noteId} dayId={dayId} name={block.title} dayLabel={dayLabel} />}
     </>
   )
 }
@@ -847,8 +853,8 @@ const RPE_WORD = (v: number) =>
   v <= 2 ? 'Muy suave' : v <= 4 ? 'Cómodo' : v <= 6 ? 'Exigente' : v <= 8 ? 'Muy duro' : v === 9 ? 'Al límite' : 'Máximo'
 
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
-function Finish({ day, week, lastWeek, prHits, prCards, onClose, onBack }: {
-  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; onClose: () => void; onBack: () => void
+function Finish({ day, week, lastWeek, prHits, prCards, simple, onClose, onBack }: {
+  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; simple?: boolean; onClose: () => void; onBack: () => void
 }) {
   // restore a half-filled "¿Cómo te fue?" — the phone can lock on this screen too
   const draft = getFinishDraft()
@@ -886,6 +892,11 @@ function Finish({ day, week, lastWeek, prHits, prCards, onClose, onBack }: {
   const finish = (withRpe: boolean) => { persist(withRpe); clearSessionProgress(); setQueue([...prCards, ...computeUnlockCards()]); setPhase('celebrate') }
   const save = () => finish(true)
   const skip = () => finish(false)
+  // Modo Simple skips the "¿Cómo te fue?" step entirely — the session is still
+  // saved (without RPE), the member goes straight to the celebration.
+  const finishRef = useRef(finish)
+  finishRef.current = finish
+  useEffect(() => { if (simple && phase === 'rpe') finishRef.current(false) }, [simple, phase])
 
   if (phase === 'celebrate') {
     const s = sessionStats(day, week)

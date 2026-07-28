@@ -3,7 +3,7 @@ import { BottomSheet } from './ui'
 import { useUiPrefs } from '../lib/UiPrefsContext'
 import { FONT_SCALES, getAwakeIdleSec, setAwakeIdleSec } from '../lib/store'
 import type { ThemePref } from '../lib/store'
-import { Dumbbell, Check, Smartphone, Type, Palette } from 'lucide-react'
+import { Dumbbell, Check, Smartphone, Type, Palette, LayoutGrid } from 'lucide-react'
 
 // Apariencia — the one place a member changes how the app LOOKS: text size, theme,
 // and how long the screen stays awake while they train.
@@ -111,6 +111,33 @@ export function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () 
           Después de ese tiempo sin tocarla, dejamos que el teléfono apague la pantalla solo.
           Tu serie queda guardada y la alarma del descanso suena igual, aunque esté bloqueado.
         </p>
+
+        {/* ---- simple mode ---- */}
+        <SectionLabel icon={<LayoutGrid size={15} />}>Modo simple</SectionLabel>
+        <button onClick={() => {
+          const on = !prefs.simple
+          // turning it on also lifts the text if it's still small — the two go
+          // together for who this is for. Never lowers a bigger choice.
+          setPref({ simple: on, ...(on && prefs.fontScale < 1.15 ? { fontScale: 1.15 } : {}) })
+          if (on) onClose() // land them in the simple shell, not on this sheet
+        }}
+          aria-pressed={prefs.simple}
+          className={`w-full rounded-card border p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]
+            ${prefs.simple ? 'border-gold bg-gold/[0.12]' : 'border-white/10 bg-white/5'}`}>
+          <span className="flex-1 min-w-0">
+            <span className="block text-white font-black uppercase tracking-wide">
+              {prefs.simple ? 'Activado' : 'Activar'}
+            </span>
+            <span className="block text-white/60 text-[0.72rem] leading-snug mt-0.5">
+              Mostramos solo lo de hoy, con letra grande. Podés volver cuando quieras.
+            </span>
+          </span>
+          {/* a switch, drawn plainly */}
+          <span className={`shrink-0 h-7 w-12 rounded-full p-1 transition ${prefs.simple ? 'bg-gold-fill' : 'bg-white/15'}`}>
+            <span className={`block h-5 w-5 rounded-full bg-[#fff] transition-transform motion-reduce:transition-none
+              ${prefs.simple ? 'translate-x-5' : ''}`} />
+          </span>
+        </button>
 
         <button onClick={onClose}
           className="btn-glow w-full rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-3.5 mt-6 active:scale-[0.98]">

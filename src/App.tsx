@@ -19,6 +19,8 @@ import { InstallSheet, armInstallCapture, canPromptInstall } from './components/
 import { installNudgeSeen } from './lib/store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { HomeSkeleton } from './components/HomeSkeleton'
+import { SimpleShell } from './screens/simple/SimpleShell'
+import { useUiPrefs } from './lib/UiPrefsContext'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy, Play, X as XIcon } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
@@ -69,6 +71,9 @@ export default function App() {
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [resume, setResume] = useState<{ dayIdx: number; week: number; label: string } | null>(null)
+  // Modo Simple: a separate 2-destination shell, entered ONLY by the member flipping
+  // the switch in Apariencia. Off, the app below behaves exactly as it always has.
+  const { prefs } = useUiPrefs()
   const resumeChecked = useRef(false)
   const [askGender, setAskGender] = useState(!getGender())
   const [intro, setIntro] = useState(!getIntroSeen())
@@ -248,6 +253,11 @@ export default function App() {
       {/* ambient mesh: a slow event-accent blob drifting behind everything (reads
           --event-accent from this container → blue on 9 de Julio, gold otherwise) */}
       <div className="aurora-mesh" aria-hidden />
+      {prefs.simple ? (
+        <SimpleShell routine={routine} week={wk} suggestedDay={suggestedDay}
+          onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />
+      ) : (
+        <>
       <div className="app-scroll relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <EventDecor />
         <RestTimerHost showPill={training == null} />
@@ -308,6 +318,8 @@ export default function App() {
           <NavBtn active={tab === 'panel'} onClick={() => go('panel')} icon={<BarChart3 size={19} />} label="Panel" />
         </div>
       </nav>
+        </>
+      )}
 
       {training != null && routine.days[training.dayIdx] && (
         <ErrorBoundary onReset={() => setTraining(null)}>
