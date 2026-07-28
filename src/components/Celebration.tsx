@@ -86,7 +86,7 @@ export function Celebration({ title, extra, stats, intense = false, onClose, onS
 }) {
   const [fact] = useState(() => nextFact())
   return (
-    <div data-theme="dark" className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+    <div data-theme="dark" className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-[448px] mx-auto">
       {intense && <FoilBurst />}
       <div className="relative z-[58] w-full text-center animate-[pop_.35s_ease]">
         <SweepRing intense={intense} />

@@ -39,7 +39,7 @@ export function RestTimerHost({ showPill }: { showPill: boolean }) {
   const stroke = done ? '#F0E2BE' : '#C6AE78'
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-40 flex justify-center px-4 pointer-events-none max-w-md mx-auto">
+    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-40 flex justify-center px-4 pointer-events-none max-w-[448px] mx-auto">
       <div
         role="button"
         tabIndex={0}

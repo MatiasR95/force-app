@@ -234,7 +234,7 @@ export default function App() {
   }
 
   return (
-    <div data-event={eventTheme?.id} className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
+    <div data-event={eventTheme?.id} className="fixed inset-x-0 top-0 max-w-[448px] mx-auto overflow-hidden flex flex-col"
       style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)', ...(eventAccent ? { ['--event-accent' as string]: eventAccent } : {}) }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge —
           incl. UNDER the Dynamic Island, since the status bar is black-translucent. */}
@@ -344,7 +344,7 @@ export default function App() {
 
 function GenderGate({ onPick }: { onPick: (g: Gender) => void }) {
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-[448px] mx-auto">
       <div className="w-full text-center">
         <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
         <div className="kicker">Para los récords</div>
@@ -426,7 +426,7 @@ function GateShell({ title, sub, kicker = 'Para arrancar', children }: {
   title: string; sub: string; kicker?: string; children: React.ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-md mx-auto">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/85 backdrop-blur-sm max-w-[448px] mx-auto">
       <div className="w-full max-h-full overflow-y-auto py-6 text-center">
         <img src={emblem} alt="FORCE" className="h-12 w-12 object-contain mx-auto mb-3" />
         <div className="kicker">{kicker}</div>
@@ -455,7 +455,7 @@ function Splash({ sub, onRetry, retryLabel = 'Reintentar', pulse = true }: {
   sub: string; onRetry?: () => void; retryLabel?: string; pulse?: boolean
 }) {
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
+    <div className="fixed inset-0 max-w-[448px] mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className={`h-16 w-16 object-contain ${pulse ? 'animate-pulse' : ''}`} />
       <div className="heading text-xl text-white">FORCE</div>
       <p className="text-white/50 text-sm whitespace-pre-line">{sub}</p>
@@ -485,7 +485,7 @@ function NeedLink() {
     location.reload()
   }
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
+    <div className="fixed inset-0 max-w-[448px] mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
       <div className="heading text-xl text-white">Activá tu acceso</div>
       <p className="text-white/60 text-sm leading-relaxed max-w-xs">
@@ -519,12 +519,12 @@ function NeedLink() {
 // so a slow/stuck backend never traps the member on an endless screen.
 function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
   if (!slow) return (
-    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden" style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)' }}>
+    <div className="fixed inset-x-0 top-0 max-w-[448px] mx-auto overflow-hidden" style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)' }}>
       <div className="h-full overflow-y-auto"><HomeSkeleton /></div>
     </div>
   )
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
+    <div className="fixed inset-0 max-w-[448px] mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain animate-pulse" />
       <div className="heading text-xl text-white">FORCE</div>
       <p className="text-white/50 text-sm">Está tardando más de lo normal…</p>
@@ -544,7 +544,7 @@ function Loading({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
 
 function LoadError({ detail, onRetry }: { detail: string; onRetry: () => void }) {
   return (
-    <div className="fixed inset-0 max-w-md mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
+    <div className="fixed inset-0 max-w-[448px] mx-auto overflow-y-auto flex flex-col items-center justify-center gap-4 px-8 py-8 text-center">
       <img src={emblem} alt="FORCE" className="h-16 w-16 object-contain" />
       <div className="heading text-xl text-white">No pudimos cargar tu rutina</div>
       <p className="text-white/50 text-sm">Probá de nuevo; si sigue pasando, recargá la app o avisale a tu coach.</p>

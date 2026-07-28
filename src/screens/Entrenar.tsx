@@ -250,7 +250,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-[448px] mx-auto">
       <div className="flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
         <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
         {/* session map: one notch per item so the whole session's shape is visible */}
@@ -668,7 +668,7 @@ function repsCol(ex: ExerciseRow, week: number): string {
 // A day-tab that has a warm-up (or nothing) but no logged exercises.
 function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-md mx-auto">
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-[448px] mx-auto">
       <div className="flex items-center px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
         <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
       </div>
@@ -811,7 +811,7 @@ function MedalIntro({ cards, onContinue }: { cards: ShareData[]; onContinue: () 
     ? `Hoy sumaste ${cards.length} logros`
     : hasRec ? '¡Rompiste tu marca!' : 'La ganaste hoy'
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/90 backdrop-blur-sm max-w-md mx-auto">
+    <div className="fixed inset-0 z-[55] flex items-center justify-center px-6 bg-black/90 backdrop-blur-sm max-w-[448px] mx-auto">
       <FoilBurst />
       <div className="relative z-[58] w-full text-center animate-[pop_.35s_ease]">
         <div className="ring-pop mx-auto mb-4 h-24 w-24 rounded-full border-2 border-gold bg-gold/[0.12] grid place-items-center">
@@ -911,7 +911,7 @@ function Finish({ day, week, lastWeek, prHits, prCards, onClose, onBack }: {
     return <ShareCard data={card} onClose={() => { setQueue((q) => q.slice(1)); if (queue.length <= 1) onClose() }} />
   }
   return (
-    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-md mx-auto">
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-[448px] mx-auto">
       <button onClick={onBack} className="flex items-center gap-1 text-white/55 text-sm font-bold -ml-1 mb-3 self-start">
         <ChevronLeft size={18} /> Volver al entrenamiento
       </button>

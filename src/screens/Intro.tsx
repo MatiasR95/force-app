@@ -31,7 +31,7 @@ export function Intro({ day, week, onStart }: { day?: RoutineDay; week?: number;
   const go = () => { setLeaving(true); window.setTimeout(onStart, 480) }
 
   return (
-    <div className={`fixed inset-0 z-[70] bg-dark-stage max-w-md mx-auto flex flex-col items-center justify-center px-7 text-center
+    <div className={`fixed inset-0 z-[70] bg-dark-stage max-w-[448px] mx-auto flex flex-col items-center justify-center px-7 text-center
       ${leaving ? 'intro-out' : 'intro-in'}`}>
       <div className="absolute inset-0 opacity-[0.05]" style={{
         backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '18px 18px',

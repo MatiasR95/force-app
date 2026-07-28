@@ -15,7 +15,7 @@ export function EventDecor() {
   const t = currentEventTheme()
   if (!t) return null
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 max-w-md mx-auto overflow-hidden" aria-hidden="true">
+    <div className="pointer-events-none fixed inset-0 z-20 max-w-[448px] mx-auto overflow-hidden" aria-hidden="true">
       {t.effect === 'flags' && <PatriaLayer />}
       {/* 9 de Julio gets its signature: a faceless Sol de Mayo rising, gold on dark */}
       {t.id === 'independencia' && <SolDeMayo />}

@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-16 text-center max-w-md mx-auto">
+      <div className="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-16 text-center max-w-[448px] mx-auto">
         <img src={emblem} alt="FORCE" className="h-14 w-14 object-contain opacity-90" />
         <div className="heading text-xl text-white">{this.props.fallbackTitle ?? 'Algo no cargó bien'}</div>
         <p className="text-white/55 text-sm leading-relaxed">

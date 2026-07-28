@@ -71,7 +71,7 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md max-w-md mx-auto flex flex-col"
+    <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md max-w-[448px] mx-auto flex flex-col"
       role="dialog" aria-modal="true" aria-label={`Tu ${data.label} en FORCE`}>
       {/* story progress */}
       <div className="flex gap-1.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">

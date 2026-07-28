@@ -40,7 +40,7 @@ export function InstallSheet({ onClose }: { onClose: () => void }) {
 
   const ios = isIOS()
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 max-w-md mx-auto" onClick={close}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 max-w-[448px] mx-auto" onClick={close}>
       <div onClick={(e) => e.stopPropagation()}
         className={`w-full rounded-t-[22px] bg-surface-2 border-t border-gold/30 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] ${closing ? 'translate-y-full' : 'animate-[sheetup_.28s_cubic-bezier(.22,1,.36,1)]'}`}
         style={{ transition: 'transform .2s ease' }}>

@@ -103,7 +103,7 @@ export function BottomSheet({ open, onClose, children }: {
   // viewport, so its action button fell under the nav / home indicator. At body level
   // it fills the true screen and covers the nav while open.
   return createPortal(
-    <div className="fixed inset-x-0 top-0 z-[70] flex items-end max-w-md mx-auto" role="dialog" aria-modal="true"
+    <div className="fixed inset-x-0 top-0 z-[70] flex items-end max-w-[448px] mx-auto" role="dialog" aria-modal="true"
       style={{ height: 'var(--app-vh, 100vh)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
