@@ -199,7 +199,10 @@ export default function App() {
   // during an event window, expose its accent as a CSS var so the chrome (nav
   // hairline, active tab) picks it up. Falls back to brand gold on ordinary days.
   const eventTheme = currentEventTheme()
-  const eventAccent = eventTheme?.accent ?? '#C6AE78'
+  // Only SET the var during an event. Left unset, every `var(--event-accent, …)`
+  // falls back to the theme's own readable gold — and the light theme can darken
+  // event accents (celeste is ≈2:1 on paper) without touching ordinary days.
+  const eventAccent = eventTheme?.accent
 
   // Suggested day = the plan advancing ONE day at a time, in sequence:
   //  • already trained today → keep THAT day highlighted (it's still "hoy")
@@ -231,8 +234,8 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
-      style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)', ['--event-accent' as string]: eventAccent }}>
+    <div data-event={eventTheme?.id} className="fixed inset-x-0 top-0 max-w-md mx-auto overflow-hidden flex flex-col"
+      style={{ height: 'var(--app-vh, 100vh)', background: 'var(--grad-dark-stage)', ...(eventAccent ? { ['--event-accent' as string]: eventAccent } : {}) }}>
       {/* The app's OWN full-screen container paints the brand gradient edge-to-edge —
           incl. UNDER the Dynamic Island, since the status bar is black-translucent. */}
       {/* iOS PWA layout. black-translucent boots a SHORT, STALE viewport that clips the
@@ -441,7 +444,7 @@ function NavBtn({ active, onClick, icon, label }: {
   return (
     <button onClick={onClick}
       className="relative flex flex-col items-center gap-1 py-2.5 transition"
-      style={{ color: active ? 'var(--event-accent, #C6AE78)' : 'rgba(255,255,255,0.45)' }}>
+      style={{ color: active ? 'var(--nav-active-ink)' : 'rgb(var(--fg-rgb) / 0.62)' }}>
       {active ? <span className="nav-pop inline-flex">{icon}</span> : icon}
       <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
     </button>

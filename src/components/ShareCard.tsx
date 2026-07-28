@@ -36,7 +36,10 @@ export function ShareCard({ data, onClose }: { data: ShareData; onClose: () => v
     setBusy(false)
   }
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/92 backdrop-blur-md max-w-md mx-auto">
+    // data-theme="dark": a share card is a brand artefact — it gets screenshotted
+    // and sent to people, so it stays on the dark stage whatever theme the member
+    // is using in the app.
+    <div data-theme="dark" className="fixed inset-0 z-[60] flex flex-col bg-black/92 backdrop-blur-md max-w-md mx-auto">
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 shrink-0">
         <button onClick={onClose} className="flex items-center gap-1 text-white/75 text-sm font-bold active:scale-95"><ChevronLeft size={20} /> Volver</button>
         <span className="kicker text-white/50">Compartir</span>

@@ -137,7 +137,7 @@ const AWAKE_OPTIONS = [
 function PhoneGlyph({ lit }: { lit: number }) {
   return (
     <svg viewBox="0 0 26 42" className="h-11 w-7 shrink-0" aria-hidden>
-      <rect x="1" y="1" width="24" height="40" rx="5" fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.5" />
+      <rect x="1" y="1" width="24" height="40" rx="5" fill="none" className="stroke-white/30" strokeWidth="1.5" />
       <rect x="4" y="5" width="18" height="32" rx="2.5" fill="#C6AE78"
         style={{ opacity: lit, transition: 'opacity 220ms cubic-bezier(.34,1.56,.64,1)' }}
         className="motion-reduce:transition-none" />

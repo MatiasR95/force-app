@@ -88,4 +88,10 @@ try {
     subs.forEach((f) => f(next))
   }
   mq?.addEventListener?.('change', onSystemTheme)
+  // Belt and braces: some engines (and the in-app preview) change what the query
+  // REPORTS without ever firing `change`. Re-resolve when the app regains focus —
+  // the member switching their phone to dark mode always comes back to the app.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') onSystemTheme()
+  })
 } catch { /* SSR / unsupported */ }

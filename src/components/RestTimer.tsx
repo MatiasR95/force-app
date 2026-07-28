@@ -30,10 +30,10 @@ function RestRing({ remaining, total, done }: { remaining: number; total: number
   return (
     <div className="relative w-[132px] h-[132px] mx-auto">
       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" stroke="#3A3832" strokeWidth="8" />
-        {done && <circle className="ring-echo" cx="60" cy="60" r={R} fill="none" stroke="#F0E2BE" strokeWidth="8" />}
+        <circle cx="60" cy="60" r={R} fill="none" className="stroke-white/12" strokeWidth="8" />
+        {done && <circle className="ring-echo stroke-gold-pale" cx="60" cy="60" r={R} fill="none" strokeWidth="8" />}
         <circle cx="60" cy="60" r={R} fill="none" strokeWidth="8" strokeLinecap="round"
-          stroke={done ? '#F0E2BE' : '#C6AE78'} strokeDasharray={CIRC}
+          className={done ? 'stroke-gold-pale' : 'stroke-gold-ink'} strokeDasharray={CIRC}
           strokeDashoffset={CIRC * (1 - p)} style={{ transition: 'stroke-dashoffset .95s linear, stroke .3s' }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

@@ -21,9 +21,9 @@ export function WeekRing({ done, total, size = 40 }: { done: number; total: numb
     <div className="relative shrink-0" style={{ width: size, height: size }}
       role="img" aria-label={`${done} de ${total} días de la semana`}>
       <svg viewBox="0 0 40 40" className="w-full h-full -rotate-90">
-        <circle cx="20" cy="20" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3.5" />
+        <circle cx="20" cy="20" r={r} fill="none" className="stroke-white/12" strokeWidth="3.5" />
         <circle cx="20" cy="20" r={r} fill="none" strokeWidth="3.5" strokeLinecap="round"
-          stroke={complete ? '#EADEB4' : '#C6AE78'} strokeDasharray={circ}
+          className={complete ? 'stroke-gold-pale' : 'stroke-gold-ink'} strokeDasharray={circ}
           strokeDashoffset={circ * (1 - p)}
           style={{ transition: 'stroke-dashoffset .9s cubic-bezier(.22,1,.36,1)', filter: complete ? 'drop-shadow(0 0 4px rgba(198,174,120,.7))' : undefined }} />
       </svg>

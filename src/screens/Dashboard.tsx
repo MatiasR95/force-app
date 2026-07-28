@@ -236,17 +236,17 @@ function Spark({ values, dynamic = false }: { values: number[]; dynamic?: boolea
       style={{ visibility: on ? undefined : 'hidden' }}>
       <defs>
         <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#C6AE78" stopOpacity="0.30" />
-          <stop offset="1" stopColor="#C6AE78" stopOpacity="0" />
+          <stop offset="0" className="text-gold-ink" stopColor="currentColor" stopOpacity="0.30" />
+          <stop offset="1" className="text-gold-ink" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${uid})`} className={on ? 'spark-area' : undefined} />
-      <path d={d} pathLength={1} className={on ? 'spark-draw' : undefined}
-        fill="none" stroke="#C6AE78" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} pathLength={1} className={`stroke-gold-ink ${on ? 'spark-draw' : ''}`}
+        fill="none" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       {pts.map((p, i) => (
         <g key={i} className={on ? 'spark-dot' : undefined} style={{ animationDelay: `${0.45 + i * 0.09}s` }}>
-          <circle cx={p[0]} cy={p[1]} r={3} fill="#C6AE78" />
-          <text x={p[0]} y={p[1] - 8} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,.5)">{values[i]}</text>
+          <circle cx={p[0]} cy={p[1]} r={3} className="fill-gold-ink" />
+          <text x={p[0]} y={p[1] - 8} textAnchor="middle" fontSize="9" className="fill-white/60">{values[i]}</text>
         </g>
       ))}
     </svg>

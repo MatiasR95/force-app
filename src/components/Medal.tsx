@@ -24,7 +24,7 @@ export function Medal({ tier, icon, size = 60, locked = false, shine = false, he
   if (locked || !tier) {
     return (
       <div className="rounded-full grid place-items-center shrink-0"
-        style={{ width: size, height: size, background: 'rgba(255,255,255,.05)', border: '2px dashed rgba(255,255,255,.18)' }}>
+        style={{ width: size, height: size, background: 'rgb(var(--fg-rgb) / .05)', border: '2px dashed rgb(var(--fg-rgb) / .18)' }}>
         <Lock size={size * 0.36} className="text-white/35" />
       </div>
     )

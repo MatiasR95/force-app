@@ -104,8 +104,8 @@ function LoadProgression({ ex }: { ex: ExerciseRow }) {
         {xy.map((p, i) => (
           <g key={i}>
             <circle cx={p.x} cy={p.y} r={3} fill="#C6AE78" />
-            <text x={p.x} y={p.y - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="rgba(255,255,255,.75)">{p.v.toLocaleString('es-AR')}</text>
-            <text x={p.x} y={H - 4} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,.4)">S{p.w}</text>
+            <text x={p.x} y={p.y - 7} textAnchor="middle" fontSize="9" fontWeight="700" className="fill-white/80">{p.v.toLocaleString('es-AR')}</text>
+            <text x={p.x} y={H - 4} textAnchor="middle" fontSize="8" className="fill-white/55">S{p.w}</text>
           </g>
         ))}
       </svg>

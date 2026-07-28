@@ -5,7 +5,9 @@ import { localDate } from '../lib/store'
 // cell per day, shaded by how many times the member trained that day using the
 // gold ramp (not green — brand discipline). A shape you can scan, not just a number.
 
-const RAMP = ['#232118', '#3A3832', '#8A6A38', '#C6AE78', '#F0E2BE'] // 0..4+ trainings
+// 0..4+ trainings. Theme-aware: on paper the "nothing here" cell has to be the
+// LIGHTEST of the ramp, not the darkest, or the shape reads inverted.
+const RAMP = ['var(--heat-0)', 'var(--heat-1)', 'var(--heat-2)', 'var(--heat-3)', 'var(--heat-4)']
 const WEEKS = 12
 const DAY_MS = 86_400_000
 
@@ -48,7 +50,7 @@ export function StreakHeatmap({ dates }: { dates: string[] }) {
                 <div key={cell.date}
                   title={cell.count ? `${cell.date}: ${cell.count} ${cell.count === 1 ? 'entreno' : 'entrenos'}` : cell.date}
                   className="aspect-square rounded-[3px]"
-                  style={{ background: cell.future ? 'transparent' : RAMP[lvl], border: cell.future ? '1px dashed rgba(255,255,255,0.05)' : 'none' }} />
+                  style={{ background: cell.future ? 'transparent' : RAMP[lvl], border: cell.future ? '1px dashed rgb(var(--fg-rgb) / 0.12)' : 'none' }} />
               )
             })}
           </div>

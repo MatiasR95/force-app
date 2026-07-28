@@ -126,7 +126,8 @@ function NavidadLayer() {
       <PineGarland />
       {FLAKES.map((left, i) => {
         const size = 4 + (i % 4) * 2
-        return <span key={i} className="ev-snow absolute rounded-full bg-white"
+        // literal white: snow is snow in both themes (Tailwind's `white` follows the theme)
+        return <span key={i} className="ev-snow absolute rounded-full bg-[#fff]"
           style={{ left, top: 0, width: size, height: size, opacity: 0.85, animationDelay: `${(i * 1.3) % 9}s`, animationDuration: `${8 + (i % 5) * 1.6}s` }} />
       })}
     </>

@@ -178,14 +178,14 @@ function PrTimeline({ lift, gender }: { lift: string; gender: Gender }) {
         {gain > 0 && <span className="text-gold text-xs font-black">+{gain.toLocaleString('es-AR')} kg desde tu primera marca</span>}
       </div>
       <svg viewBox={`0 0 ${W} ${H + 12}`} className="w-full" style={{ height: (H + 12) * (280 / W) }}>
-        <path d={d} pathLength={1} className="spark-draw" fill="none"
-          stroke="#C6AE78" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={d} pathLength={1} className="spark-draw stroke-gold-ink" fill="none"
+          strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <g key={i} className="spark-dot" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
             <circle cx={p[0]} cy={p[1]} r={i === pts.length - 1 ? 4 : 3}
-              fill={i === pts.length - 1 ? '#F0E2BE' : '#C6AE78'} />
-            <text x={p[0]} y={p[1] - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="rgba(255,255,255,.6)">{values[i]}</text>
-            <text x={p[0]} y={H + 9} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,.35)">{fmtMon(hist[i].ts)}</text>
+              className={i === pts.length - 1 ? 'fill-gold-pale' : 'fill-gold-ink'} />
+            <text x={p[0]} y={p[1] - 7} textAnchor="middle" fontSize="9" fontWeight="700" className="fill-white/70">{values[i]}</text>
+            <text x={p[0]} y={H + 9} textAnchor="middle" fontSize="8" className="fill-white/55">{fmtMon(hist[i].ts)}</text>
           </g>
         ))}
       </svg>
