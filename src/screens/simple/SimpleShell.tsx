@@ -3,8 +3,7 @@ import type { Routine } from '../../lib/types'
 import { useUiPrefs } from '../../lib/UiPrefsContext'
 import { SimpleHoy } from './SimpleHoy'
 import { SimpleProgreso } from './SimpleProgreso'
-import { Dumbbell, Flame } from 'lucide-react'
-import emblem from '../../assets/logo/emblem_gold_t.png'
+import { Dumbbell, Flame, LayoutGrid } from 'lucide-react'
 
 // Modo Simple — a SEPARATE shell, not the normal screens with things hidden.
 // Two destinations instead of five, and the answer to "¿qué hago hoy?" is the
@@ -36,13 +35,20 @@ export function SimpleShell({ routine, week, suggestedDay, onTrain }: {
 
   return (
     <>
-      {/* Where am I: a title bar that never scrolls away. */}
+      {/* Where am I: a title bar that never scrolls away — and the way out, right
+          there on every screen. Buried on one tab, the exit isn't an exit: a member
+          who turned this on by accident shouldn't have to go looking for it. */}
       <header className="shrink-0 relative z-20 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3
         border-b border-white/10 flex items-center justify-between gap-3">
         <h1 className="heading text-2xl text-white truncate">
           {tab === 'hoy' ? 'Hoy' : 'Mi progreso'}
         </h1>
-        <img src={emblem} alt="FORCE" className="h-9 w-9 object-contain opacity-90 shrink-0" />
+        <button onClick={() => setPref({ simple: false })}
+          className="shrink-0 flex items-center gap-1.5 rounded-full border border-white/15 bg-white/8
+            px-3 min-h-[44px] text-white/80 font-bold uppercase tracking-wide text-xs active:scale-95">
+          <LayoutGrid size={Math.round(15 * prefs.fontScale)} className="text-gold" />
+          App completa
+        </button>
       </header>
 
       <div className="app-scroll relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
