@@ -3,6 +3,7 @@
 // the backend when online. Coaches read the synced log in the Seguimiento sheet.
 
 import type { RecordEntry, Gender } from './records'
+import type { ShareData } from '../components/ShareCard' // type-only: erased at build
 
 export interface SetLog {
   exerciseId: string
@@ -57,6 +58,8 @@ const KEYS = {
   installNudge: 'force.installNudge',
   recapSeen: 'force.recapSeen',
   routineId: 'force.routineId',
+  awakeIdle: 'force.ui.awakeIdleSec',
+  finishDraft: 'force.finishDraft',
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -329,6 +332,19 @@ export function isBirthdayToday(): boolean {
 // ---- per-exercise observaciones (client notes during a session) -----------
 type NoteMap = Record<string, string>
 export const getNote = (exerciseId: string): string => read<NoteMap>(KEYS.notes, {})[exerciseId] ?? ''
+/**
+ * Local-only draft save, used while the member is still typing. Keeps the text
+ * safe if the phone locks and the OS kills the page mid-sentence, WITHOUT
+ * queueing an outbox write per keystroke — the coach-facing sync still happens
+ * once, on blur / when the app is backgrounded (`saveNote`).
+ */
+export function saveNoteDraft(exerciseId: string, text: string): void {
+  const map = read<NoteMap>(KEYS.notes, {})
+  const t = text.trim()
+  if (t) map[exerciseId] = t
+  else delete map[exerciseId]
+  write(KEYS.notes, map)
+}
 export function saveNote(exerciseId: string, dayId: string, text: string, meta?: { exName?: string; dayLabel?: string }): void {
   const map = read<NoteMap>(KEYS.notes, {})
   const t = text.trim()
@@ -366,10 +382,48 @@ export function setLastDone(exerciseId: string, v: LastDone): void {
 }
 
 // ---- in-progress session (so leaving Entrenar never wipes your progress) ----
-export interface SessionProgress { dayId: string; date: string; i: number; done: Record<string, number> }
+// Everything here must survive a COLD START: iOS discards a backgrounded PWA page
+// while the phone is locked, so a relaunch is a fresh boot with empty React state.
+// New fields are optional — records written by older builds still read fine.
+export interface SessionProgress {
+  dayId: string
+  date: string
+  i: number
+  done: Record<string, number>
+  week?: number          // so the app can reopen Entrenar on the right week
+  ts?: string            // ISO of the last write — drives the 45-min resume window
+  prHits?: string[]      // exercise ids that set a PR (drives the finish celebration)
+  prCards?: ShareData[]  // shareable "récord" cards earned this session
+}
 export const getSessionProgress = (): SessionProgress | null => read<SessionProgress | null>(KEYS.progress, null)
-export function saveSessionProgress(p: SessionProgress): void { write(KEYS.progress, p) }
-export function clearSessionProgress(): void { write(KEYS.progress, null) }
+export function saveSessionProgress(p: SessionProgress): void {
+  // cap the cards: they're the only unbounded part of this record, and localStorage
+  // has no room to spare on a phone that's been training for a year.
+  write(KEYS.progress, { ...p, ts: new Date().toISOString(), prCards: p.prCards?.slice(-8) })
+}
+export function clearSessionProgress(): void { write(KEYS.progress, null); clearFinishDraft() }
+
+/** Minutes since the in-progress session was last touched (Infinity if none). */
+export function sessionIdleMin(p: SessionProgress | null = getSessionProgress()): number {
+  const t = p?.ts ? Date.parse(p.ts) : NaN
+  return Number.isFinite(t) ? (Date.now() - t) / 60_000 : Infinity
+}
+
+// ---- finish-screen draft (session RPE + note typed before the app was killed) --
+export interface FinishDraft { rpe?: number; note?: string }
+export const getFinishDraft = (): FinishDraft => read<FinishDraft>(KEYS.finishDraft, {})
+export const saveFinishDraft = (d: FinishDraft): void => write(KEYS.finishDraft, d)
+export const clearFinishDraft = (): void => write(KEYS.finishDraft, {})
+
+// ---- screen-awake preference (seconds of inactivity before we let the phone sleep)
+// 0 = never release (the old always-on behaviour). Default 30 s.
+const AWAKE_IDLE_OPTIONS = [30, 120, 0]
+export const getAwakeIdleSec = (): number => {
+  const n = read<number>(KEYS.awakeIdle, 30)
+  return AWAKE_IDLE_OPTIONS.includes(n) ? n : 30
+}
+export const setAwakeIdleSec = (sec: number): void =>
+  write(KEYS.awakeIdle, AWAKE_IDLE_OPTIONS.includes(sec) ? sec : 30)
 
 // ---- monthly recap (the "tu mes en FORCE" story, shown once per month) ----
 export const getRecapSeen = (): string => read<string>(KEYS.recapSeen, '')

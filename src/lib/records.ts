@@ -89,9 +89,39 @@ export function rank(entries: RecordEntry[]): RecordEntry[] {
   return [...entries].sort((a, b) => (b.kg - a.kg) || (b.reps - a.reps))
 }
 
+/**
+ * Identity key for a member. Names arrive from the coaches' sheets, so the same
+ * person can be written "Juan Pérez", "juan perez" or "JUAN  PEREZ" — without
+ * folding accents/case/spacing they'd rank as three different people (and the
+ * member's own row would fail to light up as "vos").
+ */
+export const clientKey = (name: string): string =>
+  deburr(name).trim().replace(/\s+/g, ' ')
+export const sameClient = (a: string, b: string): boolean => clientKey(a) === clientKey(b)
+
+/**
+ * One entry per member — their best. The leaderboard is a hall of fame, not a
+ * log: someone who set three PRs on the same lift is ONE person on the board.
+ * Run this AFTER filtering by lift/gender/category, so a category board still
+ * shows each member's best mark *within that category*.
+ */
+export function bestPerClient(entries: RecordEntry[]): RecordEntry[] {
+  const best = new Map<string, RecordEntry>()
+  for (const e of entries) {
+    const k = clientKey(e.client)
+    const cur = best.get(k)
+    // same comparator as rank(): heavier wins, then more reps
+    if (!cur || e.kg > cur.kg || (e.kg === cur.kg && e.reps > cur.reps)) best.set(k, e)
+  }
+  return [...best.values()]
+}
+
+/** The leaderboard: one row per member, heaviest first. */
+export const rankUnique = (entries: RecordEntry[]): RecordEntry[] => rank(bestPerClient(entries))
+
 /** Best entry for a given client within a list (already lift+gender filtered). */
 export function bestOf(entries: RecordEntry[], client: string): RecordEntry | null {
-  const mine = rank(entries.filter((e) => e.client === client))
+  const mine = rank(entries.filter((e) => sameClient(e.client, client)))
   return mine[0] ?? null
 }
 

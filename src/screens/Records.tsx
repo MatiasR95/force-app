@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { RecordEntry, Gender, StreakEntry } from '../lib/records'
-import { RECORD_LIFTS, rank, bestOf, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
+import { RECORD_LIFTS, rankUnique, bestOf, sameClient, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
 import { fetchRecords, syncStreak, cachedRecords, cachedStreaks } from '../lib/api'
 import { getToken, getGender, getClientName, getCheckins, getMaxStreak, getMyRecords } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
@@ -44,8 +44,11 @@ function RecordsView({ client }: { client: string }) {
 
   useEffect(() => { fetchRecords(getToken()).then(setAll).catch(() => {}) }, [])
 
+  // filter → dedupe → rank. One row per person (their best), so someone with three
+  // PRs on the same lift can't fill the podium alone — and "#N del ranking" counts
+  // people, not marks. Order matters: a category board dedupes *within* that category.
   const board = useMemo(
-    () => rank(all.filter((e) =>
+    () => rankUnique(all.filter((e) =>
       e.lift === lift && e.gender === gender && (wc === 'all' || e.wc === wc))),
     [all, lift, gender, wc],
   )
@@ -82,6 +85,8 @@ function RecordsView({ client }: { client: string }) {
       <h2 className="heading text-lg text-white mb-2">{liftLabel(lift)}
         {wc !== 'all' && <span className="text-gold/80 text-sm font-bold"> · {WEIGHT_CLASSES[gender].find((w) => w.key === wc)?.label}</span>}
       </h2>
+
+      <p className="text-white/40 text-[0.7rem] mb-3 -mt-1">Una marca por persona — la mejor de cada uno.</p>
 
       {/* records captured before the member loaded their bodyweight carry no
           category — surface why a category board can look emptier than "Todas" */}
@@ -124,7 +129,7 @@ function RecordsView({ client }: { client: string }) {
           <p className="text-white/45 text-sm text-center py-8">Todavía no hay récords de {liftLabel(lift)}.<br />¡Hacé una serie y entrá al ranking! 🚀</p>
         )}
         {(board.length >= 3 ? board.slice(3, 20) : board.slice(0, 20)).map((e, i) => {
-          const isMe = e.client === client
+          const isMe = sameClient(e.client, client)
           const pos = board.length >= 3 ? i + 4 : i + 1
           return (
             <div key={e.id} className={`flex items-center gap-3 rounded-card border p-3 ${isMe ? 'border-gold/50 bg-gold/[0.10]' : pos <= 3 ? 'border-gold/20 bg-white/[0.04]' : 'border-white/8 bg-white/[0.02]'}`}>
@@ -204,7 +209,7 @@ function Podium({ top3, client }: { top3: RecordEntry[]; client: string }) {
   return (
     <div className="grid grid-cols-3 gap-2 items-end mb-5 px-1">
       {cols.map(({ e, place, block }, col) => {
-        const isMe = e.client === client
+        const isMe = sameClient(e.client, client)
         const first = place === 1
         return (
           <div key={e.id} className="flex flex-col items-center min-w-0">

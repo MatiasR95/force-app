@@ -4,7 +4,7 @@
 // banner. Fires once per new leader (deduped), and never on the very first run.
 
 import type { RecordEntry } from './records'
-import { rank, RECORD_LIFTS, liftLabel, weightClass } from './records'
+import { rankUnique, sameClient, RECORD_LIFTS, liftLabel, weightClass } from './records'
 import { getGender, getBodyweight, getClientName } from './store'
 import { defaultCat } from './medals'
 
@@ -31,12 +31,12 @@ export function runRivalWatch(records: RecordEntry[]): RivalMsg[] {
   const fresh: RivalMsg[] = []
 
   for (const l of RECORD_LIFTS) {
-    const board = rank(records.filter((e) => e.lift === l.key && e.gender === gender && e.wc === cat))
+    const board = rankUnique(records.filter((e) => e.lift === l.key && e.gender === gender && e.wc === cat))
     const top = board[0]
     if (!top) continue
     next[l.key] = top.id
-    const iCompete = board.some((e) => e.client === me)
-    if (!firstRun && iCompete && top.client !== me && seen[l.key] !== top.id) {
+    const iCompete = board.some((e) => sameClient(e.client, me))
+    if (!firstRun && iCompete && !sameClient(top.client, me) && seen[l.key] !== top.id) {
       fresh.push({
         lift: l.key, holder: String(top.client), kg: top.kg,
         text: `${top.client} te pasó en ${liftLabel(l.key)} (${top.kg} kg). ¡Andá por la revancha!`,

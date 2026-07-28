@@ -3,13 +3,13 @@ import { BottomSheet } from './ui'
 import {
   getClientName, setClientName, getGender, setGender,
   getBirthday, setBirthday, getBodyweight, addBodyweight, setStartWeek,
-  getRestEduPref, setRestEduPref,
+  getRestEduPref, setRestEduPref, getAwakeIdleSec, setAwakeIdleSec,
 } from '../lib/store'
 import type { Gender } from '../lib/records'
 import { weightClass } from '../lib/records'
 import { memberCurrentWeek } from '../lib/week'
 import type { Routine } from '../lib/types'
-import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen } from 'lucide-react'
+import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen, Smartphone } from 'lucide-react'
 
 // Member profile: name, gender (record categories), birthday (cumpleaños board),
 // current bodyweight (record weight class + monthly nudge) and — for weekly plans —
@@ -22,6 +22,7 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
   // rest-time micro-education: null = never asked. Treat null as "on" in the UI so
   // the toggle reads true until the member deliberately turns it off.
   const [restEdu, setRestEdu] = useState<boolean>(getRestEduPref() !== false)
+  const [awake, setAwake] = useState<number>(getAwakeIdleSec()) // 30 | 120 | 0 (siempre)
   const weekly = !!routine && routine.style === 'weekly' && routine.totalWeeks > 1
   const [week, setWk] = useState(() => (routine ? memberCurrentWeek(routine) : 1))
   const [saved, setSaved] = useState(false)
@@ -35,6 +36,7 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
     const n = parseFloat(bw.replace(',', '.'))
     if (n > 0 && n !== getBodyweight()) addBodyweight(n)
     setRestEduPref(restEdu)
+    setAwakeIdleSec(awake)
     if (weekly && routine && week !== memberCurrentWeek(routine)) setStartWeek(week) // re-anchor only if changed
     setSaved(true)
     window.setTimeout(() => { setSaved(false); onClose() }, 650)
@@ -80,6 +82,25 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
           <p className="text-[0.62rem] text-white/40 mt-1.5">Datos cortos sobre cómo funciona tu cuerpo, en cada pausa. También lo activás o desactivás desde el timer.</p>
         </Field>
 
+        <Field icon={<Smartphone size={15} />} label="Pantalla mientras entrenás">
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2 flex-1">
+              {AWAKE_OPTIONS.map((o) => (
+                <button key={o.sec} onClick={() => setAwake(o.sec)}
+                  className={`flex-1 rounded-card py-2.5 font-bold uppercase text-sm border min-h-[44px] ${awake === o.sec ? 'bg-gold text-ink border-gold' : 'bg-white/5 text-white/60 border-white/10'}`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {/* the control's own sample: the little screen dims as you choose a shorter time */}
+            <PhoneGlyph lit={awake === 0 ? 1 : awake === 120 ? 0.5 : 0.14} />
+          </div>
+          <p className="text-[0.62rem] text-white/40 mt-1.5">
+            Después de ese tiempo sin tocarla, dejamos que el teléfono apague la pantalla solo.
+            Tu serie queda guardada y la alarma del descanso suena igual, aunque esté bloqueado.
+          </p>
+        </Field>
+
         {weekly && routine && (
           <Field icon={<CalendarRange size={15} />} label="Mi semana actual">
             <div className="flex items-center justify-between rounded-card bg-white/5 border border-white/10 px-3 py-2">
@@ -102,6 +123,25 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
         </button>
       </div>
     </BottomSheet>
+  )
+}
+
+// How long Entrenar keeps the screen awake after the last touch. 0 = siempre.
+const AWAKE_OPTIONS = [
+  { sec: 30, label: '30 seg' },
+  { sec: 120, label: '2 min' },
+  { sec: 0, label: 'Siempre' },
+]
+
+// A phone whose screen fades with the chosen timeout — the control samples itself.
+function PhoneGlyph({ lit }: { lit: number }) {
+  return (
+    <svg viewBox="0 0 26 42" className="h-11 w-7 shrink-0" aria-hidden>
+      <rect x="1" y="1" width="24" height="40" rx="5" fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.5" />
+      <rect x="4" y="5" width="18" height="32" rx="2.5" fill="#C6AE78"
+        style={{ opacity: lit, transition: 'opacity 220ms cubic-bezier(.34,1.56,.64,1)' }}
+        className="motion-reduce:transition-none" />
+    </svg>
   )
 }
 

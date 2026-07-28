@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, fetchRecords, isDemo, syncOutbox } from './lib/api'
 import { runRivalWatch } from './lib/rivalWatch'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, getStartDayAfter, setStartDay, setStartWeek, getSessionProgress, getIntroSeen, setIntroSeen, extractToken, routineFingerprint, getRoutineId, setRoutineId, resetForNewRoutine, dropStaleWeekAnchor } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, getStartDayAfter, setStartDay, setStartWeek, getSessionProgress, sessionIdleMin, getIntroSeen, setIntroSeen, extractToken, routineFingerprint, getRoutineId, setRoutineId, resetForNewRoutine, dropStaleWeekAnchor } from './lib/store'
 import type { Gender } from './lib/records'
 import { memberCurrentWeek, parseStartDate } from './lib/week'
 import { currentEventTheme } from './lib/eventTheme'
@@ -19,7 +19,7 @@ import { InstallSheet, armInstallCapture, canPromptInstall } from './components/
 import { installNudgeSeen } from './lib/store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { HomeSkeleton } from './components/HomeSkeleton'
-import { House, CalendarDays, LayoutGrid, BarChart3, Trophy } from 'lucide-react'
+import { House, CalendarDays, LayoutGrid, BarChart3, Trophy, Play, X as XIcon } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
 type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
@@ -68,6 +68,8 @@ export default function App() {
   }
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
+  const [resume, setResume] = useState<{ dayIdx: number; week: number; label: string } | null>(null)
+  const resumeChecked = useRef(false)
   const [askGender, setAskGender] = useState(!getGender())
   const [intro, setIntro] = useState(!getIntroSeen())
   const [slow, setSlow] = useState(false)
@@ -104,6 +106,25 @@ export default function App() {
     setNewCycle(true)
     setAskStartDay(true)
   }, [routine, training])
+
+  // The screen locking mid-session is normal; iOS THROWING AWAY the page while it's
+  // locked is what hurts — a relaunch is a cold start with `training` back to null,
+  // stranding the member on Inicio mid-workout. Their sets are safe in localStorage,
+  // so put them back where they were: straight into Entrenar if they were there
+  // minutes ago, otherwise a card they can tap (opening a full-screen training
+  // overlay hours later would feel like the app trapping them). Runs once per load —
+  // the routine refetches on every focus, and leaving Entrenar must never re-open it.
+  useEffect(() => {
+    if (!routine || routine.days.length === 0 || resumeChecked.current) return
+    resumeChecked.current = true
+    const p = getSessionProgress()
+    if (!p || p.date !== localDate()) return
+    const dayIdx = routine.days.findIndex((d) => d.id === p.dayId)
+    if (dayIdx < 0) return
+    const w = p.week ?? memberCurrentWeek(routine)
+    if (sessionIdleMin(p) <= 45) setTraining({ dayIdx, week: w })
+    else setResume({ dayIdx, week: w, label: routine.days[dayIdx].label })
+  }, [routine])
 
   // Close of a training session → if they just finished their first one and we can
   // still install, offer the branded "add to home" nudge (once, at peak goodwill).
@@ -246,6 +267,26 @@ export default function App() {
           </div>
         </ErrorBoundary>
       </div>
+
+      {/* An unfinished session from earlier today: one tap back in, nothing lost.
+          Sits above the nav so it reads as a temporary state of the app, not a screen. */}
+      {resume && training == null && (
+        <div className="shrink-0 relative z-30 px-3 pb-2">
+          <div className="flex items-center gap-3 rounded-card border border-gold/30 bg-gold/[0.10] backdrop-blur px-3 py-2.5">
+            <span className="grid place-items-center h-9 w-9 shrink-0 rounded-full bg-gold-fill text-ink"><Play size={16} /></span>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-bold text-sm truncate">Seguí tu entrenamiento</div>
+              <div className="text-white/50 text-[0.68rem] truncate">{resume.label.replace('DÍA', 'Día')} · lo dejaste a medias</div>
+            </div>
+            <button onClick={() => { setTraining({ dayIdx: resume.dayIdx, week: resume.week }); setResume(null) }}
+              className="shrink-0 rounded-full bg-gold-fill text-ink font-black uppercase text-xs tracking-wide px-4 min-h-[44px]">
+              Seguir
+            </button>
+            <button onClick={() => setResume(null)} aria-label="Descartar"
+              className="shrink-0 grid place-items-center h-11 w-11 -mr-1 text-white/40"><XIcon size={16} /></button>
+          </div>
+        </div>
+      )}
 
       {/* bottom nav — a flex child pinned to the shell's real bottom (not fixed).
           During an event, a hairline in the event accent sits on its top edge. */}

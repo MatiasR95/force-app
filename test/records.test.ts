@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { matchRecordLift, recordKg, noteWeight } from '../src/lib/records'
+import { matchRecordLift, recordKg, noteWeight, rankUnique, bestOf, sameClient } from '../src/lib/records'
+import type { RecordEntry } from '../src/lib/records'
 import { planPlates, groupPlates, DEFAULT_PLATES_KG, DEADLIFT_PLATES_KG, isDeadliftName } from '../src/lib/plates'
 
 describe('matchRecordLift', () => {
@@ -64,6 +65,55 @@ describe('noteWeight', () => {
     expect(noteWeight('lo hice con 27,5kg')).toBe(27.5)
     expect(noteWeight('me molestó el hombro')).toBeNull()
     expect(noteWeight('')).toBeNull()
+  })
+})
+
+// Salón de la fama: the board is a hall of fame, not a log — one row per person.
+describe('rankUnique (one best mark per member)', () => {
+  let n = 0
+  const rec = (client: string, kg: number, reps: number, wc?: string): RecordEntry =>
+    ({ id: `r${++n}`, client, gender: 'M', lift: 'sentadilla', kg, reps, ts: '2026-07-01T10:00:00Z', wc })
+
+  it('collapses a member with several marks to their heaviest', () => {
+    const board = rankUnique([rec('Juan', 100, 5), rec('Juan', 120, 3), rec('Juan', 110, 4)])
+    expect(board).toHaveLength(1)
+    expect(board[0].kg).toBe(120)
+  })
+
+  it('breaks a tie on kg by reps', () => {
+    const board = rankUnique([rec('Juan', 120, 3), rec('Juan', 120, 6)])
+    expect(board).toHaveLength(1)
+    expect(board[0].reps).toBe(6)
+  })
+
+  it('treats accent/case/spacing variants as the same person', () => {
+    const board = rankUnique([rec('Ana Gómez', 70, 5), rec('ana gomez', 80, 5), rec('ANA  GOMEZ', 75, 5)])
+    expect(board).toHaveLength(1)
+    expect(board[0].kg).toBe(80)
+    expect(sameClient('Ana Gómez', 'ana  gomez')).toBe(true)
+  })
+
+  it('dedupes within a category, not across it', () => {
+    const all = [rec('Juan', 100, 5, 'm71-83'), rec('Juan', 105, 5, 'm84-95'), rec('Pedro', 90, 5, 'm71-83')]
+    // "Todas las categorías": Juan appears once, with his overall best
+    const todas = rankUnique(all)
+    expect(todas).toHaveLength(2)
+    expect(todas[0].kg).toBe(105)
+    // the -83 board still shows the mark he set in that category
+    const cat = rankUnique(all.filter((e) => e.wc === 'm71-83'))
+    expect(cat.map((e) => e.kg)).toEqual([100, 90])
+  })
+
+  it('ranks the member by people above them, not by their own duplicate marks', () => {
+    const all = [
+      rec('Juan', 140, 3), rec('Juan', 135, 4), rec('Juan', 130, 5),
+      rec('Pedro', 120, 5), rec('Luis', 110, 5), rec('Nico', 100, 5),
+    ]
+    const board = rankUnique(all)
+    const mine = bestOf(board, 'juan')
+    expect(mine?.kg).toBe(140)
+    expect(board.findIndex((e) => e.id === mine!.id) + 1).toBe(1)
+    expect(board.map((e) => e.client)).toEqual(['Juan', 'Pedro', 'Luis', 'Nico'])
   })
 })
 

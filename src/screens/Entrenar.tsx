@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { setsReps, loadText, repsText, TechniqueChips } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
@@ -9,7 +9,8 @@ import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft } from '../lib/store'
+import { keepAwake, stopAwake } from '../lib/screenAwake'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
 import { currentStreakWeeks } from '../lib/metrics'
 import {
@@ -96,40 +97,44 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [restSignal, setRestSignal] = useState(0)
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
-  const [prHits, setPrHits] = useState<Set<string>>(new Set()) // exercise ids that set a PR this session
-  const [prCards, setPrCards] = useState<ShareData[]>([]) // shareable "récord" cards, celebrated at finish
+  // PRs are restored too: without them a cold start (iOS drops the page while the
+  // phone is locked) would reach the finish screen with nothing to celebrate.
+  const [prHits, setPrHits] = useState<Set<string>>(new Set(restored?.prHits ?? [])) // exercise ids that set a PR this session
+  const [prCards, setPrCards] = useState<ShareData[]>(restored?.prCards ?? []) // shareable "récord" cards, celebrated at finish
   const [gain, setGain] = useState<{ kg: number; id: number } | null>(null) // "+kg" chip on each marked set
 
-  // persist progress on every change so backgrounding / leaving keeps it
+  // persist progress on every change so backgrounding / leaving keeps it. `week`
+  // and the PR state ride along so the app can reopen this exact session after the
+  // OS kills the page (see the resume path in App.tsx).
   useEffect(() => {
-    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done })
-  }, [i, done, finishing, day.id])
+    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done, week, prHits: [...prHits], prCards })
+  }, [i, done, finishing, day.id, week, prHits, prCards])
 
-  // Keep the screen awake for the whole session so the phone doesn't auto-lock
-  // mid-rest (the #1 way the timer alert used to get lost). Re-acquired on
-  // return from background — the lock is released by the OS every time the app
-  // is hidden. Released on unmount. No-op where Wake Lock isn't supported.
+  // Keep the screen awake WHILE THE MEMBER IS USING IT, then let the phone sleep.
+  // Holding the lock for the whole session left the display on in their pocket.
+  // Releasing mid-rest is safe: the end-of-rest chime is pre-scheduled on the audio
+  // clock and the notification goes through the service worker, so the alert lands
+  // with the phone locked (see restTimer.ts). "Siempre" (0) keeps the old behaviour.
   useEffect(() => {
-    type WL = { release?: () => Promise<void>; released?: boolean }
-    let lock: WL | null = null
-    let disposed = false
-    const acquire = async () => {
-      try {
-        const nav = navigator as unknown as { wakeLock?: { request: (t: 'screen') => Promise<WL> } }
-        const wl = await nav.wakeLock?.request('screen')
-        if (!wl) return
-        if (disposed) wl.release?.().catch(() => {})
-        else lock = wl
-      } catch { /* denied / unsupported — audio chime still covers the alert */ }
+    keepAwake(getAwakeIdleSec())
+    return () => stopAwake()
+  }, [])
+
+  // Coming back from a locked screen: say plainly that nothing was lost, for 3s.
+  // The one place the member could doubt it — they left, the screen went black.
+  const [backRibbon, setBackRibbon] = useState(false)
+  useEffect(() => {
+    let hiddenAt = 0
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+      if (hiddenAt && Date.now() - hiddenAt > 20_000) {
+        setBackRibbon(true)
+        window.setTimeout(() => setBackRibbon(false), 3_200)
+      }
+      hiddenAt = 0
     }
-    acquire()
-    const onVis = () => { if (document.visibilityState === 'visible') acquire() }
     document.addEventListener('visibilitychange', onVis)
-    return () => {
-      disposed = true
-      document.removeEventListener('visibilitychange', onVis)
-      lock?.release?.().catch(() => {})
-    }
+    return () => document.removeEventListener('visibilitychange', onVis)
   }, [])
 
   // Baseline the medal board at session START: everything already earned before
@@ -272,6 +277,14 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
         </div>
       )}
 
+      {backRibbon && !pr && (
+        <div className="mx-4 mb-2 rounded-card border border-white/12 bg-white/[0.06] px-3 py-2 text-white/70 text-xs font-bold
+          animate-[pop_.3s_ease] motion-reduce:animate-none">
+          Seguimos donde estabas: {item.type === 'single' ? item.ex.name : item.type === 'circuit' ? item.block.title : 'la entrada en calor'}
+          {item.type !== 'warmup' && <> · serie {Math.min(doneCount + 1, target)}</>}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-5" data-sheet-lock>
         {item.type === 'single'
           ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} />
@@ -372,6 +385,40 @@ function Dots({ n, done, flash, label }: { n: number; done: number; flash: numbe
 function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; name?: string; dayLabel?: string }) {
   const [open, setOpen] = useState(() => !!getNote(id))
   const [text, setText] = useState(() => getNote(id))
+  const textRef = useRef(text)
+  textRef.current = text
+  const syncedRef = useRef(text) // last value sent to the coach (outbox)
+
+  // The screen can lock (and iOS can kill the page) mid-sentence. Keep the text
+  // locally on a short debounce so nothing is lost, and do the coach-facing save
+  // when they leave the field or the app goes to the background — once, not once
+  // per keystroke (every saveNote queues an outbox write).
+  useEffect(() => {
+    const t = window.setTimeout(() => saveNoteDraft(id, textRef.current), 400)
+    return () => window.clearTimeout(t)
+  }, [text, id])
+
+  const commit = () => {
+    if (textRef.current === syncedRef.current) return
+    syncedRef.current = textRef.current
+    saveNote(id, dayId, textRef.current, { exName: name, dayLabel })
+  }
+  const commitRef = useRef(commit)
+  commitRef.current = commit
+
+  useEffect(() => {
+    const flush = () => commitRef.current()
+    const onHide = () => { if (document.visibilityState === 'hidden') flush() }
+    // `pagehide` is the reliable teardown hook on iOS — `beforeunload` often never fires
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHide)
+      flush() // leaving the exercise saves too
+    }
+  }, [])
+
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="mt-5 flex items-center gap-2 text-white/55 text-sm font-bold">
@@ -382,7 +429,7 @@ function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; n
   return (
     <div className="mt-5">
       <div className="kicker mb-1.5">Tu observación (la ve el coach)</div>
-      <textarea value={text} rows={2} onChange={(e) => setText(e.target.value)} onBlur={() => saveNote(id, dayId, text, { exName: name, dayLabel })}
+      <textarea value={text} rows={2} onChange={(e) => setText(e.target.value)} onBlur={commit}
         placeholder="Ej: no pude terminar la última serie / bajé a 25 kg / molestó el hombro"
         className="w-full rounded-card bg-white/5 border border-white/10 p-3 text-white text-sm placeholder:text-white/30 focus:border-gold/40 outline-none resize-none" />
     </div>
@@ -803,9 +850,16 @@ const RPE_WORD = (v: number) =>
 function Finish({ day, week, lastWeek, prHits, prCards, onClose, onBack }: {
   day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; onClose: () => void; onBack: () => void
 }) {
-  const [rpe, setRpe] = useState(7)
-  const [note, setNote] = useState('')
+  // restore a half-filled "¿Cómo te fue?" — the phone can lock on this screen too
+  const draft = getFinishDraft()
+  const [rpe, setRpe] = useState(draft.rpe ?? 7)
+  const [note, setNote] = useState(draft.note ?? '')
   const [phase, setPhase] = useState<'rpe' | 'celebrate' | 'medalIntro' | 'medals'>('rpe')
+  useEffect(() => {
+    if (phase !== 'rpe') return
+    const t = window.setTimeout(() => saveFinishDraft({ rpe, note }), 400)
+    return () => window.clearTimeout(t)
+  }, [rpe, note, phase])
   const [shareFinish, setShareFinish] = useState(false)
   const [queue, setQueue] = useState<ShareData[]>([])
   const bigBlock = day.blocks.find((b) => b.tag === 'big')
