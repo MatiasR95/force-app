@@ -34,13 +34,26 @@ registerSW({
 // so we clamp `--app-vh` to `screen.height` (portrait; `screen.width` in landscape —
 // iOS reports screen.* orientation-independent). In-browser we keep innerHeight (the
 // screen would overshoot past Safari's chrome there).
+//
+// ANDROID MUST NOT GET THAT CLAMP. Chrome's installed PWA is NOT full-bleed: the system
+// status bar and the navigation/gesture bar are real chrome that `screen.height` still
+// counts but `innerHeight` (correctly) excludes. Clamping there made the shell taller
+// than the visible viewport, so the bottom nav — the last flex child of the shell —
+// was pushed off-screen behind the system nav bar: members saw no Inicio/Hoy/Récords
+// icons at all in the installed app while the browser (no standalone, no clamp) was
+// fine. The screen clamp and the viewport re-parse are both WebKit workarounds, so
+// they now only run on iOS; everywhere else innerHeight is the truth.
 const isStandalone = () =>
   window.matchMedia?.('(display-mode: standalone)').matches ||
   (navigator as unknown as { standalone?: boolean }).standalone === true
 
+// iPadOS 13+ reports itself as "Macintosh"; touch points disambiguate it from a Mac.
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+
 function targetHeight(): number {
   let h = window.innerHeight
-  if (isStandalone()) {
+  if (isIOS && isStandalone()) {
     const portrait = !window.matchMedia || window.matchMedia('(orientation: portrait)').matches
     const full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width)
     if (full > h) h = full
@@ -57,6 +70,7 @@ function syncAppHeight() {
 // black-translucent status bar. Briefly flip viewport-fit cover→contain→cover so WebKit
 // re-parses the meta and re-measures, then re-pin the height.
 function nudgeViewport() {
+  if (!isIOS) return // WebKit-only bug; on Android the re-parse just churns layout
   const vp = document.querySelector('meta[name="viewport"]')
   if (!vp) return
   const base = vp.getAttribute('content') || ''
@@ -85,7 +99,7 @@ document.addEventListener('visibilitychange', () => {
 // viewport is still short of the pinned height (the stale-boot signature), fire the
 // rotation-mimicking nudge again. Covers cold starts where the stale window outlives
 // the fixed retry schedule above.
-if (isStandalone()) {
+if (isIOS && isStandalone()) {
   let ticks = 0
   const watchdog = window.setInterval(() => {
     syncAppHeight()
