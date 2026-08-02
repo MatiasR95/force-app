@@ -42,7 +42,7 @@ export function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () 
   const pickAwake = (sec: number) => { setAwake(sec); setAwakeIdleSec(sec) } // live, like the rest
 
   return (
-    <BottomSheet open={open} onClose={onClose}>
+    <BottomSheet open={open} onClose={onClose} label="Apariencia">
       <div className="px-5 pb-7 pt-1">
         <div className="kicker mb-1">Cómo se ve</div>
         <h2 className="heading text-2xl text-white mb-4">Apariencia</h2>

@@ -18,7 +18,7 @@ import {
 } from '../lib/store'
 import { WeekRing } from '../components/WeekRing'
 import { recapMonth, dismissRecap, RecapStory } from '../components/MonthlyRecap'
-import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X, Disc3 } from 'lucide-react'
+import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X, Disc3, Check } from 'lucide-react'
 
 const TODAY_LONG = () =>
   new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -32,18 +32,19 @@ export const saludo = () => {
   return h < 12 ? 'Buen día' : h < 19 ? 'Buenas tardes' : 'Buenas noches'
 }
 
-export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
+export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefresh }: {
   routine: Routine
   week: number
   suggestedDay: number
   onTrain: (dayIdx: number, week: number) => void
   onGoRecords: () => void
+  onRefresh?: () => Promise<unknown>
 }) {
   const [weather, setWeather] = useState<WeatherBundle | null>(null)
   const [profile, setProfile] = useState(false)
   const [recap, setRecap] = useState(() => recapMonth())
   const [recapOpen, setRecapOpen] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
+  const [refresh, setRefresh] = useState<'idle' | 'busy' | 'ok'>('idle')
   const [rivals, setRivals] = useState(() => getRivalPending())
   const name = getClientName()
   const day = routine.days[suggestedDay]
@@ -64,6 +65,23 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
 
   useEffect(() => { getWeather().then(setWeather) }, [])
 
+  // Re-read the coach's sheet without throwing the app away. The old handler was
+  // `location.reload()` — a cold start that lost scroll, in-flight state and the
+  // service-worker warm cache. Now it refetches in place and confirms with a tick.
+  const doRefresh = () => {
+    if (refresh === 'busy') return
+    setRefresh('busy')
+    try { navigator.vibrate?.(8) } catch { /* no-op */ }
+    Promise.allSettled([
+      onRefresh ? onRefresh() : Promise.resolve(),
+      getWeather().then(setWeather),
+      new Promise((r) => window.setTimeout(r, 650)),
+    ]).then(() => {
+      setRefresh('ok')
+      window.setTimeout(() => setRefresh('idle'), 1400)
+    })
+  }
+
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
       {/* hero — tilt-reactive gold foil: the sheen tracks the phone's tilt */}
@@ -73,13 +91,18 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
             <img src={emblem} alt="FORCE" className="h-11 w-11 object-contain" />
             <ArgentinaFlag h={24} />
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setRefreshing(true); location.reload() }} aria-label="Actualizar"
-              className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
-              <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+          {/* 44px touch targets (were 36) — the WCAG floor, and these two sit right
+              under the thumb at the top of the most-visited screen */}
+          <div className="flex items-center gap-1.5">
+            <button onClick={doRefresh} aria-label="Actualizar mi rutina" aria-busy={refresh === 'busy'}
+              className={`h-11 w-11 grid place-items-center rounded-full border text-white/70 transition active:scale-90
+                ${refresh === 'ok' ? 'bg-gold/20 border-gold/50 text-gold' : 'bg-white/8 border-white/10'}`}>
+              {refresh === 'ok'
+                ? <Check size={18} className="animate-[pop_.35s_ease]" />
+                : <RefreshCw size={18} className={refresh === 'busy' ? 'animate-spin' : ''} />}
             </button>
             <button onClick={() => setProfile(true)} aria-label="Perfil"
-              className="h-9 w-9 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
+              className="h-11 w-11 grid place-items-center rounded-full bg-white/8 border border-white/10 text-white/70 active:scale-90">
               <UserCog size={18} />
             </button>
           </div>
@@ -197,6 +220,23 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
               </div>
             ))}
           </div>
+
+          {/* the next feriado rides inside the same "contexto" card — it's the same
+              kind of information (what the calendar looks like around your training),
+              and as its own card it made Inicio one more equal-weight block to scroll */}
+          {fer && (
+            <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-3">
+              <div className="text-2xl shrink-0">{fer.emoji}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[0.55rem] uppercase tracking-micro text-white/45 font-bold">Próximo feriado</div>
+                <div className="text-white font-bold text-sm leading-snug truncate">{fer.name}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-gold text-xl font-black leading-none tabular-nums">{fer.daysLeft === 0 ? '¡Hoy!' : fer.daysLeft}</div>
+                {fer.daysLeft > 0 && <div className="text-[0.55rem] uppercase tracking-micro text-white/45 font-bold">{fer.daysLeft === 1 ? 'día' : 'días'}</div>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -206,8 +246,9 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords }: {
         <p className="text-white/85 text-sm leading-relaxed">{tip.tip}</p>
       </div>
 
-      {/* next feriado */}
-      {fer && (
+      {/* no weather (offline / API down) but a feriado to announce: keep it as its
+          own card so the information doesn't disappear with the forecast */}
+      {fer && !(weather && weather.days.length > 0) && (
         <div className="card p-4 mb-4 flex items-center gap-3">
           <div className="text-3xl shrink-0">{fer.emoji}</div>
           <div className="flex-1 min-w-0">

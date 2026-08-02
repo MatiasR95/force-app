@@ -57,6 +57,16 @@
     overscroll-behavior-y: none;
   }
   * { -webkit-tap-highlight-color: transparent; }
+
+  /* Keyboard focus. The app kills the tap highlight everywhere, which also left
+     keyboard users with NO visible focus at all. `:focus-visible` only paints for
+     keyboard/AT navigation, so touch is unchanged. Gold ring + a dark halo so it
+     reads on both the dark stage and paper. */
+  :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--gold-rgb));
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgb(var(--bg-rgb) / 0.65);
+  }
 }
 
 @layer components {
@@ -627,6 +637,52 @@ body::before {
 }
 @media (prefers-reduced-motion: reduce) {
   .flag-wave { animation: none; }
+}
+
+/* ---- Pull to refresh: the Spine bends into an arc -------------------------
+   FORCE's signature is a vertical gold rule. Pulling the app down bends that rule
+   into a ring that fills as you travel toward the trigger, then spins while the
+   sheet is re-read. One gesture replaces "reload the whole app". */
+.ptr {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+  display: grid; place-items: center;
+  pointer-events: none;
+}
+.ptr-dial { transform-origin: center; }
+.ptr-spin { animation: ptrSpin .9s linear infinite; transform-origin: center; }
+@keyframes ptrSpin { to { transform: rotate(360deg); } }
+.ptr-track { stroke: rgb(var(--fg-rgb) / 0.12); }
+.ptr-arc { stroke: rgb(var(--gold-rgb)); transition: stroke-dashoffset .12s linear; }
+@media (prefers-reduced-motion: reduce) {
+  .ptr-spin { animation: none; }
+}
+
+/* ---- Sticky screen bar: appears only once the member has scrolled ---------
+   Long screens (Inicio, Panel, Récords, Plan) lost their title off the top. A
+   slim glass bar fades in past the fold so you always know where you are — and
+   gives the per-screen actions a fixed home instead of scrolling away. */
+.screen-top {
+  position: sticky; top: 0; z-index: 25;
+  margin: 0 -1rem; padding: 0 1rem;
+  background: rgb(var(--bg-rgb) / 0.72);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  border-bottom: 1px solid rgb(var(--fg-rgb) / 0.08);
+  opacity: 0; transform: translateY(-8px); pointer-events: none;
+  transition: opacity .22s ease, transform .22s cubic-bezier(.22,1,.36,1);
+}
+.screen-top[data-on='1'] { opacity: 1; transform: none; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .screen-top { transition: none; }
+}
+
+/* ---- Tempo pacer: the coach's "3:1:0" made trainable ----------------------
+   A gold bar travels the eccentric, holds the pause and snaps back on the
+   concentric, at the exact seconds the coach prescribed. Width-driven so the
+   phase length is literally the bar's travel time. */
+.tempo-fill { will-change: transform; transform-origin: left center; }
+@media (prefers-reduced-motion: reduce) {
+  .tempo-fill { transition: none !important; }
 }
 
 /* ---- Light theme: readable secondary text --------------------------------

@@ -397,6 +397,15 @@ export interface SessionProgress {
   ts?: string            // ISO of the last write — drives the 45-min resume window
   prHits?: string[]      // exercise ids that set a PR (drives the finish celebration)
   prCards?: ShareData[]  // shareable "récord" cards earned this session
+  startedAt?: number     // epoch ms the session began — drives the on-screen clock
+  readiness?: Readiness  // how the member said they arrived (autorregulación)
+}
+
+/** How the member said they turned up today. Coaches read it with the session
+ *  note; it never changes the plan on its own. */
+export type Readiness = 'alta' | 'media' | 'baja'
+export const READINESS_LABEL: Record<Readiness, string> = {
+  alta: 'Entero', media: 'Normal', baja: 'Cansado',
 }
 export const getSessionProgress = (): SessionProgress | null => read<SessionProgress | null>(KEYS.progress, null)
 export function saveSessionProgress(p: SessionProgress): void {

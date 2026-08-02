@@ -122,7 +122,7 @@ function MedalSheet({ detail, onClose, onShare }: {
 }) {
   const story = medalStory(detail.kind, detail.lift)
   return (
-    <BottomSheet open onClose={onClose}>
+    <BottomSheet open onClose={onClose} label="Detalle de la medalla">
       <div className="px-6 pb-8 pt-2 text-center">
         <div className="flex justify-center mb-3">
           <Medal tier={detail.tier} icon={detail.icon} size={104} locked={!detail.tier} hero />

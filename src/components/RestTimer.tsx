@@ -101,7 +101,7 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
               hide when on, bring back when off (once the member has chosen once). */}
           {active && eduPref != null && (
             <button onClick={() => choose(!eduPref)}
-              className={`ml-auto text-[0.58rem] flex items-center gap-1 ${eduPref ? 'text-white/35' : 'text-gold/80'}`}
+              className={`ml-auto min-h-[44px] px-2 -mr-2 text-[0.58rem] flex items-center gap-1 ${eduPref ? 'text-white/35' : 'text-gold/80'}`}
               aria-label={eduPref ? 'Ocultar datos' : 'Mostrar datos'}>
               {eduPref ? <><X size={11} /> datos</> : <><BookOpen size={11} /> datos</>}
             </button>
@@ -111,12 +111,12 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
 
         {!active && !done ? (
           <div className="flex items-center gap-3">
-            <button onClick={() => adjust(-15)} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Minus size={18} /></button>
+            <button onClick={() => adjust(-15)} aria-label="Menos 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Minus size={18} /></button>
             <div className="flex-1 text-center">
               <div className="text-3xl font-black tabular-nums text-white">{fmt(pref)}</div>
               <div className="text-[0.58rem] uppercase tracking-micro text-white/40 font-bold">tu descanso</div>
             </div>
-            <button onClick={() => adjust(15)} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Plus size={18} /></button>
+            <button onClick={() => adjust(15)} aria-label="Más 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Plus size={18} /></button>
             <button onClick={() => startRest(pref)} className="btn-glow ml-1 px-5 h-11 rounded-full bg-gold-fill text-ink font-black uppercase text-sm flex items-center gap-1.5 active:scale-95">
               <Play size={16} /> Iniciar
             </button>
@@ -126,17 +126,17 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
             <RestRing remaining={remaining} total={pref} done={done} />
             <div className="flex items-center gap-3">
               {state.status === 'running' && (
-                <button onClick={() => extendRest(30)}
-                  className="h-10 px-3.5 rounded-full bg-white/5 border border-gold/30 text-gold text-sm font-black active:scale-95">
+                <button onClick={() => extendRest(30)} aria-label="Sumar 30 segundos"
+                  className="min-h-[44px] px-4 rounded-full bg-white/5 border border-gold/30 text-gold text-sm font-black active:scale-95">
                   +30s
                 </button>
               )}
               {active && (
-                <button onClick={() => (state.status === 'running' ? pauseRest() : resumeRest())} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70">
+                <button onClick={() => (state.status === 'running' ? pauseRest() : resumeRest())} aria-label={state.status === 'running' ? 'Pausar el descanso' : 'Seguir el descanso'} className="h-11 w-11 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95">
                   {state.status === 'running' ? <Pause size={18} /> : <Play size={18} />}
                 </button>
               )}
-              <button onClick={() => resetRest()} className="h-10 w-10 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70"><RotateCcw size={18} /></button>
+              <button onClick={() => resetRest()} aria-label="Reiniciar el descanso" className="h-11 w-11 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><RotateCcw size={18} /></button>
             </div>
             {/* box-breathing guide while the pause runs (not on the "time's up" state) */}
             {active && <BreathePacer />}

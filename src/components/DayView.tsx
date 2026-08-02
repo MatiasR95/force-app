@@ -1,6 +1,6 @@
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
 import { Spine } from './ui'
-import { setsReps, loadText, repsText } from './TechniqueChips'
+import { setsReps, loadText, repsText, liftName } from './TechniqueChips'
 import { AnimatedExercise } from './AnimatedExercise'
 import { circuitRounds, liftOfWeek } from '../lib/week'
 import { Flame, ChevronRight, Repeat, Layers, Zap } from 'lucide-react'
@@ -66,7 +66,7 @@ function PlainBlock({ block, week, onPick }: {
             {block.tag === 'big' && <Spine />}
             <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-white truncate">{ex.name || '—'}</div>
+              <div className="font-bold text-white truncate">{liftName(ex) || '—'}</div>
               <div className="text-xs text-white/55 mt-0.5">
                 {setsReps(ex, week)}{showLoad(ex) ? ` · ${loadText(ex, week)}` : ''}
               </div>
@@ -106,7 +106,7 @@ function CircuitCard({ block, week, onPick }: {
               <span className="text-gold/60 font-black text-xs w-3 shrink-0">{i + 1}</span>
               <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-white text-sm truncate">{ex.name || '—'}</div>
+                <div className="font-bold text-white text-sm truncate">{liftName(ex) || '—'}</div>
                 <div className="text-xs text-white/55">
                   {repsOnly(ex, week)}{showLoad(ex) ? ` · ${loadText(ex, week)}` : ''}
                 </div>

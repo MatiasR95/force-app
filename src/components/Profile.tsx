@@ -45,7 +45,7 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose}>
+    <BottomSheet open={open} onClose={onClose} label="Tu perfil">
       <div className="px-5 pb-7 pt-1">
         <div className="kicker mb-1">Tu perfil</div>
         <h2 className="heading text-2xl text-white mb-5">Tus datos</h2>

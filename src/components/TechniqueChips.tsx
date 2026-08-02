@@ -13,9 +13,26 @@ function label(t: Technique): string {
   }
 }
 
-export function TechniqueChips({ ex }: { ex: ExerciseRow }) {
-  // Drop the "Por lado" chip when the load already shows "/lado" (avoid the duplicate).
-  const techs = ex.techniques.filter((t) => !(t.type === 'perSide' && ex.load.value != null))
+/** The lift's name as a member should READ it.
+ *
+ *  Coaches write the tempo inside the exercise cell ("Press Plano TEMPO 3:1:0"),
+ *  which the parser also lifts out as a technique — so the screen ended up saying
+ *  the same thing three times: in the title, in the chip and on the pacer. The
+ *  parsed value is the one that's actionable, so the raw token comes out of the
+ *  title. Only the display changes: ids, record matching and the sheet write-back
+ *  all still use `ex.name`.
+ */
+export function liftName(ex: ExerciseRow): string {
+  if (!ex.techniques.some((t) => t.type === 'tempo')) return ex.name
+  return ex.name.replace(/\s*TEMPO\s*\d\s*:\s*\d\s*:\s*\d\s*/i, ' ').replace(/\s{2,}/g, ' ').trim() || ex.name
+}
+
+export function TechniqueChips({ ex, hideTempo = false }: { ex: ExerciseRow; hideTempo?: boolean }) {
+  // Drop the "Por lado" chip when the load already shows "/lado" (avoid the duplicate),
+  // and the "Tempo" chip when the pacer below is already showing the same numbers.
+  const techs = ex.techniques
+    .filter((t) => !(t.type === 'perSide' && ex.load.value != null))
+    .filter((t) => !(hideTempo && t.type === 'tempo'))
   if (!techs.length) return null
   return (
     <div className="flex flex-wrap gap-1.5 mt-2">

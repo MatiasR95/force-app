@@ -1,6 +1,6 @@
 import type { ExerciseRow } from '../lib/types'
 import { BottomSheet } from '../components/ui'
-import { TechniqueChips, setsReps, loadText } from '../components/TechniqueChips'
+import { TechniqueChips, setsReps, loadText, liftName } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
 import { LastTime } from '../components/LastTime'
 import { isDeadliftName } from '../lib/plates'
@@ -16,7 +16,7 @@ export function ExerciseSheet({ ex: row, week = 1, onClose }: {
   const res = ex ? resolveWeek(ex, week) : null
   const load = res?.load ?? null
   return (
-    <BottomSheet open={!!ex} onClose={onClose}>
+    <BottomSheet open={!!ex} onClose={onClose} label={ex ? liftName(ex) : "Ejercicio"}>
       {ex && (
         <div className="px-5 pb-8">
           <div className="relative -mx-5 mb-4 h-52 overflow-hidden">
@@ -26,7 +26,7 @@ export function ExerciseSheet({ ex: row, week = 1, onClose }: {
               <div className="kicker">
                 {PATTERN_LABEL[ex.pattern]}{res?.substitution ? ` · variante semana ${week}` : ''}
               </div>
-              <h2 className="heading text-2xl text-white mt-1">{ex.name}</h2>
+              <h2 className="heading text-2xl text-white mt-1">{liftName(ex)}</h2>
             </div>
           </div>
 

@@ -95,7 +95,11 @@ export function Intro({ day, week, onStart }: { day?: RoutineDay; week?: number;
         </div>
       </div>
 
-      <button onClick={go} className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] text-white/35 text-xs font-bold uppercase tracking-micro">
+      {/* was a bare 60×16 text link — below the 44px touch floor, and the first
+          control a brand-new member ever sees */}
+      <button onClick={go}
+        className="absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] min-h-[44px] px-6 grid place-items-center
+          rounded-full text-white/35 text-xs font-bold uppercase tracking-micro active:scale-95">
         Saltar
       </button>
 

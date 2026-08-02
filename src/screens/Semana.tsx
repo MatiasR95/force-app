@@ -139,7 +139,7 @@ function FragmentRow({ w, routine, week, dayIdx, currentWk, trained, onPick }: {
         return (
           <button key={d.id} onClick={() => onPick(w, i)}
             aria-label={`Semana ${w}, ${d.label}${done ? ' (entrenado)' : ''}`}
-            className={`h-7 rounded-[6px] transition active:scale-95
+            className={`h-9 rounded-[6px] transition active:scale-95
               ${done ? 'bg-gold-fill' : isCur ? 'bg-white/[0.09]' : 'bg-white/[0.05]'}
               ${sel ? 'ring-2 ring-gold' : 'ring-1 ring-white/[0.06]'}`} />
         )

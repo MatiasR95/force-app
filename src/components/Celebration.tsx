@@ -79,7 +79,7 @@ function SweepRing({ intense }: { intense: boolean }) {
   )
 }
 
-export interface CelebrationStats { totalKg: number; series: number; streak: number }
+export interface CelebrationStats { totalKg: number; series: number; streak: number; durationMin?: number }
 
 export function Celebration({ title, extra, stats, intense = false, onClose, onShare }: {
   title: string; extra?: string; stats?: CelebrationStats; intense?: boolean; onClose: () => void; onShare?: () => void
@@ -94,11 +94,23 @@ export function Celebration({ title, extra, stats, intense = false, onClose, onS
         <h1 className="heading text-3xl text-white mt-1 mb-5">¡Bien ahí!</h1>
 
         {stats && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <StatCell label="Kg movidos" value={stats.totalKg} delay={250} />
-            <StatCell label="Series" value={stats.series} delay={400} />
-            <StatCell label="Semanas" value={stats.streak} delay={550} />
-          </div>
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <StatCell label="Kg movidos" value={stats.totalKg} delay={250} />
+              <StatCell label="Series" value={stats.series} delay={400} />
+              <StatCell label="Semanas" value={stats.streak} delay={550} />
+            </div>
+            {/* how long it took, and the density that time implies — the two numbers
+                a coach actually asks about after "¿cuánto levantaste?" */}
+            {stats.durationMin != null && stats.durationMin > 0 && (
+              <div className="mb-4 text-[0.68rem] font-bold text-white/50 tabular-nums">
+                {stats.durationMin} min en sala
+                {stats.totalKg > 0 && (
+                  <> <span className="text-white/25">·</span> {Math.round(stats.totalKg / stats.durationMin).toLocaleString('es-AR')} kg por minuto</>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {extra && (

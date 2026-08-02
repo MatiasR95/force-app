@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, fetchRecords, isDemo, syncOutbox } from './lib/api'
 import { runRivalWatch } from './lib/rivalWatch'
@@ -19,6 +19,7 @@ import { InstallSheet, armInstallCapture, canPromptInstall } from './components/
 import { installNudgeSeen } from './lib/store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { HomeSkeleton } from './components/HomeSkeleton'
+import { usePullToRefresh, PullDial } from './components/PullToRefresh'
 import { SimpleShell } from './screens/simple/SimpleShell'
 import { useUiPrefs } from './lib/UiPrefsContext'
 import { House, CalendarDays, LayoutGrid, BarChart3, Trophy, Play, X as XIcon } from 'lucide-react'
@@ -28,6 +29,10 @@ type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
 // visual order of the bottom-nav tabs — drives the sliding indicator position and
 // the direction each screen glides in from (forward = from the right).
 const TAB_ORDER: Tab[] = ['inicio', 'hoy', 'semana', 'records', 'panel']
+// what the sticky glass bar says once the screen's own heading has scrolled away
+const TAB_TITLE: Record<Tab, string> = {
+  inicio: 'Inicio', hoy: 'Hoy', semana: 'El plan completo', records: 'Récords FORCE', panel: 'Panel',
+}
 
 // Capture the magic-link token (?t=…) synchronously, before React renders, so the
 // "need link" guard below is correct on first paint. CRITICAL for iOS: an installed
@@ -154,6 +159,38 @@ export default function App() {
     fetchRecords(token).then(runRivalWatch).catch(() => {})
   }
 
+  // Re-read the coach's sheet IN PLACE — no splash, no remount, nothing lost.
+  // This is what the pull gesture and Inicio's "Actualizar" both call now; the
+  // old button did `location.reload()`, which cold-started the whole PWA.
+  const refreshNow = () => {
+    const t = getToken()
+    lastReadAt = Date.now()
+    return Promise.allSettled([
+      fetchRoutine(t).then(setRoutine),
+      syncOutbox(t),
+      fetchRecords(t).then(runRivalWatch),
+    ]).then(() => undefined)
+  }
+
+  // The scroller only exists once the routine has loaded (a splash renders before
+  // it), so this is state, not a ref — the listeners bind on the render that
+  // actually mounts the node.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
+  // pull-to-refresh is a shell gesture: off inside the full-screen training overlay
+  const ptr = usePullToRefresh(scroller, refreshNow, training == null)
+  // a slim glass title bar fades in past the fold, so long screens never lose
+  // their heading (and the member always knows which tab they're reading)
+  const [scrolled, setScrolled] = useState(false)
+  useLayoutEffect(() => {
+    if (!scroller) return
+    const onScroll = () => setScrolled(scroller.scrollTop > 96)
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => scroller.removeEventListener('scroll', onScroll)
+  }, [scroller])
+  // a new screen always starts at the top — and with the bar hidden
+  useEffect(() => { scroller?.scrollTo({ top: 0 }); setScrolled(false) }, [tab, scroller])
+
   useEffect(() => {
     // demo: seed a friendly client name so the greeting feels real
     if (!getClientName() && isDemo()) setClientName('Agu Rivera')
@@ -258,7 +295,24 @@ export default function App() {
           onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />
       ) : (
         <>
-      <div className="app-scroll relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      <div ref={setScroller} className="app-scroll relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <PullDial dist={ptr.dist} refreshing={ptr.refreshing} armed={ptr.armed} />
+        {/* sticky glass title bar — zero layout cost (it's pulled out of flow with
+            a negative margin) and only visible once the member scrolls past the fold */}
+        {/* aria-hidden: it repeats the screen's own <h1>, so it's reinforcement for
+            the eye only — a second announcement would just be noise. */}
+        <div className="screen-top flex items-center" data-on={scrolled ? '1' : '0'} aria-hidden
+          style={{
+            paddingTop: 'env(safe-area-inset-top)',
+            height: 'calc(env(safe-area-inset-top) + 2.75rem)',
+            marginBottom: 'calc(-1 * (env(safe-area-inset-top) + 2.75rem))',
+          }}>
+          <span className="spine h-4 mr-2.5 shrink-0" aria-hidden />
+          <span className="heading text-sm text-white truncate">{TAB_TITLE[tab]}</span>
+          {routine.style === 'weekly' && routine.totalWeeks > 1 && (
+            <span className="ml-auto text-[0.6rem] font-black uppercase tracking-micro text-gold/90 tabular-nums shrink-0">Sem {wk}</span>
+          )}
+        </div>
         <EventDecor />
         <RestTimerHost showPill={training == null} />
         {isDemo() && (
@@ -270,7 +324,7 @@ export default function App() {
 
         <ErrorBoundary key={tab}>
           <div className={navDir === 0 ? 'screen-in' : navDir > 0 ? 'screen-in-right' : 'screen-in-left'}>
-            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} />}
+            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} onRefresh={refreshNow} />}
             {tab === 'hoy' && <Hoy routine={routine} currentWk={currentWk} suggestedDay={suggestedDay}
               onPickWeek={(w) => { setStartWeek(w); setWeek(null) }}
               onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
@@ -454,11 +508,11 @@ function NavBtn({ active, onClick, icon, label }: {
   active: boolean; onClick: () => void; icon: React.ReactNode; label: string
 }) {
   return (
-    <button onClick={onClick}
-      className="relative flex flex-col items-center gap-1 py-2.5 transition"
+    <button onClick={onClick} aria-current={active ? 'page' : undefined}
+      className="relative flex flex-col items-center gap-1 py-2.5 transition active:scale-90"
       style={{ color: active ? 'var(--nav-active-ink)' : 'rgb(var(--fg-rgb) / 0.62)' }}>
       {active ? <span className="nav-pop inline-flex">{icon}</span> : icon}
-      <span className="text-[0.6rem] font-bold uppercase tracking-micro">{label}</span>
+      <span className={`text-[0.6rem] uppercase tracking-micro ${active ? 'font-black' : 'font-bold'}`}>{label}</span>
     </button>
   )
 }

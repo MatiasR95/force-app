@@ -101,7 +101,7 @@ export function Hoy({ routine, currentWk, suggestedDay, onPickWeek, onTrain }: {
         )}
         {routine.days.length > 1 && (
           <button onClick={() => (isToday ? setPicker(true) : setDayIdx(suggestedDay))}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/[0.07] px-3 py-1.5 text-gold/90 font-bold active:scale-95">
+            className="inline-flex items-center gap-1.5 min-h-[44px] rounded-full border border-gold/30 bg-gold/[0.07] px-4 text-gold/90 font-bold active:scale-95">
             <Repeat size={12} /> {isToday ? (multiWeek ? 'Cambiar día o semana' : '¿Entrenás otro día?') : 'Volver a hoy'}
           </button>
         )}
@@ -136,7 +136,7 @@ export function Hoy({ routine, currentWk, suggestedDay, onPickWeek, onTrain }: {
 
       {/* day switcher: which day is HOY, which are already done this week */}
       {picker && (
-        <BottomSheet open onClose={() => setPicker(false)}>
+        <BottomSheet open onClose={() => setPicker(false)} label="Cambiar el día">
           <div className="px-5 pb-8 pt-1">
             <div className="kicker mb-1">{multiWeek ? 'Cambiar día y semana' : 'Cambiar el día'}</div>
             <p className="text-white/45 text-xs mb-3">¿Adelantás o recuperás un día? El plan completo vive en la pestaña Plan.</p>

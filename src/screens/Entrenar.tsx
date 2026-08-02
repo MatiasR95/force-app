@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RoutineDay, ExerciseRow, SectionTag, Block } from '../lib/types'
-import { setsReps, loadText, repsText, TechniqueChips } from '../components/TechniqueChips'
+import { setsReps, loadText, repsText, TechniqueChips, liftName } from '../components/TechniqueChips'
 import { PlateCalc } from '../components/PlateCalc'
 import { isDeadliftName } from '../lib/plates'
 import { RestTimer } from '../components/RestTimer'
@@ -9,7 +9,7 @@ import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft, READINESS_LABEL, type Readiness } from '../lib/store'
 import { keepAwake, stopAwake } from '../lib/screenAwake'
 import { useUiPrefs } from '../lib/UiPrefsContext'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
@@ -23,7 +23,8 @@ import { Celebration, FoilBurst } from '../components/Celebration'
 import { FoilTilt } from '../components/FoilTilt'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
-import { X, ChevronLeft, ChevronRight, ChevronUp, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award } from 'lucide-react'
+import { TempoPacer } from '../components/TempoPacer'
+import { X, ChevronLeft, ChevronRight, ChevronUp, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award, Timer, HeartPulse, SkipForward } from 'lucide-react'
 
 const ORDER: SectionTag[] = ['ramp', 'big', 'accessory', 'hiit', 'finisher', 'core', 'other']
 const rid = () => `r-${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
@@ -108,13 +109,19 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [prHits, setPrHits] = useState<Set<string>>(new Set(restored?.prHits ?? [])) // exercise ids that set a PR this session
   const [prCards, setPrCards] = useState<ShareData[]>(restored?.prCards ?? []) // shareable "récord" cards, celebrated at finish
   const [gain, setGain] = useState<{ kg: number; id: number } | null>(null) // "+kg" chip on each marked set
+  // When this session began. Restored (not reset) after a cold start, so the clock
+  // keeps telling the truth about how long the member has actually been training.
+  const [startedAt] = useState(() => restored?.startedAt ?? Date.now())
+  // Autorregulación: how they turned up today. Asked once, on the first step.
+  const [readiness, setReadiness] = useState<Readiness | null>(restored?.readiness ?? null)
+  const [readyAsked, setReadyAsked] = useState(!!restored?.readiness)
 
   // persist progress on every change so backgrounding / leaving keeps it. `week`
   // and the PR state ride along so the app can reopen this exact session after the
   // OS kills the page (see the resume path in App.tsx).
   useEffect(() => {
-    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done, week, prHits: [...prHits], prCards })
-  }, [i, done, finishing, day.id, week, prHits, prCards])
+    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done, week, prHits: [...prHits], prCards, startedAt, ...(readiness ? { readiness } : {}) })
+  }, [i, done, finishing, day.id, week, prHits, prCards, startedAt, readiness])
 
   // Keep the screen awake WHILE THE MEMBER IS USING IT, then let the phone sleep.
   // Holding the lock for the whole session left the display on in their pocket.
@@ -153,7 +160,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     markMedalsSeen(earnedMedalIds(getMyRecords(), gender, cat, currentStreakWeeks(getCheckins()), getSessions().length))
   }, [])
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} simple={simple} onClose={onClose} onBack={() => setFinishing(false)} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} simple={simple} startedAt={startedAt} readiness={readiness} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -257,15 +264,25 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
   return (
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-[448px] mx-auto">
-      <div className="flex items-center gap-2.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
-        <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
-        {/* session map: one notch per item so the whole session's shape is visible */}
-        <div className="flex-1">
-          <SegmentRail current={i}
-            segments={items.map((it) => (done[keyOf(it)] ?? 0) / Math.max(1, unitsOf(it, week)))} />
+      {/* Header on two lines: the controls and the session map get the full width
+          (the counter used to squeeze the rail down to a stub on small phones),
+          and the meta line below carries where-you-are + how long you've been at it. */}
+      <div className="px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2.5">
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} aria-label="Salir del entrenamiento"
+            className="h-11 w-11 -ml-2.5 grid place-items-center text-white/60 active:scale-90"><X size={22} /></button>
+          {/* session map: one notch per item so the whole session's shape is visible */}
+          <div className="flex-1 min-w-0">
+            <SegmentRail current={i}
+              segments={items.map((it) => (done[keyOf(it)] ?? 0) / Math.max(1, unitsOf(it, week)))} />
+          </div>
+          <button onClick={() => setOverview(true)} aria-label="Ver toda la sesión"
+            className="h-11 w-11 -mr-2.5 grid place-items-center text-white/60 active:scale-90"><ListChecks size={20} /></button>
         </div>
-        <span className="text-xs font-bold text-white/50 tabular-nums">Sem {week} · {i + 1}/{items.length}</span>
-        <button onClick={() => setOverview(true)} aria-label="Ver toda la sesión" className="p-1.5 text-white/60"><ListChecks size={20} /></button>
+        <div className="flex items-center justify-between mt-1 text-[0.62rem] font-bold tabular-nums">
+          <span className="text-white/45">Sem {week} · paso {i + 1} de {items.length}</span>
+          <SessionClock from={startedAt} />
+        </div>
       </div>
 
       {overview && (
@@ -292,6 +309,15 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       )}
 
       <div className="flex-1 overflow-y-auto px-5" data-sheet-lock>
+        {/* Autorregulación, asked once at the top of the session: how you arrived
+            decides how hard today should feel. It never rewrites the plan — it gives
+            the member a cue and travels to the coach with the session note. */}
+        {!simple && i === 0 && (
+          readyAsked
+            ? readiness && <ReadinessCue r={readiness} />
+            : <ReadinessAsk onPick={(r) => { setReadiness(r); setReadyAsked(true); try { navigator.vibrate?.(10) } catch { /* no-op */ } }}
+                onSkip={() => setReadyAsked(true)} />
+        )}
         {item.type === 'single'
           ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} simple={simple} />
           : item.type === 'warmup'
@@ -352,9 +378,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
           {gain && <span key={gain.id} className="vol-pop">+{Math.round(gain.kg).toLocaleString('es-AR')} kg</span>}
         </div>
         {!isLast ? (
-          <button onClick={skip} className="text-white/45 text-sm font-bold px-3 py-2">Saltar →</button>
+          <button onClick={skip} aria-label="Saltar este ejercicio"
+            className="min-h-[44px] px-3 rounded-full flex items-center gap-1.5 text-white/45 text-sm font-bold active:scale-95">
+            Saltar <SkipForward size={15} />
+          </button>
         ) : (
-          <div className="w-[70px]" />
+          <div className="w-[86px]" />
         )}
       </div>
     </div>
@@ -371,6 +400,70 @@ function unitsOf(it: Item, week: number): number {
 const singleLoad = (ex: ExerciseRow, week: number) => {
   const l = resolveWeek(ex, week).load
   return l.value != null && l.perSide
+}
+
+/** The tempo the coach wrote for this lift ("3:1:0"), if any. */
+const tempoOf = (ex: ExerciseRow): string | null =>
+  ex.techniques.find((t): t is Extract<typeof t, { type: 'tempo' }> => t.type === 'tempo')?.value ?? null
+
+// How long you've been training. Sessions drift — you talk, a machine is busy,
+// you scroll — and nothing on screen used to say it. Elapsed time is also what
+// makes the density number at the end (kg per minute) mean anything.
+function SessionClock({ from }: { from: number }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const iv = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(iv)
+  }, [])
+  const s = Math.max(0, Math.floor((now - from) / 1000))
+  return (
+    <span className="flex items-center gap-1 text-white/45" aria-label={`Llevás ${Math.floor(s / 60)} minutos`}>
+      <Timer size={12} className="text-gold/70" />
+      {String(Math.floor(s / 60)).padStart(2, '0')}:{String(s % 60).padStart(2, '0')}
+    </span>
+  )
+}
+
+const READY_CUE: Record<Readiness, string> = {
+  alta: 'Buen día para ir por la carga de arriba del rango. Técnica primero, siempre.',
+  media: 'Seguí el plan tal cual está. La constancia gana más que los días heroicos.',
+  baja: 'Vení tranquilo: bajá un poco la carga y mantené las series. Entrenar hoy ya suma.',
+}
+
+// One question, three taps, once per sesión. Autorregulación is standard S&C
+// practice and the coach reads the answer next to the session note.
+function ReadinessAsk({ onPick, onSkip }: { onPick: (r: Readiness) => void; onSkip: () => void }) {
+  const opts: Readiness[] = ['alta', 'media', 'baja']
+  return (
+    <div className="rounded-card glass p-4 mb-4">
+      <div className="flex items-center gap-2 mb-1">
+        <HeartPulse size={15} className="text-gold" />
+        <span className="kicker">Antes de arrancar</span>
+        <button onClick={onSkip} className="ml-auto min-h-[36px] px-2 text-white/35 text-[0.65rem] font-bold uppercase tracking-micro">Ahora no</button>
+      </div>
+      <p className="text-white/80 text-sm mb-3">¿Cómo llegás hoy?</p>
+      <div className="grid grid-cols-3 gap-2">
+        {opts.map((r) => (
+          <button key={r} onClick={() => onPick(r)}
+            className="min-h-[44px] rounded-full border border-white/12 bg-white/5 text-white/85 text-sm font-black
+              active:scale-95 active:border-gold/50">
+            {READINESS_LABEL[r]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReadinessCue({ r }: { r: Readiness }) {
+  return (
+    <div className="rounded-card border border-gold/25 bg-gold/[0.07] p-3 mb-4 flex gap-2.5">
+      <HeartPulse size={15} className="text-gold shrink-0 mt-0.5" />
+      <p className="text-white/85 text-sm leading-snug">
+        <b className="text-gold">{READINESS_LABEL[r]}.</b> {READY_CUE[r]}
+      </p>
+    </div>
+  )
 }
 
 function Dots({ n, done, flash, label }: { n: number; done: number; flash: number; label?: (i: number) => string }) {
@@ -427,7 +520,8 @@ function NoteField({ id, dayId, name, dayLabel }: { id: string; dayId: string; n
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-5 flex items-center gap-2 text-white/55 text-sm font-bold">
+      <button onClick={() => setOpen(true)}
+        className="mt-3 min-h-[44px] -ml-2 px-2 flex items-center gap-2 text-white/55 text-sm font-bold active:scale-95">
         <MessageSquarePlus size={16} className="text-gold/70" /> Agregar observación
       </button>
     )
@@ -598,7 +692,7 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, s
       <div className="kicker">
         {SECTION_LABEL[section]}{r.substitution ? ' · variante de esta semana' : ''}
       </div>
-      <h1 className="heading text-3xl text-white mt-1 mb-1">{ex.name || '—'}</h1>
+      <h1 className="heading text-3xl text-white mt-1 mb-1">{liftName(ex) || '—'}</h1>
       <div className="text-gold text-lg font-black">{setsReps(ex, week)} · {loadText(ex, week)}</div>
       {plan && plan.length > 1 && (
         <div className="text-white/60 text-sm font-bold mt-1">
@@ -607,8 +701,10 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, s
       )}
       {!simple && section !== 'ramp' && <div><LastTime exId={ex.id} /></div>}
       {!simple && section !== 'ramp' && <PrProximity ex={ex} week={week} />}
-      {!simple && <TechniqueChips ex={ex} />}
+      {!simple && <TechniqueChips ex={ex} hideTempo={!simple && !!tempoOf(ex)} />}
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
+      {/* the coach prescribed a tempo — make it followable instead of a dead chip */}
+      {!simple && tempoOf(ex) && <div className="mt-4"><TempoPacer value={tempoOf(ex)!} /></div>}
       {plan && plan.length > 1
         ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
         : <Dots n={target} done={done} flash={flash} />}
@@ -651,7 +747,7 @@ function CircuitView({ block, dayId, dayLabel, noteId, week, round, rounds, flas
               <span className="text-gold/70 font-black text-sm w-3 shrink-0">{idx + 1}</span>
               <AnimatedExercise name={ex.name} pattern={ex.pattern} size="thumb" />
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-white text-sm truncate">{ex.name}</div>
+                <div className="font-bold text-white text-sm truncate">{liftName(ex)}</div>
                 <div className="text-xs text-white/55">{repsCol(ex, week)}{loadText(ex, week) !== '—' ? ` · ${loadText(ex, week)}` : ''}</div>
               </div>
             </div>
@@ -697,7 +793,7 @@ export function keyOf(it: Item): string {
   return it.dup > 1 ? `c-${it.block.tag}-${it.dup}` : `c-${it.block.tag}`
 }
 function itemLabel(it: Item): string {
-  return it.type === 'warmup' ? 'Entrada en calor' : it.type === 'single' ? (it.ex.name || '—') : it.block.title
+  return it.type === 'warmup' ? 'Entrada en calor' : it.type === 'single' ? (liftName(it.ex) || '—') : it.block.title
 }
 function itemSub(it: Item, week: number): string {
   if (it.type === 'warmup') return 'Antes de arrancar'
@@ -713,7 +809,7 @@ function OverviewSheet({ items, week, done, current, onPick, onClose }: {
   onPick: (idx: number) => void; onClose: () => void
 }) {
   return (
-    <BottomSheet open onClose={onClose}>
+    <BottomSheet open onClose={onClose} label="Tu sesión de hoy">
       <div className="px-5 pb-8 pt-1">
         <div className="kicker mb-1">Tu sesión de hoy</div>
         <p className="text-white/45 text-xs mb-3">Mirá lo que viene y preparate. Tocá para saltar a un ejercicio.</p>
@@ -853,9 +949,13 @@ const RPE_WORD = (v: number) =>
   v <= 2 ? 'Muy suave' : v <= 4 ? 'Cómodo' : v <= 6 ? 'Exigente' : v <= 8 ? 'Muy duro' : v === 9 ? 'Al límite' : 'Máximo'
 
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
-function Finish({ day, week, lastWeek, prHits, prCards, simple, onClose, onBack }: {
-  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; simple?: boolean; onClose: () => void; onBack: () => void
+function Finish({ day, week, lastWeek, prHits, prCards, simple, startedAt, readiness, onClose, onBack }: {
+  day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; simple?: boolean
+  startedAt: number; readiness: Readiness | null; onClose: () => void; onBack: () => void
 }) {
+  // Real time in the room. Clamped: a session left open overnight (iOS keeps the
+  // page around) must not report 14 hours to the coach.
+  const durationMin = Math.min(240, Math.max(1, Math.round((Date.now() - startedAt) / 60_000)))
   // restore a half-filled "¿Cómo te fue?" — the phone can lock on this screen too
   const draft = getFinishDraft()
   const [rpe, setRpe] = useState(draft.rpe ?? 7)
@@ -875,11 +975,19 @@ function Finish({ day, week, lastWeek, prHits, prCards, simple, onClose, onBack 
   // automatically (no manual "Registrar que viniste hoy" button anymore).
   useEffect(() => { if (!hasCheckedInToday()) addCheckin() }, [])
   // "Saltar" still saves the session (without RPE) so the day is NEVER lost.
-  const persist = (withRpe: boolean) => logSession({
-    date: localDate(), dayId: day.id, week, dayLabel: day.label, bigOne,
-    kg: sessionStats(day, week).kg, // feeds the lifetime odometer + monthly recap
-    ...(withRpe ? { rpe, note: note.trim() || undefined } : {}),
-  })
+  // The readiness answer rides in the note text: the Seguimiento sheet maps a fixed
+  // set of columns, so a new field would be silently dropped on the way to the coach.
+  const persist = (withRpe: boolean) => {
+    const prefix = readiness ? `Llegó: ${READINESS_LABEL[readiness].toLowerCase()}.` : ''
+    const body = withRpe ? note.trim() : ''
+    const full = [prefix, body].filter(Boolean).join(' ')
+    return logSession({
+      date: localDate(), dayId: day.id, week, dayLabel: day.label, bigOne, durationMin,
+      kg: sessionStats(day, week).kg, // feeds the lifetime odometer + monthly recap
+      ...(withRpe ? { rpe } : {}),
+      ...(full ? { note: full } : {}),
+    })
+  }
   const finishData = (): ShareData => {
     const s = sessionStats(day, week)
     return {
@@ -904,7 +1012,7 @@ function Finish({ day, week, lastWeek, prHits, prCards, simple, onClose, onBack 
       <>
         <Celebration
           title={`${day.label.replace('DÍA', 'Día')} completado`}
-          stats={{ totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()) }}
+          stats={{ totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()), durationMin }}
           intense={prHits.size > 0 || queue.length > 0}
           extra={lastWeek ? 'Cerraste la última semana del ciclo. ¡Avisale a tu coach para armar el próximo! 💪' : undefined}
           onClose={() => (queue.length ? setPhase('medalIntro') : onClose())}

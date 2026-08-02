@@ -58,26 +58,57 @@ export function SegmentRail({ segments, current }: { segments: number[]; current
   )
 }
 
+// The filter pill. The visible capsule stays 30px — a row of 44px pills reads as
+// a row of buttons and drowns the board it filters — but the BUTTON is 44px tall,
+// so the thumb target meets the floor. Visual weight and hit area, decoupled.
 export function Pill({ active, children, onClick }: {
   active?: boolean; children: ReactNode; onClick?: () => void
 }) {
   return (
     <button
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap transition
-        ${active ? 'bg-gold text-ink' : 'bg-white/5 text-white/60 border border-white/10'}`}
+      onClick={onClick} aria-pressed={active}
+      className="min-h-[44px] shrink-0 grid place-items-center active:scale-95 transition"
     >
-      {children}
+      <span
+        className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap
+          ${active ? 'bg-gold text-ink' : 'bg-white/5 text-white/60 border border-white/10'}`}
+      >
+        {children}
+      </span>
     </button>
   )
 }
 
-export function BottomSheet({ open, onClose, children }: {
-  open: boolean; onClose: () => void; children: ReactNode
+export function BottomSheet({ open, onClose, label = 'Panel', children }: {
+  open: boolean; onClose: () => void; label?: string; children: ReactNode
 }) {
   const [dragY, setDragY] = useState(0)
   const startY = useRef<number | null>(null)
   const dragging = useRef(false)
+  const panel = useRef<HTMLDivElement>(null)
+
+  // Keyboard + screen-reader parity with the swipe-down gesture: Escape closes,
+  // focus moves into the sheet on open and returns to whatever opened it on close,
+  // and Tab is kept inside while it's up (it's a modal — the app behind is inert).
+  useEffect(() => {
+    if (!open) return
+    const opener = document.activeElement as HTMLElement | null
+    const el = panel.current
+    el?.focus({ preventScroll: true })
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); return }
+      if (e.key !== 'Tab' || !el) return
+      const f = [...el.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )].filter((n) => !n.hasAttribute('disabled'))
+      if (!f.length) return
+      const first = f[0], last = f[f.length - 1]
+      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === el)) { e.preventDefault(); last.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); opener?.focus?.() }
+  }, [open, onClose])
   // Freeze every scroller behind the sheet (the app shell AND full-screen
   // overlays like Entrenar): otherwise a swipe on the sheet scrolls the
   // BACKGROUND and long content (e.g. the medal story) can't reach its button.
@@ -104,18 +135,20 @@ export function BottomSheet({ open, onClose, children }: {
   // it fills the true screen and covers the nav while open.
   return createPortal(
     <div className="fixed inset-x-0 top-0 z-[70] flex items-end max-w-[448px] mx-auto" role="dialog" aria-modal="true"
-      style={{ height: 'var(--app-vh, 100vh)' }}>
+      aria-label={label} style={{ height: 'var(--app-vh, 100vh)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
-      <div className="relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10
+      <div ref={panel} tabIndex={-1} className="relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10 outline-none
         bg-surface-2 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] animate-[slideup_.25s_ease]"
         style={{ maxHeight: 'var(--app-vh, 100vh)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
         <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"
           onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}>
           <div className="h-1.5 w-12 rounded-full bg-white/25" />
+          {/* 44px target, 32px disc: the visual weight stays light, the thumb gets
+              the full WCAG hit area */}
           <button onClick={onClose} aria-label="Cerrar"
-            className="absolute right-3 top-2.5 h-8 w-8 grid place-items-center rounded-full bg-white/8 text-white/60 active:scale-90">
-            <X size={18} />
+            className="absolute right-1 top-0 h-11 w-11 grid place-items-center text-white/60 active:scale-90">
+            <span className="h-8 w-8 grid place-items-center rounded-full bg-white/8"><X size={18} /></span>
           </button>
         </div>
         {children}
