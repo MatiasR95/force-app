@@ -87,6 +87,34 @@ function cacheSet(key: string, val: unknown): void {
 export const cachedRecords = (): RecordEntry[] | null => cacheGet<RecordEntry[]>('force.cache.records')
 export const cachedStreaks = (): StreakEntry[] | null => cacheGet<StreakEntry[]>('force.cache.streaks')
 
+export interface BirthdayEntry { client: string; mmdd: string } // 'MM-DD' — never a year
+export const cachedBirthdays = (): BirthdayEntry[] | null => cacheGet<BirthdayEntry[]>('force.cache.cumples')
+
+/** Today's cumpleaños in the room. Reads the gym board and, when the member has
+ *  their own date saved, upserts it in the same round trip (same shape as the
+ *  streak board). Demo shows only the member's own. */
+export async function fetchBirthdays(token: string | null, mine?: { client: string; mmdd: string } | null): Promise<BirthdayEntry[]> {
+  if (isDemo() || !token) {
+    // no backend to ask: keep whatever board was last seen and fold in the member's
+    // own date, so demo and a token-less launch never blank the card out
+    const seen = (cachedBirthdays() ?? []).filter((b) => !mine || b.client !== mine.client)
+    return mine ? [...seen, mine] : seen
+  }
+  if (mine?.mmdd) {
+    fetch(new URL(API_BASE).toString(), {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'postBirthday', token, mmdd: mine.mmdd }),
+    }).catch(() => {})
+  }
+  const list = await call<BirthdayEntry[]>('getBirthdays', { token })
+  // the server list can predate our own upsert (10-min cache), so fold in mine
+  const out = mine?.mmdd
+    ? [...list.filter((b) => b.client !== mine.client), mine]
+    : list
+  cacheSet('force.cache.cumples', out)
+  return out
+}
+
 /** Gym-wide records. Demo = the member's own auto-captured marks (no seed). */
 export async function fetchRecords(token: string | null): Promise<RecordEntry[]> {
   if (isDemo() || !token) {

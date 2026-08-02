@@ -37,7 +37,7 @@ var NOVEDADES_SHEET_ID = ''
 // per-client log and scroll past machine rows. Put the "FORCE - Horarios" file's
 // ID here AND give the gym account EDIT access to that file. Leave '' to fall
 // back to NOVEDADES_SHEET_ID, then to CONFIG_SHEET_ID.
-var COACH_NOTES_SHEET_ID = ''
+var COACH_NOTES_SHEET_ID = '1xcsMv97SA8PMwFAkDgc1G6aO_J6a6-eDybCSjt0E0pM'
 
 // ---- routing --------------------------------------------------------------
 function doGet(e) {
@@ -47,6 +47,7 @@ function doGet(e) {
     if (action === 'getHistory') return json(getHistory_(e.parameter.token))
     if (action === 'getRecords') return json(getRecords_(e.parameter.token))
     if (action === 'getStreaks') return json(getStreaks_(e.parameter.token))
+    if (action === 'getBirthdays') return json(getBirthdays_(e.parameter.token))
     if (action === 'getNews') return json(getNews_(e.parameter.token))
     if (action === 'ping') return json({ ok: true })
     return json({ error: 'unknown action: ' + action }, 400)
@@ -61,6 +62,7 @@ function doPost(e) {
     if (body.action === 'logInput') return json(logInput_(body.token, body.items))
     if (body.action === 'postRecord') return json(postRecord_(body.token, body.entry))
     if (body.action === 'postStreak') return json(postStreak_(body.token, body.entry))
+    if (body.action === 'postBirthday') return json(postBirthday_(body.token, body.mmdd))
     if (body.action === 'updateCells') return json(updateCells_(body.token, body.cells))
     return json({ error: 'unknown action' }, 400)
   } catch (err) {
@@ -582,6 +584,75 @@ function postStreak_(token, entry) {
   }
   try { CacheService.getScriptCache().remove('streaks') } catch (e) { /* no-op */ }
   return { ok: true }
+}
+
+// ---- cumpleaños board (gym-wide) ------------------------------------------
+// Stored in a "cumples" tab of CONFIG: client | mmdd | ts (one row per client).
+// ONLY day and month are ever stored — never the year, so this can't be used to
+// work out anyone's age. The app shows today's birthdays on Inicio so the room
+// can greet each other; that is the whole point of collecting it.
+function cumplesSheet_() {
+  var ss = SpreadsheetApp.openById(CONFIG_SHEET_ID)
+  var sh = ss.getSheetByName('cumples')
+  if (!sh) { sh = ss.insertSheet('cumples'); sh.appendRow(['client', 'mmdd', 'ts']) }
+  return sh
+}
+
+function getBirthdays_(token) {
+  clientFor_(token) // authorize
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('cumples')
+  if (hit) return JSON.parse(hit)
+  var rows = cumplesSheet_().getDataRange().getValues()
+  var out = []
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0] || !rows[i][1]) continue
+    out.push({ client: String(rows[i][0]), mmdd: normMmdd_(rows[i][1]) })
+  }
+  // 10 min: the board changes when someone edits their profile, which is rare,
+  // and every member polls this on every Inicio refresh.
+  try { cache.put('cumples', JSON.stringify(out), 600) } catch (e) { /* best-effort */ }
+  return out
+}
+
+function postBirthday_(token, mmdd) {
+  // Identity from the TOKEN, like records and rachas — the payload only carries
+  // the date, so nobody can write a birthday under someone else's name.
+  var c = clientFor_(token)
+  var v = normMmdd_(mmdd)
+  if (!v) return { error: 'invalid date' }
+  var lock = LockService.getScriptLock()
+  try { lock.waitLock(5000) } catch (e) { return { error: 'ocupado, probá de nuevo' } }
+  try {
+    var sh = cumplesSheet_()
+    var rows = sh.getDataRange().getValues()
+    var done = false
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0]) === String(c.nombre)) {
+        sh.getRange(i + 1, 2, 1, 2).setValues([[v, new Date().toISOString()]])
+        done = true
+        break
+      }
+    }
+    if (!done) sh.appendRow([c.nombre, v, new Date().toISOString()])
+  } finally {
+    lock.releaseLock()
+  }
+  try { CacheService.getScriptCache().remove('cumples') } catch (e) { /* no-op */ }
+  return { ok: true }
+}
+
+/** 'MM-DD' (or a Date a coach typed into the cell) → 'MM-DD', else ''. Sheets
+ *  loves turning "08-02" into a date, so accept both shapes on the way in. */
+function normMmdd_(v) {
+  if (v instanceof Date) {
+    return ('0' + (v.getMonth() + 1)).slice(-2) + '-' + ('0' + v.getDate()).slice(-2)
+  }
+  var m = String(v || '').match(/^(\d{2})-(\d{2})$/)
+  if (!m) return ''
+  var mo = Number(m[1]), da = Number(m[2])
+  if (mo < 1 || mo > 12 || da < 1 || da > 31) return ''
+  return m[1] + '-' + m[2]
 }
 
 /** Whole number clamped to [lo, hi]; garbage becomes lo. */

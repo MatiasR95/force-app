@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getSessions, getMyRecords, getRecapSeen, setRecapSeen, getClientName } from '../lib/store'
-import { tonnageComparison } from '../lib/metrics'
+import { getSessions, getMyRecords, getRecapSeen, setRecapSeen, getClientName, getCheckins } from '../lib/store'
+import { tonnageComparison, currentStreakWeeks } from '../lib/metrics'
 import { liftLabel } from '../lib/records'
 import { CountUp } from './NumberTicker'
 import { FoilBurst } from './Celebration'
+import { ShareCard, type ShareData } from './ShareCard'
 import { X, Share2, Disc3, Trophy, Dumbbell, CalendarCheck } from 'lucide-react'
 
 // "Tu mes en FORCE": a story-style recap of last month (sessions, kg, best new
@@ -57,18 +58,21 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
   const comparison = tonnageComparison(data.kg).passed
   const name = getClientName()?.split(' ')[0]
 
-  const share = async () => {
-    const parts = [
-      `Mi ${data.label} en FORCE: ${data.sessions} entrenamiento${data.sessions === 1 ? '' : 's'}`,
-      data.kg > 0 ? `${data.kg.toLocaleString('es-AR')} kg movidos` : null,
-      data.bestPr ? `récord nuevo en ${data.bestPr.lift} (${data.bestPr.kg} kg)` : null,
-    ].filter(Boolean).join(', ')
-    const text = `${parts} 💪 #TrustTheProcess`
-    try {
-      if (navigator.share) await navigator.share({ text })
-      else { await navigator.clipboard?.writeText(text) }
-    } catch { /* member cancelled */ }
-  }
+  // The recap used to share PLAIN TEXT — nothing to post to a story. It now builds
+  // the same 1080×1920 branded PNG every other celebration in the app produces.
+  const [share, setShare] = useState(false)
+  const card = (): ShareData => ({
+    kind: 'recap',
+    name: getClientName() ?? 'Vos',
+    monthLabel: data.label,
+    sessions: data.sessions,
+    totalKg: data.kg,
+    comparison: comparison ?? undefined,
+    streak: currentStreakWeeks(getCheckins()),
+    ...(data.bestPr
+      ? { lift: data.bestPr.lift, thresholdText: `${data.bestPr.kg.toLocaleString('es-AR')} kg × ${data.bestPr.reps}` }
+      : {}),
+  })
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md max-w-[448px] mx-auto flex flex-col"
@@ -82,7 +86,7 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
         ))}
       </div>
       <div className="flex justify-end px-3 pt-2">
-        <button onClick={onClose} aria-label="Cerrar" className="h-9 w-9 grid place-items-center rounded-full bg-white/8 text-white/70 active:scale-90"><X size={18} /></button>
+        <button onClick={onClose} aria-label="Cerrar" className="h-11 w-11 grid place-items-center text-white/70 active:scale-90"><span className="h-9 w-9 grid place-items-center rounded-full bg-white/8"><X size={18} /></span></button>
       </div>
 
       {/* tap zones */}
@@ -133,7 +137,7 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
             <div className="kicker capitalize">{data.label}, cerrado</div>
             <h2 className="heading text-2xl text-white mt-2">Y el que viene, mejor.</h2>
             <p className="text-white/65 text-sm mt-3 italic">"No tenés que ser el más fuerte de la sala. Solo más fuerte que el mes pasado."</p>
-            <button onClick={(e) => { e.stopPropagation(); share() }}
+            <button onClick={(e) => { e.stopPropagation(); setShare(true) }}
               className="btn-glow mt-7 w-full rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-4 flex items-center justify-center gap-2 active:scale-[0.98]">
               <Share2 size={17} /> Compartir mi mes
             </button>
@@ -142,6 +146,7 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
         )}
       </div>
       <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)] text-center text-[0.55rem] uppercase tracking-kicker text-gold/50 font-bold">#TrustTheProcess</div>
+      {share && <ShareCard data={card()} onClose={() => setShare(false)} />}
     </div>
   )
 }

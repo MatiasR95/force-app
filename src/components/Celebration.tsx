@@ -136,7 +136,7 @@ export function Celebration({ title, extra, stats, intense = false, onClose, onS
           className={`${onShare ? 'mt-2.5' : 'mt-6'} w-full rounded-full bg-gold-fill text-ink font-black uppercase py-4 active:scale-[0.98]`}>
           Listo
         </button>
-        <button onClick={onClose} className="absolute -top-2 -right-1 p-2 text-white/40"><X size={20} /></button>
+        <button onClick={onClose} aria-label="Cerrar" className="absolute -top-4 -right-3 h-11 w-11 grid place-items-center text-white/40 active:scale-90"><X size={20} /></button>
       </div>
       <style>{`@keyframes pop { from { transform: scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
     </div>

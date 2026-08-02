@@ -5,13 +5,13 @@ import { useUiPrefs } from '../lib/UiPrefsContext'
 import {
   getClientName, setClientName, getGender, setGender,
   getBirthday, setBirthday, getBodyweight, addBodyweight, setStartWeek,
-  getRestEduPref, setRestEduPref,
+  getRestEduPref, setRestEduPref, getMyRecords, clearRecordsLocal,
 } from '../lib/store'
 import type { Gender } from '../lib/records'
 import { weightClass } from '../lib/records'
 import { memberCurrentWeek } from '../lib/week'
 import type { Routine } from '../lib/types'
-import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen, Palette, ChevronRight } from 'lucide-react'
+import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen, Palette, ChevronRight, Trash2 } from 'lucide-react'
 
 // Member profile: name, gender (record categories), birthday (cumpleaños board),
 // current bodyweight (record weight class + monthly nudge) and — for weekly plans —
@@ -115,9 +115,64 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
           className="btn-glow w-full flex items-center justify-center gap-2 rounded-full bg-gold-fill text-ink font-black uppercase tracking-wide py-3.5 mt-2 active:scale-[0.98]">
           {saved ? <><Check size={18} /> Guardado</> : 'Guardar'}
         </button>
+
+        <ResetRecords />
       </div>
       <AppearanceSheet open={appearance} onClose={() => setAppearance(false)} />
     </BottomSheet>
+  )
+}
+
+// Start the record history over on THIS device. Deliberately two taps and
+// deliberately explicit about what survives — it's the only irreversible button
+// in the app, so it should never be possible to hit it by accident or to be
+// surprised by what it took. The gym-wide board is staff-only (Apps Script).
+function ResetRecords() {
+  const [armed, setArmed] = useState(false)
+  const [gone, setGone] = useState<number | null>(null)
+  const n = getMyRecords().length
+
+  if (gone != null) {
+    return (
+      <p className="mt-6 text-center text-xs text-gold/90 font-bold">
+        Listo: {gone === 0 ? 'no había marcas guardadas' : `${gone} marca${gone === 1 ? '' : 's'} borrada${gone === 1 ? '' : 's'}`} en este teléfono.
+        Tus entrenamientos y tu racha siguen intactos.
+      </p>
+    )
+  }
+  if (!armed) {
+    return (
+      <button onClick={() => setArmed(true)}
+        className="mt-6 w-full min-h-[44px] text-white/35 text-xs font-bold uppercase tracking-micro active:scale-95">
+        Borrar mis récords{n > 0 ? ` (${n})` : ''}
+      </button>
+    )
+  }
+  return (
+    <div className="mt-6 rounded-card border border-white/12 bg-white/[0.04] p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Trash2 size={15} className="text-white/60" />
+        <span className="kicker text-white/70">Borrar mis récords</span>
+      </div>
+      <p className="text-white/70 text-sm leading-snug">
+        Empezás de cero con tus marcas y tus medallas en este teléfono. No se puede deshacer.
+      </p>
+      <p className="text-white/45 text-[0.68rem] leading-snug mt-2">
+        <b className="text-white/70">No se toca nada más:</b> tus entrenamientos, tu racha, tus
+        observaciones, tu peso y tu semana del ciclo quedan igual. El ranking del gimnasio
+        tampoco cambia — eso lo maneja el staff.
+      </p>
+      <div className="flex gap-2 mt-3">
+        <button onClick={() => setArmed(false)}
+          className="flex-1 min-h-[44px] rounded-full bg-white/5 border border-white/10 text-white/70 font-bold active:scale-95">
+          Mejor no
+        </button>
+        <button onClick={() => setGone(clearRecordsLocal().records)}
+          className="flex-1 min-h-[44px] rounded-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm active:scale-95">
+          Borrar
+        </button>
+      </div>
+    </div>
   )
 }
 

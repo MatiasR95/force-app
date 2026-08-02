@@ -6,8 +6,11 @@ import type { Tier } from '../lib/medals'
 import { TIER_LABEL } from '../lib/medals'
 
 export interface ShareData {
-  kind: 'finish' | 'medal' | 'record'
+  kind: 'finish' | 'medal' | 'record' | 'recap'
   name: string
+  monthLabel?: string   // recap: "junio"
+  sessions?: number     // recap: entrenamientos that month
+  comparison?: string   // recap: "un auto" — what the month's tonnage weighs
   dayLabel?: string
   week?: number
   totalKg?: number
@@ -32,7 +35,7 @@ export function ShareCard({ data, onClose }: { data: ShareData; onClose: () => v
   const [busy, setBusy] = useState(false)
   const go = async (mode: 'share' | 'save') => {
     setBusy(true)
-    try { const b = await buildBlob(data); if (b) await (mode === 'share' ? shareBlob(b) : saveBlob(b)) } catch { /* no-op */ }
+    try { const b = await buildBlob(data); if (b) await (mode === 'share' ? shareBlob(b, shareText(data)) : saveBlob(b)) } catch { /* no-op */ }
     setBusy(false)
   }
   return (
@@ -41,9 +44,9 @@ export function ShareCard({ data, onClose }: { data: ShareData; onClose: () => v
     // is using in the app.
     <div data-theme="dark" className="fixed inset-0 z-[60] flex flex-col bg-black/92 backdrop-blur-md max-w-[448px] mx-auto">
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 shrink-0">
-        <button onClick={onClose} className="flex items-center gap-1 text-white/75 text-sm font-bold active:scale-95"><ChevronLeft size={20} /> Volver</button>
+        <button onClick={onClose} className="flex items-center gap-1 min-h-[44px] pr-2 -ml-1 text-white/75 text-sm font-bold active:scale-95"><ChevronLeft size={20} /> Volver</button>
         <span className="kicker text-white/50">Compartir</span>
-        <button onClick={onClose} aria-label="Cerrar" className="h-9 w-9 grid place-items-center rounded-full bg-white/10 text-white/80 active:scale-90"><X size={18} /></button>
+        <button onClick={onClose} aria-label="Cerrar" className="h-11 w-11 grid place-items-center text-white/80 active:scale-90"><span className="h-9 w-9 grid place-items-center rounded-full bg-white/10"><X size={18} /></span></button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 flex items-start justify-center py-2">
@@ -75,7 +78,10 @@ function Card({ data }: { data: ShareData }) {
         <img src={lockupUrl} alt="FORCE" className="h-16 object-contain" />
         <div className="text-[0.52rem] tracking-[0.34em] uppercase text-white/40 font-bold mt-1">{HANDLE}</div>
         <div className="h-px w-16 bg-gradient-to-r from-transparent via-gold/60 to-transparent my-3.5" />
-        {data.kind === 'medal' ? <MedalBody data={data} /> : data.kind === 'record' ? <RecordBody data={data} /> : <FinishBody data={data} />}
+        {data.kind === 'medal' ? <MedalBody data={data} />
+          : data.kind === 'record' ? <RecordBody data={data} />
+            : data.kind === 'recap' ? <RecapBody data={data} />
+              : <FinishBody data={data} />}
         <div className="mt-auto text-[0.58rem] tracking-[0.28em] uppercase text-gold/70 font-bold">#TrustTheProcess</div>
       </div>
     </div>
@@ -149,6 +155,39 @@ function RecordBody({ data }: { data: ShareData }) {
   )
 }
 
+// "Tu mes en FORCE" as a story card. The month name is the hero — this is the one
+// card that's about a stretch of work rather than a single lift, so the layout is
+// the month, then the two numbers that made it, then the record it produced.
+function RecapBody({ data }: { data: ShareData }) {
+  return (
+    <>
+      <div className="text-[0.58rem] tracking-[0.32em] uppercase text-white/60 font-bold">Mi mes en FORCE</div>
+      <h1 className="heading text-[2.6rem] text-gold mt-1.5 leading-none capitalize glow-text">{data.monthLabel}</h1>
+      <div className="text-white/70 text-[0.72rem] font-bold mt-1">{data.name.split(' ')[0]}</div>
+      <div className="grid grid-cols-2 gap-2 w-full mt-5">
+        <Stat v={String(data.sessions ?? 0)} l={data.sessions === 1 ? 'entrenamiento' : 'entrenamientos'} />
+        <Stat v={data.totalKg ? data.totalKg.toLocaleString('es-AR') : '—'} l="kg movidos" />
+      </div>
+      {data.comparison && (
+        <p className="text-white/70 text-[0.72rem] mt-3">Más que <b className="text-white">{data.comparison}</b></p>
+      )}
+      {data.lift && (
+        <div className="w-full mt-4 rounded-[12px] px-3 py-3"
+          style={{ background: 'rgba(198,174,120,.12)', border: '1px solid rgba(198,174,120,.32)' }}>
+          <div className="flex items-center justify-center gap-1.5 text-[0.52rem] tracking-[0.24em] uppercase text-gold/90 font-bold">
+            <Trophy size={12} /> Récord del mes
+          </div>
+          <div className="heading text-lg text-white mt-1 leading-none">{data.lift}</div>
+          <div className="text-gold text-base font-black tabular-nums mt-1">{data.thresholdText}</div>
+        </div>
+      )}
+      {data.streak != null && data.streak > 0 && (
+        <div className="text-white/45 text-[0.7rem] mt-3">{data.streak} {data.streak === 1 ? 'semana seguida' : 'semanas seguidas'} 🔥</div>
+      )}
+    </>
+  )
+}
+
 function Stat({ v, l }: { v: string; l: string }) {
   return (
     <div className="rounded-[10px] py-2.5 px-1" style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' }}>
@@ -206,6 +245,35 @@ async function buildBlob(d: ShareData): Promise<Blob | null> {
     cx(d.thresholdText ?? '', y + 560, '900 60px Montserrat, sans-serif', '#C6AE78')
     if (d.prevText) cx(d.prevText, y + 630, '600 30px Montserrat, sans-serif', 'rgba(255,255,255,.5)')
     if (d.category) cx(`${d.name.split(' ')[0]} · ${d.category}`, y + 700, '700 32px Montserrat, sans-serif', 'rgba(255,255,255,.7)')
+  } else if (d.kind === 'recap') {
+    cx('MI MES EN FORCE', y, '700 34px Montserrat, sans-serif', 'rgba(255,255,255,.6)')
+    // the month is the hero — capitalised once, not shouted in caps
+    const month = (d.monthLabel ?? '').replace(/^\w/, (ch) => ch.toUpperCase())
+    cx(month, y + 130, '900 128px Montserrat, sans-serif', '#C6AE78')
+    cx((d.name.split(' ')[0] ?? ''), y + 185, '700 34px Montserrat, sans-serif', 'rgba(255,255,255,.7)')
+    const gy = y + 250
+    const cells: Array<[string, string]> = [
+      [String(d.sessions ?? 0), (d.sessions === 1 ? 'ENTRENAMIENTO' : 'ENTRENAMIENTOS')],
+      [d.totalKg ? d.totalKg.toLocaleString('es-AR') : '—', 'KG MOVIDOS'],
+    ]
+    cells.forEach(([v, l], i) => {
+      const bx = 130 + i * 415
+      roundRect(x, bx, gy, 375, 190, 18, 'rgba(255,255,255,.05)')
+      x.fillStyle = '#C6AE78'; x.font = '900 76px Montserrat, sans-serif'; x.textAlign = 'center'
+      x.fillText(v, bx + 187, gy + 100)
+      x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '700 24px Montserrat, sans-serif'
+      x.fillText(l, bx + 187, gy + 148)
+    })
+    let ry = gy + 250
+    if (d.comparison) { cx(`Más que ${d.comparison}`, ry, '600 34px Montserrat, sans-serif', 'rgba(255,255,255,.72)'); ry += 70 }
+    if (d.lift) {
+      roundRect(x, 130, ry, 820, 210, 20, 'rgba(198,174,120,.12)')
+      cx('RÉCORD DEL MES', ry + 56, '700 26px Montserrat, sans-serif', '#C6AE78')
+      cx(d.lift.toUpperCase(), ry + 124, '900 56px Montserrat, sans-serif', '#fff')
+      cx(d.thresholdText ?? '', ry + 180, '900 46px Montserrat, sans-serif', '#C6AE78')
+      ry += 268
+    }
+    if (d.streak) cx(`${d.streak} ${d.streak === 1 ? 'semana seguida' : 'semanas seguidas'} 🔥`, ry, '700 32px Montserrat, sans-serif', 'rgba(255,255,255,.5)')
   } else if (d.kind === 'medal') {
     cx('NUEVA MEDALLA', y, '700 34px Montserrat, sans-serif', 'rgba(255,255,255,.7)')
     drawMedal(x, W / 2, y + 220, 175, d.tier)
@@ -258,10 +326,20 @@ function drawMedal(x: CanvasRenderingContext2D, cx: number, cy: number, r: numbe
   x.fillText('🏅', cx, cy + 4); x.textBaseline = 'alphabetic'
 }
 
-async function shareBlob(blob: Blob): Promise<void> {
+// The caption that travels with the image. Instagram ignores it for a story, but
+// WhatsApp and the rest of the share sheet use it — so it should describe the card
+// in hand, not always "mi entrenamiento de hoy".
+function shareText(d: ShareData): string {
+  if (d.kind === 'recap') return `Mi ${d.monthLabel ?? 'mes'} en FORCE 💪 #TrustTheProcess`
+  if (d.kind === 'record') return `Récord nuevo en ${d.lift ?? 'FORCE'} 🏆 #TrustTheProcess`
+  if (d.kind === 'medal') return `Medalla nueva en FORCE 🏅 #TrustTheProcess`
+  return 'Mi entrenamiento de hoy con FORCE 💪 #TrustTheProcess'
+}
+
+async function shareBlob(blob: Blob, text = 'Mi entrenamiento de hoy con FORCE 💪 #TrustTheProcess'): Promise<void> {
   const file = new File([blob], 'force.png', { type: 'image/png' })
   const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean }
-  const payload = { files: [file], text: 'Mi entrenamiento de hoy con FORCE 💪 #TrustTheProcess' }
+  const payload = { files: [file], text }
   if (nav.canShare?.({ files: [file] })) {
     try { await navigator.share(payload as unknown as Parameters<Navigator['share']>[0]); return } catch { /* fallthrough */ }
   }

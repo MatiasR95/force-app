@@ -296,6 +296,35 @@ export function addMyRecord(entry: RecordEntry): RecordEntry[] {
   return all
 }
 
+/**
+ * Wipe THIS DEVICE's record history and everything derived from it, and nothing
+ * else. Scoped deliberately — the four things below are the complete set of local
+ * state that records feed:
+ *
+ *   force.myRecords     the marks themselves
+ *   force.seenMedals    which medals were already celebrated (derived from marks)
+ *   force.cache.records the last gym board painted on Récords
+ *   outbox `record`     any mark still queued for the server
+ *
+ * Everything else in the register survives untouched: sessions, check-ins and
+ * streaks, per-exercise notes and actuals, bodyweight history, birthday, gender,
+ * the week anchor, the in-progress session and every UI preference.
+ *
+ * This does NOT touch the gym-wide board — that lives in the `records` tab of the
+ * CONFIG spreadsheet and is cleared by running `clearRecords()` (or
+ * `clearRecordsFor()` for named members) from the Apps Script editor.
+ */
+export function clearRecordsLocal(): { records: number; queued: number } {
+  const records = getMyRecords().length
+  const box = getOutbox()
+  const queued = box.filter((i) => i.kind === 'record').length
+  write(KEYS.myRecords, [])
+  write(KEYS.seenMedals, [])
+  write(KEYS.outbox, box.filter((i) => i.kind !== 'record'))
+  try { localStorage.removeItem('force.cache.records') } catch { /* no-op */ }
+  return { records, queued }
+}
+
 // ---- bodyweight (for record categories) + birthday ------------------------
 // Bodyweight is kept as a dated history so we can nudge for a monthly update and
 // classify records by the weight at the time. Birthday drives the cumpleaños board.
@@ -322,9 +351,13 @@ export function bodyweightAgeDays(): number | null {
 }
 
 export const getBirthday = (): string | null => read<string | null>(KEYS.birthday, null) // 'MM-DD'
+// Saved locally only. It used to also queue a `note` outbox item, which landed in
+// Seguimiento as a BLANK row (logInput_ writes `p.note || p.date`, and this payload
+// carried neither) — noise for the coach and no birthday board anywhere. The board
+// is now a real thing: `fetchBirthdays` upserts it into the gym-wide `cumples` tab
+// on the next Inicio refresh, keyed by the access token.
 export function setBirthday(mmdd: string): void {
   write(KEYS.birthday, mmdd)
-  enqueue('note', { kind: 'birthday', birthday: mmdd })
 }
 /** True if today (local) matches the stored birthday. */
 export function isBirthdayToday(): boolean {

@@ -14,8 +14,10 @@ import { coachTip } from '../lib/coachTips'
 import { currentStreakWeeks, weekStartOf, daysTrainedInWeek } from '../lib/metrics'
 import {
   getClientName, getCheckins, getMaxStreak, localDate,
-  isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions,
+  isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions, getBirthday, getToken,
 } from '../lib/store'
+import { fetchBirthdays, cachedBirthdays, type BirthdayEntry } from '../lib/api'
+import { sameClient } from '../lib/records'
 import { WeekRing } from '../components/WeekRing'
 import { recapMonth, dismissRecap, RecapStory } from '../components/MonthlyRecap'
 import { Dumbbell, Flame, CalendarDays, Quote, UserCog, Cake, Scale, ChevronRight, RefreshCw, X, Disc3, Check } from 'lucide-react'
@@ -64,6 +66,19 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
   const totalDays = routine.days.length
 
   useEffect(() => { getWeather().then(setWeather) }, [])
+
+  // The gym's cumpleaños board. Paints from the last known list instantly, then
+  // refreshes — and the same call upserts the member's own date, so saving it in
+  // Perfil is all anyone has to do to appear here.
+  const [bdays, setBdays] = useState<BirthdayEntry[]>(() => cachedBirthdays() ?? [])
+  useEffect(() => {
+    const mmdd = getBirthday()
+    const mine = mmdd && name ? { client: name, mmdd } : null
+    fetchBirthdays(getToken(), mine).then(setBdays).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const todayMd = localDate().slice(5)
+  const otherBdays = bdays.filter((b) => b.mmdd === todayMd && !sameClient(b.client, name ?? ''))
 
   // Re-read the coach's sheet without throwing the app away. The old handler was
   // `location.reload()` — a cold start that lost scroll, in-flight state and the
@@ -149,11 +164,25 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
         </div>
       )}
 
-      {/* birthday board (only today) */}
+      {/* birthday board — yours first, then whoever else in the room is turning
+          a year older today. Profile has always promised "el tablero de cumpleaños
+          del día"; the board is real now (a `cumples` tab keyed by access token). */}
       {isBirthdayToday() && (
         <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-4 mb-4 flex items-center gap-3">
           <Cake size={22} className="text-gold shrink-0" />
           <p className="text-white/90 text-sm">¡Feliz cumpleaños{name ? `, ${name.split(' ')[0]}` : ''}! 🎉 Hoy entrenás con todo. La sala te festeja. 💪</p>
+        </div>
+      )}
+      {otherBdays.length > 0 && (
+        <div className="card p-4 mb-4 flex items-center gap-3">
+          <Cake size={20} className="text-gold shrink-0" />
+          <div className="min-w-0">
+            <div className="kicker mb-0.5">Hoy cumple{otherBdays.length > 1 ? 'n' : ''} años</div>
+            <p className="text-white font-bold text-sm leading-snug">
+              {otherBdays.map((b) => b.client.split(' ')[0]).join(', ')}
+            </p>
+            <p className="text-white/50 text-xs mt-0.5">Si {otherBdays.length > 1 ? 'los cruzás' : 'lo cruzás'} en la sala, saludá. 🎉</p>
+          </div>
         </div>
       )}
 
