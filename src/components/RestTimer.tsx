@@ -4,7 +4,8 @@ import { getRest, subscribeRest, restRemaining, startRest, pauseRest, resumeRest
 import { nextEducation } from '../lib/restEducation'
 import { RestExplainer } from './RestExplainer'
 import { BreathePacer } from './BreathePacer'
-import { Timer, Play, Pause, RotateCcw, Minus, Plus, Flame, BookOpen, X } from 'lucide-react'
+import { RestDial } from './RestDial'
+import { Timer, Play, Pause, RotateCcw, Minus, Plus, BookOpen, X } from 'lucide-react'
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
@@ -18,39 +19,6 @@ export function useRest() {
     return () => { unsub(); clearInterval(iv) }
   }, [])
   return { state: getRest(), remaining: restRemaining() }
-}
-
-const R = 52
-const CIRC = 2 * Math.PI * R
-
-// A radial gold dial: the arc depletes clockwise as the pause runs down, and
-// holds a bright glow-pulse + echo ring when it hits zero.
-function RestRing({ remaining, total, done }: { remaining: number; total: number; done: boolean }) {
-  const p = done ? 1 : total > 0 ? 1 - remaining / total : 0
-  return (
-    <div className="relative w-[132px] h-[132px] mx-auto">
-      <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-        <circle cx="60" cy="60" r={R} fill="none" className="stroke-white/12" strokeWidth="8" />
-        {done && <circle className="ring-echo stroke-gold-pale" cx="60" cy="60" r={R} fill="none" strokeWidth="8" />}
-        <circle cx="60" cy="60" r={R} fill="none" strokeWidth="8" strokeLinecap="round"
-          className={done ? 'stroke-gold-pale' : 'stroke-gold-ink'} strokeDasharray={CIRC}
-          strokeDashoffset={CIRC * (1 - p)} style={{ transition: 'stroke-dashoffset .95s linear, stroke .3s' }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        {done ? (
-          <span className="ring-pop text-gold-pale flex flex-col items-center leading-none">
-            <Flame size={26} className="text-gold mb-1" />
-            <span className="text-xl font-black">¡Metele!</span>
-          </span>
-        ) : (
-          <>
-            <span className="text-3xl font-black tabular-nums text-white leading-none">{fmt(remaining)}</span>
-            <span className="text-[0.55rem] uppercase tracking-micro text-gold-deep font-bold mt-1">próxima serie</span>
-          </>
-        )}
-      </div>
-    </div>
-  )
 }
 
 // One-time opt-in ask for rest-time micro-education.
@@ -110,21 +78,26 @@ export function RestTimer({ startSignal = 0 }: { startSignal?: number }) {
         </div>
 
         {!active && !done ? (
-          <div className="flex items-center gap-3">
-            <button onClick={() => adjust(-15)} aria-label="Menos 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Minus size={18} /></button>
-            <div className="flex-1 text-center">
-              <div className="text-3xl font-black tabular-nums text-white">{fmt(pref)}</div>
-              <div className="text-[0.58rem] uppercase tracking-micro text-white/40 font-bold">tu descanso</div>
+          /* Two rows, not four items on one line: at the larger text scales the
+             ± / readout / Iniciar row ran past the card and turned the whole shell
+             into a horizontal scroller. Iniciar now owns its own full-width row. */
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => adjust(-15)} aria-label="Menos 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Minus size={18} /></button>
+              <div className="flex-1 min-w-0 text-center">
+                <div className="text-3xl font-black tabular-nums text-white">{fmt(pref)}</div>
+                <div className="text-[0.58rem] uppercase tracking-micro text-white/40 font-bold">tu descanso</div>
+              </div>
+              <button onClick={() => adjust(15)} aria-label="Más 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Plus size={18} /></button>
             </div>
-            <button onClick={() => adjust(15)} aria-label="Más 15 segundos de descanso" className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-white/5 border border-white/10 text-white/70 active:scale-95"><Plus size={18} /></button>
-            <button onClick={() => startRest(pref)} className="btn-glow ml-1 px-5 h-11 rounded-full bg-gold-fill text-ink font-black uppercase text-sm flex items-center gap-1.5 active:scale-95">
+            <button onClick={() => startRest(pref)} className="btn-glow w-full px-5 h-12 rounded-full bg-gold-fill text-ink font-black uppercase text-sm flex items-center justify-center gap-1.5 active:scale-95">
               <Play size={16} /> Iniciar
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <RestRing remaining={remaining} total={pref} done={done} />
-            <div className="flex items-center gap-3">
+            <RestDial remaining={remaining} total={pref} done={done} paused={state.status === 'paused'} />
+            <div className="flex items-center gap-3 flex-wrap justify-center">
               {state.status === 'running' && (
                 <button onClick={() => extendRest(30)} aria-label="Sumar 30 segundos"
                   className="min-h-[44px] px-4 rounded-full bg-white/5 border border-gold/30 text-gold text-sm font-black active:scale-95">

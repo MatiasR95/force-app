@@ -42,7 +42,7 @@ export function Dashboard({ routine }: { routine: Routine }) {
   }).sort((a, b) => b.best - a.best)
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24">
       <div className="kicker">Tu progreso</div>
       <h1 className="heading text-2xl text-white mb-5">Panel</h1>
 

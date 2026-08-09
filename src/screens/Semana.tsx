@@ -5,7 +5,7 @@ import { Pill } from '../components/ui'
 import { WeekBar } from '../components/WeekBar'
 import { ExerciseSheet } from './ExerciseSheet'
 import { fetchHistory } from '../lib/api'
-import { getToken, getSessions } from '../lib/store'
+import { getToken, getSessions, getCycleBaseline } from '../lib/store'
 import { Target, CalendarRange, Clock, History, MapPinned } from 'lucide-react'
 
 // PLAN = the whole cycle at a glance. The bird's-eye matrix (weeks × days) is the
@@ -26,7 +26,7 @@ export function Semana({ routine, week, currentWk, setWeek }: {
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24">
       <div className="kicker">{routine.title}</div>
       <h1 className="heading text-2xl text-white mb-4">El plan completo</h1>
 
@@ -94,7 +94,10 @@ function CycleMatrix({ routine, week, dayIdx, currentWk, onPick }: {
   routine: Routine; week: number; dayIdx: number; currentWk: number
   onPick: (week: number, dayIdx: number) => void
 }) {
-  const sessions = getSessions()
+  // only THIS cycle's sessions count as "trained" — sessions never get wiped on a
+  // new plan (streaks/history must survive), so without the cutoff a week/day that
+  // happens to share its number with the previous cycle shows as already trained.
+  const sessions = getSessions().slice(getCycleBaseline())
   const trained = (w: number, d: { id: string; label: string }) =>
     sessions.some((s) => s.week === w && (s.dayId === d.id || (!!s.dayLabel && s.dayLabel === d.label)))
   const weeks = Array.from({ length: routine.totalWeeks }, (_, i) => i + 1)

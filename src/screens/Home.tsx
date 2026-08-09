@@ -98,7 +98,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
   }
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24">
       {/* hero — tilt-reactive gold foil: the sheen tracks the phone's tilt */}
       <FoilTilt className="hero-card rounded-card p-5 mb-4">
         <div className="flex items-start justify-between">

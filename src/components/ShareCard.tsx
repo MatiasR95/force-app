@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, ChevronLeft, Share2, Download, Dumbbell, Trophy } from 'lucide-react'
 import lockupUrl from '../assets/logo/lockup_white_t.png'
 import { Medal } from './Medal'
+import { SessionSignature } from './SessionSignature'
 import type { Tier } from '../lib/medals'
 import { TIER_LABEL } from '../lib/medals'
 
@@ -24,6 +25,9 @@ export interface ShareData {
   category?: string
   nextText?: string
   prevText?: string     // record cards: "Tu marca anterior: 95 kg × 5"
+  /** la firma: kilos moved by each set of the session, in order. Drawn as a
+   *  waveform — the shape belongs to that session and to no other. */
+  signature?: number[]
 }
 
 const HANDLE = '@force.ok'
@@ -43,7 +47,7 @@ export function ShareCard({ data, onClose }: { data: ShareData; onClose: () => v
     // and sent to people, so it stays on the dark stage whatever theme the member
     // is using in the app.
     <div data-theme="dark" className="fixed inset-0 z-[60] flex flex-col bg-black/92 backdrop-blur-md max-w-[448px] mx-auto">
-      <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 shrink-0">
+      <div className="flex items-center justify-between px-4 pt-[calc(var(--safe-top)+0.75rem)] pb-2 shrink-0">
         <button onClick={onClose} className="flex items-center gap-1 min-h-[44px] pr-2 -ml-1 text-white/75 text-sm font-bold active:scale-95"><ChevronLeft size={20} /> Volver</button>
         <span className="kicker text-white/50">Compartir</span>
         <button onClick={onClose} aria-label="Cerrar" className="h-11 w-11 grid place-items-center text-white/80 active:scale-90"><span className="h-9 w-9 grid place-items-center rounded-full bg-white/10"><X size={18} /></span></button>
@@ -120,7 +124,13 @@ function FinishBody({ data }: { data: ShareData }) {
           </div>
         ))}
       </div>
-      {data.quote && <p className="text-white/80 text-[0.72rem] italic leading-snug mt-3.5 px-1">“{data.quote}”</p>}
+      {/* la firma de la sesión — the shape of the work, not just its total */}
+      {data.signature && data.signature.length > 1 && (
+        <div className="w-full mt-3.5">
+          <SessionSignature peaks={data.signature} height={30} label="La firma de tu sesión" />
+        </div>
+      )}
+      {data.quote && <p className="text-white/80 text-[0.72rem] italic leading-snug mt-3 px-1">“{data.quote}”</p>}
     </>
   )
 }
@@ -300,13 +310,41 @@ async function buildBlob(d: ShareData): Promise<Blob | null> {
       x.fillText(`${b.name} · ${b.detail}${b.record ? '  🏆' : ''}`, 165, ry + 55)
       ry += 106
     }
+    // la firma — the exported PNG must carry what the preview shows, or the image
+    // the member actually sends is a different card from the one they approved
+    if (d.signature && d.signature.length > 1) {
+      x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '700 22px Montserrat, sans-serif'; x.textAlign = 'center'
+      x.fillText('LA FIRMA DE TU SESIÓN', W / 2, ry + 34)
+      ry = drawSignature(x, d.signature, 130, ry + 56, 820, 96) + 40
+    }
     if (d.quote) { x.fillStyle = 'rgba(255,255,255,.8)'; x.font = 'italic 600 34px Montserrat, sans-serif'; x.textAlign = 'center'; wrap(x, `“${d.quote}”`, W / 2, ry + 46, 840, 46) }
   }
   cx('#TRUSTTHEPROCESS', H - 96, '700 30px Montserrat, sans-serif', 'rgba(198,174,120,.7)')
   return await new Promise<Blob | null>((res) => c.toBlob((b) => res(b), 'image/png'))
 }
 
-function roundRect(x: CanvasRenderingContext2D, X: number, Y: number, w: number, h: number, r: number, fill: string) {
+/** The waveform of `SessionSignature`, drawn on canvas for the exported PNG.
+ *  Mirrored bars around a hairline; returns the y the block ends at. */
+function drawSignature(x: CanvasRenderingContext2D, peaks: number[], X: number, Y: number, w: number, h: number): number {
+  const max = Math.max(...peaks, 1)
+  const pitch = w / peaks.length
+  const bw = Math.max(3, Math.min(16, pitch * 0.55))
+  const mid = Y + h / 2
+  x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 2
+  x.beginPath(); x.moveTo(X, mid); x.lineTo(X + w, mid); x.stroke()
+  peaks.forEach((v, i) => {
+    const bh = Math.max(0.18, v / max) * h
+    const bx = X + i * pitch + (pitch - bw) / 2
+    const g = x.createLinearGradient(0, mid - bh / 2, 0, mid + bh / 2)
+    g.addColorStop(0, '#e9dcc0'); g.addColorStop(0.5, '#C6AE78'); g.addColorStop(1, '#e9dcc0')
+    x.globalAlpha = i === peaks.length - 1 ? 1 : 0.6
+    roundRect(x, bx, mid - bh / 2, bw, bh, bw / 2, g)
+  })
+  x.globalAlpha = 1
+  return Y + h
+}
+
+function roundRect(x: CanvasRenderingContext2D, X: number, Y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
   x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r)
   x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); x.fillStyle = fill; x.fill()
 }

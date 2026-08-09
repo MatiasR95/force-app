@@ -83,7 +83,7 @@ function Guirnalda() {
   // clock, and give it size + a gold string + drop-shadow so it reads on dark.
   return (
     <svg className="ev-guir absolute left-0 w-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
-      style={{ top: 'env(safe-area-inset-top, 0px)', height: 46, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.55))' }}>
+      style={{ top: 'var(--safe-top)', height: 46, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.55))' }}>
       <path d={string} fill="none" stroke={GOLD} strokeWidth="1.6" opacity="0.85" />
       {pts.map((p, i) => (
         <path key={i} d={`M${p.x - 9},${p.y} L${p.x + 9},${p.y} L${p.x},${p.y + 22} Z`}
@@ -100,7 +100,7 @@ function SolDeMayo() {
   const rays = Array.from({ length: 16 }, (_, i) => i)
   return (
     <svg className="absolute left-1/2 -translate-x-1/2" viewBox="0 0 200 200"
-      style={{ top: 'calc(env(safe-area-inset-top, 0px) - 92px)', width: 220, height: 220, opacity: 0.16, filter: 'drop-shadow(0 0 6px rgba(198,174,120,0.4))' }}>
+      style={{ top: 'calc(var(--safe-top) - 92px)', width: 220, height: 220, opacity: 0.16, filter: 'drop-shadow(0 0 6px rgba(198,174,120,0.4))' }}>
       <g className="ev-sol">
         {rays.map((i) => {
           const straight = i % 2 === 0

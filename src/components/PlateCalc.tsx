@@ -16,8 +16,11 @@ const fmtG = (g: Array<{ kg: number; count: number }>) =>
 // `priorLoads` = this lift's earlier per-side loads today (aproximación sets),
 // so the plan only ADDS plates set to set; `dayMaxKg` = the heaviest load the
 // lift reaches today, which decides whether 20s are on the menu (deadlift >50).
-export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false, priorLoads = [], dayMaxKg }: {
+export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false, priorLoads = [], dayMaxKg, forLabel }: {
   perSideKg: number; barKg?: number; deadlift?: boolean; priorLoads?: number[]; dayMaxKg?: number
+  /** Which series this loading is for ("Serie 3") — set when the weight follows the
+   *  member's per-series edits, so the bar visibly reloads as they work up. */
+  forLabel?: string
 }) {
   const inventory = inventoryFor(deadlift, Math.max(dayMaxKg ?? 0, perSideKg))
   const plan = planPlatesProgressive(perSideKg, priorLoads, barKg, inventory)
@@ -32,18 +35,26 @@ export function PlateCalc({ perSideKg, barKg = DEFAULT_BAR_KG, deadlift = false,
 
   return (
     <div className="rounded-card bg-black/30 border border-white/10 p-4">
-      <div className="flex items-baseline justify-between mb-3">
-        <span className="kicker">Cómo cargar la barra</span>
-        <span className="text-white/50 text-xs font-bold">
+      <div className="flex items-baseline justify-between mb-3 gap-2">
+        <span className="kicker truncate">Cómo cargar la barra</span>
+        <span className="text-white/50 text-xs font-bold shrink-0 tabular-nums">
           Total {plan.totalKg.toLocaleString('es-AR')} kg · barra {barKg}
         </span>
       </div>
+      {forLabel && (
+        <div className="-mt-1.5 mb-2 text-[0.55rem] uppercase tracking-micro font-black text-gold/80">
+          Para tu {forLabel}
+        </div>
+      )}
 
-      {/* visual: side view of the loaded bar — shaft, collars, and the plates
-          sliding onto each sleeve (staggered, like loading them for real) */}
+      {/* Visual: side view of the loaded bar — shaft, collars, and the plates sliding
+          onto each sleeve, staggered, like loading them for real. The `key` is the
+          plan itself: change the weight (edit a series in the ledger) and the whole
+          sleeve re-runs the loading animation, so the bar visibly reloads instead of
+          the discs silently swapping. */}
       <div className="relative flex items-center justify-center py-3">
         <div className="absolute inset-x-1 h-[7px] rounded-full bg-gradient-to-b from-white/40 via-white/22 to-white/8" />
-        <div className="relative flex items-center gap-[3px]">
+        <div key={`${perSideKg}:${plan.plates.join('-')}`} className="relative flex items-center gap-[3px]">
           {[...plan.plates].reverse().map((p, i) => (
             <Plate key={`l${i}`} kg={p} delay={(plan.plates.length - 1 - i) * 80} side="l" />
           ))}

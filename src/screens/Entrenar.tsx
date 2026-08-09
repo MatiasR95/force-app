@@ -9,7 +9,7 @@ import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
-import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft, READINESS_LABEL, type Readiness } from '../lib/store'
+import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, saveSetActual, actualForSet, topSet, getLastDone, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft, READINESS_LABEL, type Readiness } from '../lib/store'
 import { keepAwake, stopAwake } from '../lib/screenAwake'
 import { useUiPrefs } from '../lib/UiPrefsContext'
 import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
@@ -23,6 +23,7 @@ import { Celebration, FoilBurst } from '../components/Celebration'
 import { FoilTilt } from '../components/FoilTilt'
 import { NumberTicker } from '../components/NumberTicker'
 import { ShareCard, type ShareData } from '../components/ShareCard'
+import { SessionSignature } from '../components/SessionSignature'
 import { TempoPacer } from '../components/TempoPacer'
 import { X, ChevronLeft, ChevronRight, ChevronUp, Check, Repeat, MessageSquarePlus, Trophy, Megaphone, SlidersHorizontal, Minus, Plus, Flame, ListChecks, Circle, CheckCircle2, Award, Timer, HeartPulse, SkipForward } from 'lucide-react'
 
@@ -64,10 +65,14 @@ export function buildItems(day: RoutineDay, week = 1): Item[] {
 // but only counts the sets the member has actually marked) ----
 function setKg(ex: ExerciseRow, week: number, setIdx: number): number {
   const r = resolveWeek(ex, week)
-  if (r.load.value == null) return 0
-  const reps = r.plan?.[setIdx] ?? r.reps ?? 0
+  // what the member logged for THIS series outranks the prescription — a big lift
+  // whose series were edited one by one must move the ticker by the real numbers
+  const a = actualForSet(getActual(ex.id), setIdx)
+  const kgRaw = a.kg ?? r.load.value
+  if (kgRaw == null) return 0
+  const reps = a.reps ?? r.plan?.[setIdx] ?? r.reps ?? 0
   if (reps <= 0) return 0
-  return recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell') * reps
+  return recordKg(kgRaw, r.load.perSide, detectImpl(ex.name) === 'barbell') * reps
 }
 function itemKgDone(it: Item, week: number, n: number): number {
   if (n <= 0 || it.type === 'warmup') return 0
@@ -101,6 +106,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [done, setDone] = useState<Record<string, number>>(restored?.done ?? {})
   const [flash, setFlash] = useState(-1)
   const [pr, setPr] = useState<{ lift: string; kg: number; reps: number } | null>(null)
+  const [burst, setBurst] = useState(false) // the ring of light leaving the button on a PR
   const [restSignal, setRestSignal] = useState(0)
   const [finishing, setFinishing] = useState(false)
   const [overview, setOverview] = useState(false)
@@ -109,6 +115,15 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   const [prHits, setPrHits] = useState<Set<string>>(new Set(restored?.prHits ?? [])) // exercise ids that set a PR this session
   const [prCards, setPrCards] = useState<ShareData[]>(restored?.prCards ?? []) // shareable "récord" cards, celebrated at finish
   const [gain, setGain] = useState<{ kg: number; id: number } | null>(null) // "+kg" chip on each marked set
+  // the firma: one entry per marked set, the kilos it moved. Restored with the rest
+  // of the session so a cold start doesn't erase the shape of what they've done.
+  const [pulses, setPulses] = useState<number[]>(restored?.pulses ?? [])
+  // which way the member is travelling through the session, so the cut between
+  // exercises moves WITH them (gold wipe + entrance both follow `dir`)
+  const [dir, setDir] = useState<1 | -1>(1)
+  // bumped whenever a series is edited in the ledger: the plate diagram and the
+  // volume ticker live OUT here and read from storage, so they need the nudge
+  const [actualRev, setActualRev] = useState(0)
   // When this session began. Restored (not reset) after a cold start, so the clock
   // keeps telling the truth about how long the member has actually been training.
   const [startedAt] = useState(() => restored?.startedAt ?? Date.now())
@@ -120,8 +135,8 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
   // and the PR state ride along so the app can reopen this exact session after the
   // OS kills the page (see the resume path in App.tsx).
   useEffect(() => {
-    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done, week, prHits: [...prHits], prCards, startedAt, ...(readiness ? { readiness } : {}) })
-  }, [i, done, finishing, day.id, week, prHits, prCards, startedAt, readiness])
+    if (!finishing) saveSessionProgress({ dayId: day.id, date: localDate(), i, done, week, prHits: [...prHits], prCards, startedAt, pulses, ...(readiness ? { readiness } : {}) })
+  }, [i, done, finishing, day.id, week, prHits, prCards, startedAt, readiness, pulses])
 
   // Keep the screen awake WHILE THE MEMBER IS USING IT, then let the phone sleep.
   // Holding the lock for the whole session left the display on in their pocket.
@@ -160,7 +175,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     markMedalsSeen(earnedMedalIds(getMyRecords(), gender, cat, currentStreakWeeks(getCheckins()), getSessions().length))
   }, [])
 
-  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} simple={simple} startedAt={startedAt} readiness={readiness} onClose={onClose} onBack={() => setFinishing(false)} />
+  if (finishing) return <Finish day={day} week={week} lastWeek={lastWeek} prHits={prHits} prCards={prCards} simple={simple} startedAt={startedAt} readiness={readiness} pulses={pulses} onClose={onClose} onBack={() => setFinishing(false)} />
   const item = items[i]
   // a day with no exercises (e.g. a tab with only a warm-up) — don't strand the
   // member on a blank overlay; give them a way back.
@@ -175,21 +190,23 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
   // Auto-capture a record when a record-eligible lift is completed (a PR vs the
   // member's own best). No manual entry — it just happens when they finish it.
-  const captureRecord = (ex: ExerciseRow) => {
+  const captureRecord = (ex: ExerciseRow): boolean => {
     const lift = matchRecordLift(ex.name)
     const gender = getGender()
-    if (!lift || !gender) return
+    if (!lift || !gender) return false
     const r = resolveWeek(ex, week)
-    // prefer what the member actually did: explicit edit > note mention > prescription
-    const act = getActual(ex.id)
+    // prefer what the member actually did: explicit edit > note mention > prescription.
+    // With per-series logging the record is judged on the HEAVIEST series, not on an
+    // average or on the last one edited — that top set is the mark they actually hit.
+    const act = topSet(getActual(ex.id))
     const reps = act?.reps ?? r.reps ?? ex.reps ?? 0
-    if (r.load.value == null || reps <= 0) return
+    if (r.load.value == null || reps <= 0) return false
     const used = act?.kg ?? noteWeight(getNote(ex.id)) ?? r.load.value
     const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
-    if (kg <= 0) return
+    if (kg <= 0) return false
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
-    if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return // not a PR
+    if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return false // not a PR
     const wc = weightClass(gender, getBodyweight())?.key
     const entry = { id: rid(), client, gender, lift, kg, reps, ts: new Date().toISOString(), ...(wc ? { wc } : {}) }
     addMyRecord(entry)
@@ -197,6 +214,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     setPrHits((s) => new Set(s).add(ex.id))
     setPr({ lift: liftLabel(lift), kg, reps })
     window.setTimeout(() => setPr(null), 3600)
+    // the charged button releases: one ring of light, and a heavier haptic than a
+    // normal set — the record should be felt before it's read
+    setBurst(true)
+    window.setTimeout(() => setBurst(false), 1700)
+    try { navigator.vibrate?.([30, 60, 120]) } catch { /* no-op */ }
     // stash a shareable "récord" card for the finish celebration (one per lift)
     const isDom = lift === 'dominadas'
     const fmt = (n: number) => n.toLocaleString('es-AR')
@@ -209,19 +231,33 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       }
       return [...cs.filter((c) => c.lift !== card.lift), card] // keep the best/last per lift
     })
+    return true
   }
 
   // snapshot what was done for this exercise, to show as "la vez pasada" next time
   const recordLastDone = (ex: ExerciseRow) => {
     const r = resolveWeek(ex, week)
-    const act = getActual(ex.id)
+    const stored = getActual(ex.id)
+    const act = topSet(stored)
     const kg = act?.kg ?? r.load.value ?? null
     const reps = act?.reps ?? r.reps ?? null
     if (kg == null && reps == null) return
-    setLastDone(ex.id, { kg, reps, perSide: r.load.perSide, date: localDate() })
+    // Snapshot the WHOLE shape of today, not just the top set: next session's ledger
+    // shows each series its own ghost. Series the member never edited are filled from
+    // the prescription actually trained today, so the ghost is never half-empty.
+    const perSet: Record<string, { kg?: number; reps?: number }> = {}
+    const count = r.sets ?? r.plan?.length ?? 0
+    for (let s = 0; s < count; s++) {
+      const a = actualForSet(stored, s)
+      const k = a.kg ?? r.load.value ?? undefined
+      const rp = a.reps ?? r.plan?.[s] ?? r.reps ?? undefined
+      if (k != null || rp != null) perSet[String(s)] = { ...(k != null ? { kg: k } : {}), ...(rp != null ? { reps: rp } : {}) }
+    }
+    setLastDone(ex.id, { kg, reps, perSide: r.load.perSide, date: localDate(), ...(Object.keys(perSet).length ? { perSet } : {}) })
   }
 
-  const skip = () => setI((n) => Math.min(items.length - 1, n + 1))
+  const skip = () => { setDir(1); setI((n) => Math.min(items.length - 1, n + 1)) }
+  const goTo = (idx: number) => { setDir(idx >= i ? 1 : -1); setI(idx) }
 
   // One gold button: mark this set/round done, and auto-advance when the
   // exercise/round count is complete (no separate "Siguiente" press).
@@ -240,19 +276,32 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // float the kg this set just added over the footer volume ticker
     const delta = itemKgDone(item, week, n) - itemKgDone(item, week, n - 1)
     if (delta > 0) setGain({ kg: delta, id: Date.now() })
+    // every marked set drops a bar on the firma — bodyweight/timed work included, at
+    // a nominal height, so the session's shape has no silent gaps
+    setPulses((ps) => [...ps, delta > 0 ? delta : 0])
     if (!isTimed) setRestSignal((s) => s + 1) // start/reset the pause after marking
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
+    let record = false
     if (item.type === 'single') {
       logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
-      if (n >= target && item.section !== 'ramp') { captureRecord(item.ex); recordLastDone(item.ex) }
+      if (n >= target && item.section !== 'ramp') { record = captureRecord(item.ex); recordLastDone(item.ex) }
     } else if (n >= target) {
-      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); captureRecord(ex); recordLastDone(ex) })
+      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); if (captureRecord(ex)) record = true; recordLastDone(ex) })
     }
     if (n >= target) {
-      if (isLast) window.setTimeout(() => setFinishing(true), 260)
-      else window.setTimeout(skip, 260)
+      // A record just landed: hold the step long enough for the charged button to
+      // release its ring of light. Advancing at the usual 260ms cut the moment off
+      // — the member set a PR and the screen had already moved on.
+      const hold = record ? 1400 : 260
+      if (isLast) window.setTimeout(() => setFinishing(true), hold)
+      else window.setTimeout(skip, hold)
     }
   }
+
+  // the record charge on the primary button (single, non-ramp lifts only)
+  const charge = !simple && item.type === 'single' && item.section !== 'ramp'
+    ? prCharge(item.ex, week, doneCount, target)
+    : null
 
   const markWord = item.type === 'circuit' && item.block.tag !== 'big' ? 'vuelta' : 'serie'
   const remaining = target - doneCount
@@ -267,7 +316,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       {/* Header on two lines: the controls and the session map get the full width
           (the counter used to squeeze the rail down to a stub on small phones),
           and the meta line below carries where-you-are + how long you've been at it. */}
-      <div className="px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2.5">
+      <div className="px-4 pt-[calc(var(--safe-top)+0.75rem)] pb-2.5">
         <div className="flex items-center gap-2">
           <button onClick={onClose} aria-label="Salir del entrenamiento"
             className="h-11 w-11 -ml-2.5 grid place-items-center text-white/60 active:scale-90"><X size={22} /></button>
@@ -287,7 +336,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
       {overview && (
         <OverviewSheet items={items} week={week} done={done} current={i}
-          onPick={(idx) => { setI(idx); setOverview(false) }} onClose={() => setOverview(false)} />
+          onPick={(idx) => { goTo(idx); setOverview(false) }} onClose={() => setOverview(false)} />
       )}
 
       {/* PR toast — the kg count up so a record feels like it lands */}
@@ -318,16 +367,34 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
             : <ReadinessAsk onPick={(r) => { setReadiness(r); setReadyAsked(true); try { navigator.vibrate?.(10) } catch { /* no-op */ } }}
                 onSkip={() => setReadyAsked(true)} />
         )}
+        {/* the cut: a gold light crosses in the direction of travel, once per step */}
+        <div key={`wipe-${i}`} className={`step-wipe ${dir < 0 ? 'step-wipe--back' : ''}`} aria-hidden />
+        <div key={i} className={dir < 0 ? 'step-in-back' : 'step-in-fwd'}>
         {item.type === 'single'
-          ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} simple={simple} />
+          ? <SingleView ex={item.ex} dayId={day.id} dayLabel={day.label} section={item.section} week={week} done={doneCount} target={target} flash={flash} simple={simple} onEdit={() => setActualRev((n) => n + 1)} />
           : item.type === 'warmup'
             ? <WarmupView text={item.text} />
             : <CircuitView block={item.block} dayId={day.id} dayLabel={day.label} noteId={`${day.id}-${item.block.tag}${item.dup > 1 ? `-${item.dup}` : ''}`} week={week} round={doneCount} rounds={target} flash={flash} timed={isTimed} simple={simple} />}
+        </div>
 
-        <button onClick={primary.onClick}
-          className={`mt-5 w-full rounded-full font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow ${simple ? 'py-6 text-lg' : 'py-4'}`}>
-          {primary.icon} {primary.label}
-        </button>
+        {/* La carga de récord: on a lift whose closing series would beat the member's
+            own mark, the button charges one series at a time and bursts when it lands.
+            The chip says it in words — the ring alone would be decoration. */}
+        {charge && (
+          <div className="mt-4 flex items-center justify-center gap-1.5">
+            <Trophy size={13} className="text-gold shrink-0" />
+            <span className="text-[0.6rem] uppercase tracking-micro font-black text-gold">
+              {charge.left <= 1 ? 'Récord en esta serie' : `Récord a ${charge.left} series`}
+            </span>
+          </div>
+        )}
+        <div className={`${charge ? 'pr-charge' : ''} ${charge && charge.left <= 1 ? 'pr-charge--armed' : ''} ${burst ? 'pr-burst' : ''} ${charge ? 'mt-2' : 'mt-5'}`}
+          style={charge ? ({ ['--charge' as string]: charge.pct }) : undefined}>
+          <button onClick={primary.onClick}
+            className={`w-full rounded-full font-black uppercase tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.97] bg-gold-fill text-ink btn-glow ${simple ? 'py-6 text-lg' : 'py-4'}`}>
+            {primary.icon} {primary.label}
+          </button>
+        </div>
 
         {item.type !== 'warmup' && !isTimed && <div className="mt-4"><RestTimer startSignal={restSignal} /></div>}
 
@@ -343,10 +410,17 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
             dayMax = Math.max(dayMax, l.value)
             if (k < i) prior.push(l.value)
           })
+          // The bar follows the series you're ON, not the sheet: a member working up
+          // 100 → 105 → 107,5 edits each series in the ledger and the sleeve reloads
+          // itself. Falls back to the prescription for any series they didn't touch.
+          const presc = resolveWeek(item.ex, week).load.value!
+          const live = actualForSet(getActual(item.ex.id), doneCount).kg ?? presc
+          const perSeries = live !== presc || (getActual(item.ex.id)?.perSet != null && Object.keys(getActual(item.ex.id)!.perSet!).length > 0)
           return (
-            <div className="mt-4 mb-6">
-              <PlateCalc perSideKg={resolveWeek(item.ex, week).load.value!} deadlift={isDeadliftName(item.ex.name)}
-                priorLoads={prior} dayMaxKg={dayMax} />
+            <div className="mt-4 mb-6" data-rev={actualRev}>
+              <PlateCalc perSideKg={live} deadlift={isDeadliftName(item.ex.name)}
+                priorLoads={prior} dayMaxKg={Math.max(dayMax, live)}
+                forLabel={perSeries && target > 1 ? `serie ${Math.min(doneCount + 1, target)}` : undefined} />
             </div>
           )
         })()}
@@ -363,10 +437,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       </div>
 
       <div className="flex items-center gap-3 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10">
-        <button onClick={() => setI((n) => Math.max(0, n - 1))} disabled={i === 0}
+        <button onClick={() => goTo(Math.max(0, i - 1))} disabled={i === 0}
           className="p-3 rounded-full bg-white/5 text-white/70 disabled:opacity-30"><ChevronLeft size={20} /></button>
-        {/* live volume ticker: the session's work accumulates in plain sight */}
-        <div className="relative flex-1 text-center leading-tight">
+        {/* Live volume ticker + la firma: the total says how much, the waveform says
+            what the session LOOKED like — one bar per marked set, sized by its kilos. */}
+        <div className="relative flex-1 min-w-0 text-center leading-tight">
+          {pulses.length > 0 && <SessionSignature peaks={pulses} height={20} className="mb-0.5" />}
           {totalKg > 0 && (
             <>
               <div className="text-[0.5rem] uppercase tracking-micro text-white/40 font-bold">Volumen de hoy</div>
@@ -476,6 +552,137 @@ function Dots({ n, done, flash, label }: { n: number; done: number; flash: numbe
           {s < done ? <Check size={label ? 14 : 18} /> : (label ? label(s) : s + 1)}
         </div>
       ))}
+    </div>
+  )
+}
+
+/**
+ * The series ledger — one editable row per SERIES.
+ *
+ * A big lift written "4X1+3X3" is one row in the coach's sheet but four different
+ * efforts: 1 rep at the top weight, then three triples, usually at three different
+ * loads. The old screen offered a single "Ajustar lo que hiciste" for the whole
+ * block, so a member who worked up 100 → 105 → 107,5 could only record one number
+ * and the other three series were a fiction. Here every series carries its own kg
+ * and reps, prefilled with what the coach prescribed for THAT series.
+ *
+ * It replaces the dot row for these lifts (the dots are still the completion state:
+ * rows before `done` are ticked, the row at `done` is the one you're on), and it
+ * replaces the exercise-level adjust field, which cannot express four numbers.
+ * Per-series edits are logged to Seguimiento (top set in the weight columns, the
+ * full breakdown in the note) but are NOT written back to the routine sheet —
+ * there is no single cell that means "the third series only".
+ */
+function SetLedger({ ex, dayId, dayLabel, week, count, done, flash, readOnly = false, onEdit }: {
+  ex: ExerciseRow; dayId: string; dayLabel: string; week: number
+  count: number; done: number; flash: number; readOnly?: boolean; onEdit?: () => void
+}) {
+  const [open, setOpen] = useState<number | null>(null)
+  const [, setRev] = useState(0) // storage is the source of truth; this forces the re-read
+  const r = resolveWeek(ex, week)
+  const perSide = r.load.perSide
+  const stored = getActual(ex.id)
+  const fmtN = (n: number) => n.toLocaleString('es-AR')
+
+  // last session's shape, for the per-series ghost. Suppressed when it was recorded
+  // today (re-entering a session you already finished shouldn't chase its own tail).
+  const last = getLastDone(ex.id)
+  const ghostOn = !!last && last.date !== localDate()
+
+  const rows = Array.from({ length: count }, (_, i) => {
+    const logged = stored?.perSet?.[String(i)]
+    const kg = logged?.kg ?? stored?.kg ?? r.load.value
+    const reps = logged?.reps ?? r.plan?.[i] ?? r.reps
+    const prev = ghostOn ? (last!.perSet?.[String(i)] ?? { kg: last!.kg ?? undefined, reps: last!.reps ?? undefined }) : null
+    return { i, kg, reps, prev, edited: !!logged && (logged.kg != null || logged.reps != null) }
+  })
+
+  // Touching ONE field commits the whole series: the row is a log of what actually
+  // happened, so a member who only changes the weight still records the reps they
+  // did — otherwise the coach's line reads "2ª 31,25×—" and the record has no reps.
+  const put = (i: number, patch: { kg?: number; reps?: number }) => {
+    const row = rows[i]
+    const kgV = patch.kg ?? row.kg
+    const repsV = patch.reps ?? row.reps
+    const full: { kg?: number; reps?: number } = {}
+    if (kgV != null) full.kg = kgV
+    if (repsV != null) full.reps = repsV
+    saveSetActual(ex.id, dayId, i, full, { exName: ex.name, dayLabel, sets: count })
+    setRev((n) => n + 1)
+    onEdit?.()
+  }
+
+  return (
+    /* NO `key={rev}` here: remounting on every save reset `open` to null, so the
+       series' steppers slammed shut after a single ± tap and a member working up
+       5 kg had to reopen the row four times. The state bump alone re-renders and
+       `stored` is re-read on that render. */
+    <div className="mt-5">
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="kicker">Tus series</span>
+        {!readOnly && <span className="text-[0.58rem] text-white/35 font-bold">tocá una para editarla</span>}
+      </div>
+      <div className="space-y-1.5">
+        {rows.map(({ i, kg, reps, prev, edited }) => {
+          const complete = i < done
+          const current = i === done
+          // the ghost: what THIS series was last time, and how today compares
+          const delta = prev?.kg != null && kg != null ? Math.round((kg - prev.kg) * 100) / 100 : null
+          return (
+            <div key={i}
+              className={`rounded-card border transition ${complete ? 'border-gold/30 bg-gold/[0.07]' : current ? 'border-gold/50 bg-gold/[0.10]' : 'border-white/10 bg-white/[0.03]'} ${i === flash ? 'dot-pop' : ''}`}>
+              <button onClick={() => !readOnly && setOpen((o) => (o === i ? null : i))}
+                disabled={readOnly}
+                aria-label={`Serie ${i + 1}`} aria-expanded={open === i}
+                className="w-full min-h-[52px] flex items-center gap-3 px-3 py-2 text-left">
+                <span className={`h-8 w-8 shrink-0 grid place-items-center rounded-full border-2 font-black text-xs
+                  ${complete ? 'bg-gold border-gold text-ink' : current ? 'border-gold text-gold' : 'border-white/20 text-white/40'}`}>
+                  {complete ? <Check size={15} /> : i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-white tabular-nums">
+                    {reps != null ? `${fmtN(reps)} reps` : '—'}
+                    {kg != null && <span className="text-gold"> · {fmtN(kg)} kg{perSide ? '/lado' : ''}</span>}
+                  </div>
+                  {/* la sombra: this series, last time — the number to beat, on the
+                      row where they'll type today's. Silent when nothing changed. */}
+                  {prev && (prev.kg != null || prev.reps != null) && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[0.62rem] text-white/30 tabular-nums truncate">
+                        antes {prev.kg != null ? `${fmtN(prev.kg)} kg` : '—'}{prev.reps != null ? ` × ${fmtN(prev.reps)}` : ''}
+                      </span>
+                      {delta != null && delta !== 0 && (
+                        <span className={`shrink-0 rounded-chip px-1.5 py-px text-[0.55rem] font-black tabular-nums
+                          ${delta > 0 ? 'bg-gold/15 text-gold' : 'bg-white/8 text-white/45'}`}>
+                          {delta > 0 ? '+' : '−'}{fmtN(Math.abs(delta))}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {current && <div className="text-[0.55rem] uppercase tracking-micro font-black text-gold">Acá vas</div>}
+                </div>
+                {!readOnly && (
+                  edited
+                    ? <span className="shrink-0 text-[0.55rem] uppercase tracking-micro font-black text-gold/90">Tuyo</span>
+                    : <SlidersHorizontal size={15} className="shrink-0 text-white/30" />
+                )}
+              </button>
+              {open === i && !readOnly && (
+                <div className="px-3 pb-3 pt-1 border-t border-white/8 grid grid-cols-2 gap-2.5">
+                  <Stepper label={perSide ? 'Kg x lado' : 'Kg'} value={kg ?? 0} step={perSide ? 1.25 : 2.5}
+                    steps={perSide ? DISC_STEPS : LOAD_STEPS} onChange={(v) => put(i, { kg: v })} />
+                  <Stepper label="Reps" value={reps ?? 0} step={1} onChange={(v) => put(i, { reps: v })} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {!readOnly && (
+        <p className="text-[0.62rem] text-white/40 mt-2">
+          Cada serie va con su peso y sus reps. Esto manda para tu récord y lo ve el coach.
+        </p>
+      )}
     </div>
   )
 }
@@ -650,6 +857,30 @@ function WarmupView({ text }: { text: string }) {
   )
 }
 
+/**
+ * Can this exercise beat the member's own mark today, and how close are they to the
+ * series that would do it? Returns the charge (0→1) the primary button fills with,
+ * and how many series are left before the record is on the line.
+ *
+ * A record is only captured when the LAST series of the lift is marked (see
+ * `captureRecord`), so the charge is honest: it closes exactly as that series
+ * arrives, and there is no charged button on a set that can't set anything.
+ */
+function prCharge(ex: ExerciseRow, week: number, done: number, target: number): { pct: number; left: number } | null {
+  const lift = matchRecordLift(ex.name)
+  const gender = getGender()
+  if (!lift || !gender || target <= 0) return null
+  const r = resolveWeek(ex, week)
+  if (r.load.value == null) return null
+  const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), getClientName() ?? 'Vos')
+  if (!prev || prev.kg <= 0) return null
+  // what they'd actually lift on the closing series (their own edit wins)
+  const used = actualForSet(getActual(ex.id), target - 1).kg ?? r.load.value
+  const today = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
+  if (today < prev.kg) return null // not a record day for this lift — no charge
+  return { pct: Math.min(1, done / target), left: Math.max(0, target - done) }
+}
+
 // How close today's prescription is to the member's own record for this lift —
 // a quiet motivator ("estás al 87%"), gold call-out when today can beat it.
 function PrProximity({ ex, week }: { ex: ExerciseRow; week: number }) {
@@ -680,13 +911,18 @@ function PrProximity({ ex, week }: { ex: ExerciseRow; week: number }) {
   )
 }
 
-function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, simple }: {
+function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, simple, onEdit }: {
   ex: ExerciseRow; dayId: string; dayLabel: string; section: SectionTag; week: number; done: number; target: number; flash: number; simple?: boolean
+  /** fired when a series is logged, so the screen's plate diagram reloads at once */
+  onEdit?: () => void
 }) {
   // non-linear weeks (e.g. "4X1+3X3") carry a per-series rep plan — show the reps
   // for each series and mark the current one so it's trainable, not just raw text.
   const r = resolveWeek(ex, week)
   const plan = r.plan
+  // series that are NOT interchangeable: a per-series rep plan ("4X1+3X3"), or the
+  // day's main lift over several series — those are the ones members work up on.
+  const ledger = section !== 'ramp' && target > 1 && ((plan != null && plan.length > 1) || section === 'big')
   return (
     <>
       <div className="kicker">
@@ -705,13 +941,20 @@ function SingleView({ ex, dayId, dayLabel, section, week, done, target, flash, s
       <div className="mt-4 h-36"><AnimatedExercise name={ex.name} pattern={ex.pattern} /></div>
       {/* the coach prescribed a tempo — make it followable instead of a dead chip */}
       {!simple && tempoOf(ex) && <div className="mt-4"><TempoPacer value={tempoOf(ex)!} /></div>}
-      {plan && plan.length > 1
-        ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
-        : <Dots n={target} done={done} flash={flash} />}
+      {/* A lift whose series differ from each other (a per-series rep plan, or any
+          multi-series Big One) gets the editable ledger: one row per series, each
+          with its own load. Everything else keeps the compact dot row + the single
+          exercise-level adjust field — four identical rows of 10 reps would be
+          noise, and that field can still write back to the coach's cell. */}
+      {ledger
+        ? <SetLedger ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} count={target} done={done} flash={flash} readOnly={simple} onEdit={onEdit} />
+        : plan && plan.length > 1
+          ? <Dots n={target} done={done} flash={flash} label={(s) => `${plan[s] ?? ''}`} />
+          : <Dots n={target} done={done} flash={flash} />}
       {!simple && <NoteField id={ex.id} dayId={dayId} name={ex.name} dayLabel={dayLabel} />}
       {/* let members log their real weight/reps — including accessories with no
           prescribed load (dumbbell curls, machine work, bodyweight + lastre) */}
-      {!simple && section !== 'ramp' && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
+      {!simple && section !== 'ramp' && !ledger && <AdjustField ex={ex} dayId={dayId} dayLabel={dayLabel} week={week} />}
     </>
   )
 }
@@ -771,7 +1014,7 @@ function repsCol(ex: ExerciseRow, week: number): string {
 function EmptyDay({ day, onClose }: { day: RoutineDay; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col max-w-[448px] mx-auto">
-      <div className="flex items-center px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
+      <div className="flex items-center px-4 pt-[calc(var(--safe-top)+0.75rem)] pb-3">
         <button onClick={onClose} className="p-1.5 text-white/60"><X size={22} /></button>
       </div>
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-3">
@@ -949,9 +1192,12 @@ const RPE_WORD = (v: number) =>
   v <= 2 ? 'Muy suave' : v <= 4 ? 'Cómodo' : v <= 6 ? 'Exigente' : v <= 8 ? 'Muy duro' : v === 9 ? 'Al límite' : 'Máximo'
 
 // ---- finish: session RPE + note, then celebrate + share + medal unlocks ----
-function Finish({ day, week, lastWeek, prHits, prCards, simple, startedAt, readiness, onClose, onBack }: {
+function Finish({ day, week, lastWeek, prHits, prCards, simple, startedAt, readiness, pulses, onClose, onBack }: {
   day: RoutineDay; week: number; lastWeek?: boolean; prHits: Set<string>; prCards: ShareData[]; simple?: boolean
-  startedAt: number; readiness: Readiness | null; onClose: () => void; onBack: () => void
+  startedAt: number; readiness: Readiness | null
+  /** kilos moved by each marked set, in order — la firma de la sesión */
+  pulses: number[]
+  onClose: () => void; onBack: () => void
 }) {
   // Real time in the room. Clamped: a session left open overnight (iOS keeps the
   // page around) must not report 14 hours to the coach.
@@ -994,6 +1240,7 @@ function Finish({ day, week, lastWeek, prHits, prCards, simple, startedAt, readi
       kind: 'finish', name: getClientName() ?? 'Vos', dayLabel: day.label.replace('DÍA', 'Día'), week,
       totalKg: s.kg, series: s.series, streak: currentStreakWeeks(getCheckins()),
       bigOnes: (bigBlock?.exercises ?? []).map((ex) => bigOneRow(ex, week, prHits)), quote,
+      ...(pulses.length > 1 ? { signature: pulses } : {}),
     }
   }
   // records first (the personal high), then any medal tiers they unlocked
@@ -1030,7 +1277,7 @@ function Finish({ day, week, lastWeek, prHits, prCards, simple, startedAt, readi
     return <ShareCard data={card} onClose={() => { setQueue((q) => q.slice(1)); if (queue.length <= 1) onClose() }} />
   }
   return (
-    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+1rem)] max-w-[448px] mx-auto">
+    <div className="fixed inset-0 z-40 bg-dark-stage flex flex-col px-5 pt-[calc(var(--safe-top)+1rem)] max-w-[448px] mx-auto">
       <button onClick={onBack} className="flex items-center gap-1 text-white/55 text-sm font-bold -ml-1 mb-3 self-start">
         <ChevronLeft size={18} /> Volver al entrenamiento
       </button>

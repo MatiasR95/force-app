@@ -58,6 +58,7 @@ const KEYS = {
   installNudge: 'force.installNudge',
   recapSeen: 'force.recapSeen',
   routineId: 'force.routineId',
+  cycleBaseline: 'force.cycleBaseline',
   awakeIdle: 'force.ui.awakeIdleSec',
   finishDraft: 'force.finishDraft',
   fontScale: 'force.ui.fontScale',
@@ -261,6 +262,14 @@ export const getRoutineId = (): string | null => read<string | null>(KEYS.routin
 export const setRoutineId = (id: string): void => write(KEYS.routineId, id)
 
 /**
+ * How many sessions existed BEFORE this cycle started — sessions are never reset
+ * (streaks/records/history must survive a new plan), so a per-cycle view like the
+ * week × day matrix needs its own cutoff to avoid showing the PREVIOUS plan's
+ * sessions as "trained" cells just because week/day numbers happen to collide.
+ */
+export const getCycleBaseline = (): number => read<number>(KEYS.cycleBaseline, 0)
+
+/**
  * Retire the plan-scoped local state so a new routine starts clean. Values are MOVED
  * to a "<key>.prev" slot rather than deleted: if this ever fires when it shouldn't
  * (a renamed sheet, a corrected start date), nothing the member did is destroyed.
@@ -273,6 +282,7 @@ export function resetForNewRoutine(): void {
       localStorage.removeItem(k)
     } catch { /* quota/private mode */ }
   }
+  write(KEYS.cycleBaseline, getSessions().length)
 }
 
 /** A week anchor set BEFORE the plan even started belongs to the previous cycle —
@@ -392,22 +402,88 @@ export function saveNote(exerciseId: string, dayId: string, text: string, meta?:
 }
 
 // ---- actuals (client-edited weight/reps/series for what they really did) ----
-export interface Actual { kg?: number; reps?: number; sets?: number } // kg = per-side as written
+/** What ONE series actually was. Keys are the 0-based series index, as strings
+ *  (they survive a JSON round-trip; a numeric key would come back as a string
+ *  anyway and silently split the map). */
+export interface SetActual { kg?: number; reps?: number }
+export interface Actual {
+  kg?: number; reps?: number; sets?: number // exercise-level (kg = per-side as written)
+  /** Per-series overrides. A big lift on "4X1+3X3" is FOUR different series with
+   *  their own load and reps — one number for the whole block was a lie the member
+   *  had no way to correct. Absent index = that series matched the prescription. */
+  perSet?: Record<string, SetActual>
+}
 type ActualMap = Record<string, Actual>
 export const getActual = (exerciseId: string): Actual | undefined =>
   read<ActualMap>(KEYS.actuals, {})[exerciseId]
-export function saveActual(exerciseId: string, dayId: string, a: Actual, meta?: { exName?: string; dayLabel?: string }): void {
+
+/** What the member logged for series `i` (0-based), falling back to the
+ *  exercise-level value and then to the caller's prescription. */
+export function actualForSet(a: Actual | undefined, i: number): SetActual {
+  const one = a?.perSet?.[String(i)]
+  return { kg: one?.kg ?? a?.kg, reps: one?.reps ?? a?.reps }
+}
+
+/** The heaviest series logged (ties broken by reps) — what a record is judged on. */
+export function topSet(a: Actual | undefined): SetActual | null {
+  if (!a) return null
+  const all: SetActual[] = Object.values(a.perSet ?? {})
+  if (a.kg != null || a.reps != null) all.push({ kg: a.kg, reps: a.reps })
+  const withKg = all.filter((s) => s.kg != null)
+  if (!withKg.length) return all.find((s) => s.reps != null) ?? null
+  return withKg.reduce((best, s) => (s.kg! > best.kg! || (s.kg === best.kg && (s.reps ?? 0) > (best.reps ?? 0)) ? s : best))
+}
+
+/** "1ª 100×4 · 2ª 105×3" — the per-series detail, for the coach's note column. */
+export function setsDetail(a: Actual | undefined, count: number): string {
+  if (!a?.perSet) return ''
+  const n = (v: number) => v.toLocaleString('es-AR')
+  const parts: string[] = []
+  for (let i = 0; i < count; i++) {
+    const s = a.perSet[String(i)]
+    if (!s || (s.kg == null && s.reps == null)) continue
+    parts.push(`${i + 1}ª ${s.kg != null ? n(s.kg) : '—'}×${s.reps != null ? n(s.reps) : '—'}`)
+  }
+  return parts.join(' · ')
+}
+
+export function saveActual(exerciseId: string, dayId: string, a: Actual, meta?: { exName?: string; dayLabel?: string; note?: string }): void {
   const m = read<ActualMap>(KEYS.actuals, {})
-  m[exerciseId] = { ...m[exerciseId], ...a }
+  m[exerciseId] = { ...m[exerciseId], ...a, ...(a.perSet ? { perSet: { ...m[exerciseId]?.perSet, ...a.perSet } } : {}) }
   write(KEYS.actuals, m)
-  // exName/dayLabel let the coach digest show "Sentadilla · Día 1: 45 kg", not a raw id.
-  enqueue('set', { exerciseId, dayId, actualKg: m[exerciseId].kg, actualReps: m[exerciseId].reps, actualSets: m[exerciseId].sets, date: localDate(), exName: meta?.exName, dayLabel: meta?.dayLabel })
+  // The coach's Seguimiento row is a FIXED 8 columns (see apps-script/Code.gs):
+  // actualKg / actualReps carry the top series, and any per-series breakdown rides
+  // in `note` — a new field would be silently dropped on append.
+  const best = topSet(m[exerciseId])
+  enqueue('set', {
+    exerciseId, dayId,
+    actualKg: best?.kg ?? m[exerciseId].kg, actualReps: best?.reps ?? m[exerciseId].reps,
+    actualSets: m[exerciseId].sets, date: localDate(),
+    exName: meta?.exName, dayLabel: meta?.dayLabel, ...(meta?.note ? { note: meta.note } : {}),
+  })
+}
+
+/** Log ONE series of an exercise. */
+export function saveSetActual(exerciseId: string, dayId: string, i: number, s: SetActual, meta?: { exName?: string; dayLabel?: string; sets?: number }): void {
+  const m = read<ActualMap>(KEYS.actuals, {})
+  const prev = m[exerciseId] ?? {}
+  const perSet = { ...prev.perSet, [String(i)]: { ...prev.perSet?.[String(i)], ...s } }
+  saveActual(exerciseId, dayId, { perSet }, {
+    exName: meta?.exName, dayLabel: meta?.dayLabel,
+    note: setsDetail({ ...prev, perSet }, meta?.sets ?? Object.keys(perSet).length),
+  })
 }
 
 // ---- "última vez" per exercise (a light memory aid for progressive overload) ----
 // Snapshotted when a working set is completed, read next session to show what the
 // member did last time for this exact exercise slot. Purely local (display only).
-export interface LastDone { kg: number | null; reps: number | null; perSide: boolean; date: string }
+export interface LastDone {
+  kg: number | null; reps: number | null; perSide: boolean; date: string
+  /** Last session's numbers for EACH series, so the ledger can show the ghost of
+   *  that exact series — a member working up 100 → 105 → 107,5 needs to beat the
+   *  third series' 107,5, not the exercise's average. Older records have none. */
+  perSet?: Record<string, SetActual>
+}
 type LastDoneMap = Record<string, LastDone>
 export const getLastDone = (exerciseId: string): LastDone | undefined =>
   read<LastDoneMap>(KEYS.lastDone, {})[exerciseId]
@@ -432,6 +508,7 @@ export interface SessionProgress {
   prCards?: ShareData[]  // shareable "récord" cards earned this session
   startedAt?: number     // epoch ms the session began — drives the on-screen clock
   readiness?: Readiness  // how the member said they arrived (autorregulación)
+  pulses?: number[]      // kg moved by each marked set, in order — the session's firma
 }
 
 /** How the member said they turned up today. Coaches read it with the session

@@ -64,6 +64,11 @@ function targetHeight(): number {
 function syncAppHeight() {
   const h = targetHeight()
   if (h > 0) document.documentElement.style.setProperty('--app-vh', h + 'px')
+  // Installed? Then `--safe-top` gets a floor (index.css): Android's installed PWA
+  // paints under the system status bar but reports a zero top inset,
+  // which put close buttons under the clock. Re-evaluated on every geometry sync
+  // because display-mode can change (installed app opened, then sent to a tab).
+  document.documentElement.dataset.standalone = isStandalone() ? '1' : '0'
 }
 // Force iOS to recompute the standalone viewport geometry — the same thing a device
 // rotation does, which is what "unsticks" the stale short viewport under a

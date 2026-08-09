@@ -135,12 +135,17 @@ export function BottomSheet({ open, onClose, label = 'Panel', children }: {
   // it fills the true screen and covers the nav while open.
   return createPortal(
     <div className="fixed inset-x-0 top-0 z-[70] flex items-end max-w-[448px] mx-auto" role="dialog" aria-modal="true"
-      aria-label={label} style={{ height: 'var(--app-vh, 100vh)' }}>
+      aria-label={label} style={{ height: 'var(--app-vh, 100vh)', paddingTop: 'calc(var(--safe-top) + 0.75rem)' }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-[fade_.2s_ease]"
         onClick={onClose} style={{ touchAction: 'none' }} />
-      <div ref={panel} tabIndex={-1} className="relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10 outline-none
+      {/* A tall sheet must never reach the very top of the screen: its grab handle and
+          ✕ ended up under the status-bar clock (unreachable on installed Android, where
+          the top inset reports 0 — see `--safe-top` in index.css). The panel is capped
+          BELOW the inset plus a 12px strip of backdrop, so the close affordance always
+          sits in free space — and the visible gap reads as a sheet, not a new screen. */}
+      <div ref={panel} tabIndex={-1} className="sheet-scroll relative w-full overflow-y-auto overscroll-contain rounded-t-[22px] border-t border-white/10 outline-none
         bg-surface-2 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] animate-[slideup_.25s_ease]"
-        style={{ maxHeight: 'var(--app-vh, 100vh)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
+        style={{ maxHeight: 'calc(var(--app-vh, 100vh) - var(--safe-top) - 0.75rem)', transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragging.current ? 'none' : 'transform .2s ease' }}>
         <div className="sticky top-0 z-10 flex items-center justify-center pt-3 pb-2 bg-surface-2/95 backdrop-blur"
           onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}>
           <div className="h-1.5 w-12 rounded-full bg-white/25" />

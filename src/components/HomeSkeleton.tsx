@@ -9,7 +9,7 @@ function Bar({ w = 'w-full', h = 'h-4', className = '' }: { w?: string; h?: stri
 
 export function HomeSkeleton() {
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24" aria-busy="true" aria-label="Cargando tu rutina">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24" aria-busy="true" aria-label="Cargando tu rutina">
       {/* hero */}
       <div className="hero-card rounded-card p-5 mb-4">
         <div className="flex items-center justify-between">

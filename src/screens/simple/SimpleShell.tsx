@@ -38,7 +38,7 @@ export function SimpleShell({ routine, week, suggestedDay, onTrain }: {
       {/* Where am I: a title bar that never scrolls away — and the way out, right
           there on every screen. Buried on one tab, the exit isn't an exit: a member
           who turned this on by accident shouldn't have to go looking for it. */}
-      <header className="shrink-0 relative z-20 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3
+      <header className="shrink-0 relative z-20 px-4 pt-[calc(var(--safe-top)+0.75rem)] pb-3
         border-b border-white/10 flex items-center justify-between gap-3">
         <h1 className="heading text-2xl text-white truncate">
           {tab === 'hoy' ? 'Hoy' : 'Mi progreso'}

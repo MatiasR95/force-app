@@ -78,7 +78,7 @@ export function RecapStory({ data, onClose }: { data: RecapData; onClose: () => 
     <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md max-w-[448px] mx-auto flex flex-col"
       role="dialog" aria-modal="true" aria-label={`Tu ${data.label} en FORCE`}>
       {/* story progress */}
-      <div className="flex gap-1.5 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+      <div className="flex gap-1.5 px-4 pt-[calc(var(--safe-top)+0.75rem)]">
         {slides.map((_, k) => (
           <span key={k} className="h-[3px] flex-1 rounded-full overflow-hidden bg-white/15">
             <span className="block h-full bg-gold transition-all duration-300" style={{ width: k < i ? '100%' : k === i ? '55%' : '0%' }} />

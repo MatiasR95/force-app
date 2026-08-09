@@ -70,7 +70,7 @@ export function Hoy({ routine, currentWk, suggestedDay, onPickWeek, onTrain }: {
     trainedThisWeek.some((s) => s.dayId === d.id || (!!s.dayLabel && s.dayLabel === d.label))
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24">
       <header className="flex items-center justify-between mb-3">
         <div className="kicker capitalize">Hoy · {TODAY()}</div>
         <img src={emblem} alt="FORCE" className="h-9 w-9 object-contain opacity-90" />

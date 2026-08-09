@@ -13,7 +13,7 @@ export function Records() {
   const client = getClientName() ?? 'Vos'
 
   return (
-    <div className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-24">
+    <div className="px-4 pt-[calc(var(--safe-top)+1rem)] pb-24">
       <div className="kicker flex items-center gap-1.5"><Trophy size={13} className="text-gold" /> Salón de la fama</div>
       <h1 className="heading text-2xl text-white mb-3 glow-text">Récords FORCE</h1>
 

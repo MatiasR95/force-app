@@ -303,9 +303,9 @@ export default function App() {
             the eye only — a second announcement would just be noise. */}
         <div className="screen-top flex items-center" data-on={scrolled ? '1' : '0'} aria-hidden
           style={{
-            paddingTop: 'env(safe-area-inset-top)',
-            height: 'calc(env(safe-area-inset-top) + 2.75rem)',
-            marginBottom: 'calc(-1 * (env(safe-area-inset-top) + 2.75rem))',
+            paddingTop: 'var(--safe-top)',
+            height: 'calc(var(--safe-top) + 2.75rem)',
+            marginBottom: 'calc(-1 * (var(--safe-top) + 2.75rem))',
           }}>
           <span className="spine h-4 mr-2.5 shrink-0" aria-hidden />
           <span className="heading text-sm text-white truncate">{TAB_TITLE[tab]}</span>

@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react'
 import { useRest } from './RestTimer'
 import { resetRest, pauseRest, resumeRest, extendRest, getRest } from '../lib/restTimer'
 import { getRestPref } from '../lib/store'
+import { RestDial } from './RestDial'
 import { Flame, Pause, Play, X } from 'lucide-react'
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 const MINI_R = 8
 const MINI_C = 2 * Math.PI * MINI_R
-const BIG_R = 44
-const BIG_C = 2 * Math.PI * BIG_R
+
+// The capsule is measured in REM, not px. It used to be a 172×44 px box holding
+// rem-sized text: on Texto grande (1.45×) the time and "¡Metele!" grew but the
+// capsule didn't, so the words sat outside it. In rem the whole pill scales with
+// the member's text setting and the proportions hold at every size.
+const PILL = { w: '11rem', h: '2.75rem' }
+const OPEN = { w: '14.5rem', h: '12.25rem' }
 
 // App-wide rest-timer watcher + floating pill, Live-Activity style: a compact
 // capsule (mini progress ring + time) that MORPHS open with a spring into the
@@ -48,9 +54,9 @@ export function RestTimerHost({ showPill }: { showPill: boolean }) {
         className={`pill-morph pointer-events-auto relative overflow-hidden border backdrop-blur shadow-lg cursor-pointer
           ${done ? 'rest-done border-gold bg-gold/[0.18]' : 'border-white/12 bg-black/85'}`}
         style={{
-          width: open ? 232 : 172,
-          height: open ? 178 : 44,
-          borderRadius: open ? 22 : 28,
+          width: open ? OPEN.w : PILL.w,
+          height: open ? OPEN.h : PILL.h,
+          borderRadius: open ? 22 : 999,
         }}
       >
         {/* compact face */}
@@ -65,7 +71,7 @@ export function RestTimerHost({ showPill }: { showPill: boolean }) {
                 strokeDasharray={MINI_C} strokeDashoffset={MINI_C * p} />
             </svg>
           )}
-          <span className={`font-black tabular-nums ${done ? 'text-gold' : 'text-white'}`}>
+          <span className={`font-black tabular-nums truncate ${done ? 'text-gold' : 'text-white'}`}>
             {done ? '¡Metele!' : fmt(remaining)}
           </span>
         </div>
@@ -73,27 +79,7 @@ export function RestTimerHost({ showPill }: { showPill: boolean }) {
         {/* expanded face */}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-200"
           style={{ opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none', transitionDelay: open ? '120ms' : '0ms' }}>
-          <div className="relative w-[104px] h-[104px]">
-            <svg viewBox="0 0 104 104" className="w-full h-full -rotate-90">
-              <circle cx="52" cy="52" r={BIG_R} fill="none" stroke="#3A3832" strokeWidth="6" />
-              <circle cx="52" cy="52" r={BIG_R} fill="none" stroke={stroke} strokeWidth="6" strokeLinecap="round"
-                strokeDasharray={BIG_C} strokeDashoffset={BIG_C * p}
-                style={{ transition: 'stroke-dashoffset .95s linear, stroke .3s' }} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              {done ? (
-                <span className="ring-pop flex flex-col items-center leading-none">
-                  <Flame size={20} className="text-gold mb-0.5" />
-                  <span className="text-gold-pale text-base font-black">¡Metele!</span>
-                </span>
-              ) : (
-                <>
-                  <span className="text-2xl font-black tabular-nums text-white leading-none">{fmt(remaining)}</span>
-                  <span className="text-[0.5rem] uppercase tracking-micro text-gold-deep font-bold mt-0.5">próxima serie</span>
-                </>
-              )}
-            </div>
-          </div>
+          <RestDial remaining={remaining} total={total} done={done} size="pill" paused={paused} />
           <div className="flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
             {!done && !paused && (
               <button onClick={() => extendRest(30)} aria-label="Sumar 30 segundos"

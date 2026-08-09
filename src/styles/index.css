@@ -23,6 +23,17 @@
 }
 
 @layer base {
+  /* ---- Safe-area insets, with a floor ------------------------------------
+     iOS reports the real top inset under its black-translucent status bar.
+     Android's INSTALLED PWA does not: Chrome draws the app edge-to-edge under the
+     system status bar while still reporting the inset as 0, so anything pinned to
+     the top of the shell (a sheet's close button, the Entrenar exit ✕) lands UNDER
+     the clock and is unreachable. Floor the inset at 28px whenever we're running
+     installed, and use `--safe-top` everywhere instead of the raw env(). In the
+     browser the real inset (or 0) still wins. */
+  :root { --safe-raw: env(safe-area-inset-top, 0px); --safe-top: var(--safe-raw); --safe-bottom: env(safe-area-inset-bottom, 0px); }
+  html[data-standalone='1'] { --safe-top: max(var(--safe-raw), 28px); }
+
   /* Height is driven by JS (`--app-vh` = window.innerHeight, see main.tsx) to defeat the
      iOS standalone stale-layout-viewport bug. Under a black-translucent status bar the
      target is the FULL screen (content paints under the Dynamic Island), so the pre-JS
@@ -129,6 +140,25 @@
 /* hide scrollbars on horizontal pagers but keep scroll */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- The app scrolls on ONE axis, and quietly --------------------------------
+   `overflow-y: auto` silently promotes `overflow-x: visible` to `auto`, so ANY
+   element a pixel too wide (a long lift name, a wide chip row) turned the whole
+   shell into a two-axis pan surface with visible scrollbars — the app slid left
+   and right and the OS scroll indicators kept flashing. Pin the shell to the
+   vertical axis, kill the rubber-band (pull-to-refresh drives its own dial and
+   preventDefaults, so it is unaffected) and hide the indicator bars. Inner
+   horizontal pagers keep their own scrollport and are untouched. */
+.app-scroll {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.app-scroll::-webkit-scrollbar { display: none; }
+/* sheets and full-screen overlays scroll the same way */
+[data-sheet-lock]::-webkit-scrollbar, .sheet-scroll::-webkit-scrollbar { display: none; }
+[data-sheet-lock], .sheet-scroll { scrollbar-width: none; -ms-overflow-style: none; overflow-x: hidden; }
 
 /* ---- Futuristic / tech polish (dependency-light) ---- */
 
@@ -407,6 +437,33 @@ body::before {
   .foil-sheen { display: none; }
 }
 
+/* ---- Rest dial (RestDial.tsx) ---------------------------------------------
+   An instrument, not a progress bar: the bezel breathes, the comet head at the
+   live end of the arc pulses, and the last five seconds tighten the whole dial
+   so the member looks up before the flame lands. Opacity/transform only. */
+.dial-bezel { animation: dialBezel 4.5s ease-in-out infinite; transform-origin: 60px 60px; }
+@keyframes dialBezel { 0%, 100% { opacity: .85; } 50% { opacity: 1; } }
+.dial-comet { transform-box: fill-box; transform-origin: center; animation: dialComet 1.6s ease-in-out infinite; }
+@keyframes dialComet {
+  0%, 100% { opacity: .8; transform: scale(.86); }
+  50%      { opacity: 1;  transform: scale(1.18); }
+}
+.dial-urgent { animation: dialUrgent 1s ease-in-out infinite; }
+@keyframes dialUrgent {
+  0%, 100% { transform: scale(1); filter: none; }
+  50%      { transform: scale(1.035); filter: drop-shadow(0 0 12px rgb(var(--gold-rgb) / 0.45)); }
+}
+.dial-flame { animation: dialFlame 1.4s ease-in-out infinite; transform-origin: 50% 80%; }
+@keyframes dialFlame {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  35%      { transform: scale(1.1, .95) rotate(-4deg); }
+  70%      { transform: scale(.96, 1.06) rotate(3deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dial-bezel, .dial-comet, .dial-urgent, .dial-flame { animation: none; }
+  .dial-comet { opacity: 1; }
+}
+
 /* ---- Rest-timer ring finish: an echo ring expands + fades when time's up ---- */
 .ring-echo { transform-box: fill-box; transform-origin: center; animation: ringEcho 1.1s ease-out 2; }
 @keyframes ringEcho {
@@ -431,6 +488,36 @@ body::before {
   .rex-fil-a,.rex-fil-b,.rex-mu,.rex-fill,.rex-fiber,.rex-gap,.rex-brace,.rex-spine,.rex-climb,
   .ring-echo,.ring-pop { animation: none !important; }
   .rex-mu { opacity: 1; } .rex-gap { opacity: 0; }
+}
+
+/* ---- Entrenar: the cut between exercises -----------------------------------
+   Advancing a step used to be an instant swap. Now a thin gold light crosses the
+   screen in the direction you're travelling while the outgoing exercise lets go
+   and the incoming one lands — the session reads as one continuous piece instead
+   of eight unrelated screens. Transform/opacity only, and the wipe is a single
+   pseudo-free element that removes itself after one pass. */
+.step-wipe {
+  position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  background: linear-gradient(100deg,
+    transparent 34%,
+    rgb(var(--gold-rgb) / 0.10) 46%,
+    rgb(var(--gold-lit-rgb) / 0.42) 50%,
+    rgb(var(--gold-rgb) / 0.10) 54%,
+    transparent 66%);
+  animation: stepWipe .5s cubic-bezier(.55, 0, .35, 1) forwards;
+}
+.step-wipe--back { animation-name: stepWipeBack; }
+@keyframes stepWipe     { from { transform: translateX(-118%); } to { transform: translateX(118%); } }
+@keyframes stepWipeBack { from { transform: translateX(118%); }  to { transform: translateX(-118%); } }
+
+.step-in-fwd  { animation: stepInFwd .44s cubic-bezier(.22,1,.36,1); }
+.step-in-back { animation: stepInBack .44s cubic-bezier(.22,1,.36,1); }
+@keyframes stepInFwd  { from { opacity: 0; transform: translateX(28px) scale(.975); } to { opacity: 1; transform: none; } }
+@keyframes stepInBack { from { opacity: 0; transform: translateX(-28px) scale(.975); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .step-wipe { display: none; animation: none; }
+  .step-in-fwd, .step-in-back { animation: none; }
 }
 
 /* ---- Session map (Entrenar): the live segment of the rail breathes gold ---- */
@@ -582,6 +669,60 @@ body::before {
   100% { opacity: 0; transform: translate(-50%, -14px); }
 }
 
+/* ---- Firma de la sesión (SessionSignature.tsx) -----------------------------
+   Each marked set drops a bar; bars grow out of the centre line, and the newest
+   one keeps a slow glow so the eye lands on the set just finished. */
+.sig-bar { transform-box: fill-box; transform-origin: center; animation: sigGrow .45s cubic-bezier(.22,1,.36,1) backwards; }
+@keyframes sigGrow { from { transform: scaleY(0); opacity: 0; } }
+.sig-live {
+  transform-box: fill-box; transform-origin: center;
+  animation: sigGrow .45s cubic-bezier(.22,1,.36,1) backwards, sigPulse 2s ease-in-out .45s infinite;
+}
+@keyframes sigPulse {
+  0%, 100% { filter: none; }
+  50%      { filter: drop-shadow(0 0 4px rgb(var(--gold-rgb) / 0.85)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sig-bar, .sig-live { animation: none; }
+}
+
+/* ---- Carga de récord ------------------------------------------------------
+   When today's load can beat the member's own mark, the "Marcar serie" button
+   starts charging: a gold ring closes around it one series at a time (`--charge`,
+   0→1) and the glow behind it deepens. On the series that would set the record the
+   ring is closed and breathes — the button LOOKS like it's holding something. The
+   ring is a conic gradient masked to the border, so it costs one element. */
+.pr-charge { position: relative; }
+.pr-charge::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 9999px;
+  padding: 2.5px; pointer-events: none;
+  background: conic-gradient(from -90deg,
+    rgb(var(--gold-lit-rgb)) calc(var(--charge, 0) * 360deg),
+    rgb(var(--fg-rgb) / 0.10) 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  transition: background .5s ease;
+}
+.pr-charge--armed::before { animation: prArmed 1.6s ease-in-out infinite; }
+@keyframes prArmed {
+  0%, 100% { filter: none; }
+  50%      { filter: drop-shadow(0 0 7px rgb(var(--gold-lit-rgb) / 0.9)); }
+}
+/* the record lands: a single ring of light leaves the button */
+.pr-burst::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 9999px;
+  border: 2px solid rgb(var(--gold-lit-rgb));
+  pointer-events: none; animation: prBurst .75s cubic-bezier(.22,1,.36,1) 2 forwards;
+}
+@keyframes prBurst {
+  0%   { transform: scale(1); opacity: .9; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-charge--armed::before, .pr-burst::after { animation: none; }
+  .pr-burst::after { display: none; }
+}
+
 /* ---- PR proximity bar: fills from the left when the exercise appears ---- */
 .pr-fill { transform-origin: left center; animation: prFill .8s cubic-bezier(.22,1,.36,1); }
 @keyframes prFill { from { transform: scaleX(0); } }
@@ -663,7 +804,11 @@ body::before {
    gives the per-screen actions a fixed home instead of scrolling away. */
 .screen-top {
   position: sticky; top: 0; z-index: 25;
-  margin: 0 -1rem; padding: 0 1rem;
+  /* NO negative margins. This bar is a direct child of `.app-scroll` (App.tsx), which
+     has no padding of its own — `margin: 0 -1rem` made it 2rem WIDER than the
+     scrollport, and that was the app's mystery horizontal scroll: every screen could
+     be dragged sideways and the OS scroll indicators flashed on every swipe. */
+  padding: 0 1rem;
   background: rgb(var(--bg-rgb) / 0.72);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
