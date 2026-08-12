@@ -125,14 +125,25 @@ export async function fetchRecords(token: string | null): Promise<RecordEntry[]>
   return list
 }
 
+/** Apps Script answers 200 with `{ error: '…' }` on a rejected write, so an
+ *  un-inspected response looks like success. Every record write goes through here:
+ *  a rejected PR must fail loudly enough to stay queued in the outbox, never be
+ *  celebrated on screen and then quietly dropped. */
+async function assertWritten(res: Response, what: string): Promise<void> {
+  if (!res.ok) throw new Error(`${what} → ${res.status}`)
+  const body = await res.json().catch(() => null) as { error?: string } | null
+  if (body?.error) throw new Error(`${what} → ${body.error}`)
+}
+
 /** Submit a record the member just hit. Demo persists locally only. */
 export async function submitRecord(token: string | null, entry: RecordEntry): Promise<void> {
   if (isDemo() || !token) return
-  await fetch(new URL(API_BASE).toString(), {
+  const res = await fetch(new URL(API_BASE).toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: 'postRecord', token, entry }),
   })
+  await assertWritten(res, 'postRecord')
 }
 
 /** Gym-wide streak board. Submits the member's own streak and returns everyone's
@@ -189,8 +200,7 @@ export async function syncOutbox(token: string | null): Promise<number> {
   // backend dedupes by the entry's client-generated id, so replaying one that
   // already made it through the direct submitRecord() path is harmless.
   for (const r of records) {
-    const res = await post({ action: 'postRecord', token, entry: r.payload })
-    if (!res.ok) throw new Error(`postRecord → ${res.status}`)
+    await assertWritten(await post({ action: 'postRecord', token, entry: r.payload }), 'postRecord')
   }
   clearOutbox(box.map((i) => i.id))
   return box.length

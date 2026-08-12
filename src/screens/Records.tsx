@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { RecordEntry, Gender, StreakEntry } from '../lib/records'
 import { RECORD_LIFTS, rankUnique, bestOf, sameClient, epley1RM, liftLabel, WEIGHT_CLASSES } from '../lib/records'
 import { fetchRecords, syncStreak, cachedRecords, cachedStreaks } from '../lib/api'
-import { getToken, getGender, getClientName, getCheckins, getMaxStreak, getMyRecords } from '../lib/store'
+import { getToken, getGender, getClientName, getCheckins, getMaxStreak, getMyRecords, getOutbox } from '../lib/store'
 import { currentStreakWeeks } from '../lib/metrics'
 import { Pill } from '../components/ui'
 import { StreakFlame } from '../components/StreakFlame'
@@ -41,8 +41,14 @@ function RecordsView({ client }: { client: string }) {
   const [lift, setLift] = useState(lifts[0].key)
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [wc, setWc] = useState<string>('all') // 'all' | weight-class key
+  // marks that haven't reached the gym board yet (offline, or a write the server
+  // refused). Silence here was how a PR could be celebrated and then vanish.
+  const [pending, setPending] = useState(0)
 
-  useEffect(() => { fetchRecords(getToken()).then(setAll).catch(() => {}) }, [])
+  useEffect(() => {
+    setPending(getOutbox().filter((i) => i.kind === 'record').length)
+    fetchRecords(getToken()).then(setAll).catch(() => {})
+  }, [])
 
   // filter → dedupe → rank. One row per person (their best), so someone with three
   // PRs on the same lift can't fill the podium alone — and "#N del ranking" counts
@@ -62,6 +68,12 @@ function RecordsView({ client }: { client: string }) {
       <p className="text-white/45 text-xs mb-4 flex items-center gap-1.5">
         <Sparkles size={12} className="text-gold/70" /> Se cargan solos cuando terminás una serie de estos ejercicios.
       </p>
+
+      {pending > 0 && (
+        <p className="text-gold/80 text-xs mb-4 -mt-2">
+          {pending === 1 ? 'Tenés 1 marca esperando subir al tablero' : `Tenés ${pending} marcas esperando subir al tablero`} — se envían solas cuando vuelva la conexión.
+        </p>
+      )}
 
       <div className="flex gap-2 mb-3">
         <Pill active={gender === 'F'} onClick={() => { setG('F'); setWc('all') }}>Mujeres</Pill>

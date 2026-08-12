@@ -190,7 +190,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
   // Auto-capture a record when a record-eligible lift is completed (a PR vs the
   // member's own best). No manual entry — it just happens when they finish it.
-  const captureRecord = (ex: ExerciseRow): boolean => {
+  const captureRecord = (ex: ExerciseRow, silent = false): boolean => {
     const lift = matchRecordLift(ex.name)
     const gender = getGender()
     if (!lift || !gender) return false
@@ -200,10 +200,16 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // average or on the last one edited — that top set is the mark they actually hit.
     const act = topSet(getActual(ex.id))
     const reps = act?.reps ?? r.reps ?? ex.reps ?? 0
-    if (r.load.value == null || reps <= 0) return false
+    // What the member LOGGED stands on its own. Requiring a prescription weight here
+    // threw the record away whenever the week cell carried no kg (coach wrote only
+    // reps, or the load lives in the observación) even though they had typed the
+    // real weight into the ledger.
     const used = act?.kg ?? noteWeight(getNote(ex.id)) ?? r.load.value
+    if (used == null || reps <= 0) return false
     const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
-    if (kg <= 0) return false
+    // Mirror the backend's own bounds (postRecord_ in Code.gs): an entry outside them
+    // is rejected server-side, and would sit in the outbox retrying forever.
+    if (kg <= 0 || kg > 500 || reps > 100) return false
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
     if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return false // not a PR
@@ -212,13 +218,15 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     addMyRecord(entry)
     submitRecord(getToken(), entry).catch(() => {})
     setPrHits((s) => new Set(s).add(ex.id))
-    setPr({ lift: liftLabel(lift), kg, reps })
-    window.setTimeout(() => setPr(null), 3600)
-    // the charged button releases: one ring of light, and a heavier haptic than a
-    // normal set — the record should be felt before it's read
-    setBurst(true)
-    window.setTimeout(() => setBurst(false), 1700)
-    try { navigator.vibrate?.([30, 60, 120]) } catch { /* no-op */ }
+    if (!silent) {
+      setPr({ lift: liftLabel(lift), kg, reps })
+      window.setTimeout(() => setPr(null), 3600)
+      // the charged button releases: one ring of light, and a heavier haptic than a
+      // normal set — the record should be felt before it's read
+      setBurst(true)
+      window.setTimeout(() => setBurst(false), 1700)
+      try { navigator.vibrate?.([30, 60, 120]) } catch { /* no-op */ }
+    }
     // stash a shareable "récord" card for the finish celebration (one per lift)
     const isDom = lift === 'dominadas'
     const fmt = (n: number) => n.toLocaleString('es-AR')
@@ -232,6 +240,24 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
       return [...cs.filter((c) => c.lift !== card.lift), card] // keep the best/last per lift
     })
     return true
+  }
+
+  /**
+   * Last word before the finish screen: re-check every record-eligible lift the member
+   * marked at least one series of. Two things this catches that per-series capture
+   * can't — marking the set and THEN typing the real weight into the ledger (the
+   * normal order, so capture at mark-time saw only the prescription), and a member
+   * who stopped short of the prescribed series count. Silent: the Finish screen
+   * celebrates what it finds, so no burst fires on a screen about to unmount.
+   * `extra` carries the mark being made right now, which isn't in `done` state yet.
+   */
+  const sweepRecords = (extra?: Record<string, number>): void => {
+    const marks = { ...done, ...extra }
+    for (const it of items) {
+      if (it.type === 'warmup' || !(marks[keyOf(it)] ?? 0)) continue
+      if (it.type === 'single') { if (it.section !== 'ramp') captureRecord(it.ex, true) }
+      else it.block.exercises.forEach((ex) => captureRecord(ex, true))
+    }
   }
 
   // snapshot what was done for this exercise, to show as "la vez pasada" next time
@@ -266,7 +292,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     if (item.type === 'warmup') {
       setDone((d) => ({ ...d, warmup: 1 })) // its notch on the session map fills
       try { navigator.vibrate?.(25) } catch { /* no-op */ }
-      if (isLast) window.setTimeout(() => setFinishing(true), 200)
+      if (isLast) { sweepRecords({ warmup: 1 }); window.setTimeout(() => setFinishing(true), 200) }
       else skip()
       return
     }
@@ -282,18 +308,27 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     if (!isTimed) setRestSignal((s) => s + 1) // start/reset the pause after marking
     try { navigator.vibrate?.(25) } catch { /* no-op */ }
     let record = false
+    // A record is judged on EVERY series marked, not only the closing one. Waiting for
+    // the full prescribed series count meant a member who worked up to a top set and
+    // then stopped short (3 series of a prescribed 4) lost the PR entirely — the mark
+    // was hit, the app just never looked. captureRecord only fires when the weight
+    // actually beats their own best, so the extra calls are silent no-ops.
     if (item.type === 'single') {
       logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
-      if (n >= target && item.section !== 'ramp') { record = captureRecord(item.ex); recordLastDone(item.ex) }
-    } else if (n >= target) {
-      item.block.exercises.forEach((ex) => { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); if (captureRecord(ex)) record = true; recordLastDone(ex) })
+      if (item.section !== 'ramp') record = captureRecord(item.ex)
+      if (n >= target) recordLastDone(item.ex)
+    } else {
+      item.block.exercises.forEach((ex) => {
+        if (captureRecord(ex)) record = true
+        if (n >= target) { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); recordLastDone(ex) }
+      })
     }
     if (n >= target) {
       // A record just landed: hold the step long enough for the charged button to
       // release its ring of light. Advancing at the usual 260ms cut the moment off
       // — the member set a PR and the screen had already moved on.
       const hold = record ? 1400 : 260
-      if (isLast) window.setTimeout(() => setFinishing(true), hold)
+      if (isLast) { sweepRecords({ [key]: n }); window.setTimeout(() => setFinishing(true), hold) }
       else window.setTimeout(skip, hold)
     }
   }
@@ -862,20 +897,22 @@ function WarmupView({ text }: { text: string }) {
  * series that would do it? Returns the charge (0→1) the primary button fills with,
  * and how many series are left before the record is on the line.
  *
- * A record is only captured when the LAST series of the lift is marked (see
- * `captureRecord`), so the charge is honest: it closes exactly as that series
- * arrives, and there is no charged button on a set that can't set anything.
+ * The charge tracks progress through the lift; the record itself can land on ANY
+ * series (see `captureRecord`), so there is never a charged button on a set that
+ * can't set anything, and the ring fills as the lift is worked through.
  */
 function prCharge(ex: ExerciseRow, week: number, done: number, target: number): { pct: number; left: number } | null {
   const lift = matchRecordLift(ex.name)
   const gender = getGender()
   if (!lift || !gender || target <= 0) return null
   const r = resolveWeek(ex, week)
-  if (r.load.value == null) return null
   const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), getClientName() ?? 'Vos')
   if (!prev || prev.kg <= 0) return null
-  // what they'd actually lift on the closing series (their own edit wins)
-  const used = actualForSet(getActual(ex.id), target - 1).kg ?? r.load.value
+  // the heaviest they've logged today, else the closing series' own edit, else the
+  // prescription — a lift with no prescribed kg still charges once they log one
+  const act = getActual(ex.id)
+  const used = topSet(act)?.kg ?? actualForSet(act, target - 1).kg ?? r.load.value
+  if (used == null) return null
   const today = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
   if (today < prev.kg) return null // not a record day for this lift — no charge
   return { pct: Math.min(1, done / target), left: Math.max(0, target - done) }

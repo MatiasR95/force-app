@@ -299,11 +299,43 @@ function getHistory_(token) {
 }
 
 // ---- logInput: append client inputs to a Seguimiento sheet ----------------
+/**
+ * Drop items this script already wrote, by their client-generated id. The outbox
+ * replays whenever a response is lost in flight (phone leaves the gym's wifi
+ * mid-post), and unlike postRecord_ these appends had no dedupe — one "Llegó:
+ * entero" turned into four identical rows in the coach digest. Cache-based, so
+ * it covers the retry window (minutes) rather than forever, which is where every
+ * duplicate actually comes from.
+ */
+function dedupeLogged_(items) {
+  var cache = CacheService.getScriptCache()
+  var fresh = [], seen = {}
+  for (var i = 0; i < (items || []).length; i++) {
+    var it = items[i]
+    var id = it && it.id ? 'log:' + it.id : ''
+    if (!id) { fresh.push(it); continue }             // no id (older build): let it through
+    if (seen[id]) continue                            // duplicated inside this same batch
+    seen[id] = true
+    var hit = null
+    try { hit = cache.get(id) } catch (e) { /* cache is best-effort */ }
+    if (hit) continue
+    fresh.push(it)
+  }
+  var keys = Object.keys(seen)
+  if (keys.length) {
+    var map = {}
+    for (var k = 0; k < keys.length; k++) map[keys[k]] = '1'
+    try { cache.putAll(map, 21600) } catch (e) { /* best-effort */ } // 6 h
+  }
+  return fresh
+}
+
 function logInput_(token, items) {
   var c = clientFor_(token)
   var folder = DriveApp.getFolderById(c.folderId)
   var ss = seguimientoSheet_(folder, c.nombre)
   var sheet = ss.getSheets()[0]
+  items = dedupeLogged_(items)
   var rows = (items || []).map(function (it) {
     var p = it.payload || {}
     return [
@@ -470,6 +502,40 @@ function clearSheetRows_(sh) {
   return n
 }
 
+/**
+ * Add a record BY HAND, for a mark the app failed to capture (e.g. the pre-fix
+ * build only looked at the closing series, so a lift finished short of the
+ * prescribed series count never reached the board). Edit ENTRY, then Run.
+ *   lift: sentadilla | peso-muerto | peso-muerto-hex | peso-muerto-sumo |
+ *         press-banca | press-banca-db | dominadas | press-militar
+ *   kg:   TOTAL kilos moved (bar included), not per side.
+ *   wc:   weight category at the time, or '' if the member has no bodyweight loaded.
+ * Idempotent by id, same as postRecord_ — running it twice writes one row.
+ */
+function addRecordManually() {
+  var ENTRY = {
+    client: 'Matias Rossi',
+    gender: 'M',
+    lift: 'peso-muerto',
+    kg: 190,
+    reps: 3,
+    ts: '2026-08-12T21:00:00.000Z',
+    wc: '',
+  }
+  var id = 'manual-' + ENTRY.client.toLowerCase().replace(/\s+/g, '-') + '-' + ENTRY.lift + '-' + ENTRY.kg + 'x' + ENTRY.reps
+  var sh = recordsSheet_()
+  var last = sh.getLastRow()
+  if (last > 1) {
+    var ids = sh.getRange(2, 1, last - 1, 1).getValues()
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === id) return 'already there (' + id + ')'
+    }
+  }
+  sh.appendRow([id, ENTRY.client, ENTRY.gender, ENTRY.lift, ENTRY.kg, ENTRY.reps, ENTRY.ts, ENTRY.wc])
+  try { CacheService.getScriptCache().remove('records') } catch (e) { /* no-op */ }
+  return 'added ' + ENTRY.client + ' ' + ENTRY.lift + ' ' + ENTRY.kg + 'x' + ENTRY.reps
+}
+
 /** Delete records for specific client names (case-insensitive), keeping the rest.
  *  Edit the NAMES list below before running. Also catches the "Vos" default that a
  *  client gets if their name wasn't set on the device. */
@@ -595,6 +661,11 @@ function cumplesSheet_() {
   var ss = SpreadsheetApp.openById(CONFIG_SHEET_ID)
   var sh = ss.getSheetByName('cumples')
   if (!sh) { sh = ss.insertSheet('cumples'); sh.appendRow(['client', 'mmdd', 'ts']) }
+  // Column B ("mmdd") must stay plain text: Sheets' locale (day-first here)
+  // auto-parses an ambiguous "10-08" string into a real Date and silently
+  // flips day/month whenever both are ≤12 (Ale's Oct-8 became Aug-10 this
+  // way). Force @ format so setValues/appendRow never gets reinterpreted.
+  sh.getRange(2, 2, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('@')
   return sh
 }
 
