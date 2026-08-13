@@ -53,10 +53,21 @@ function RecordsView({ client }: { client: string }) {
   // filter → dedupe → rank. One row per person (their best), so someone with three
   // PRs on the same lift can't fill the podium alone — and "#N del ranking" counts
   // people, not marks. Order matters: a category board dedupes *within* that category.
+  // The member's OWN marks are folded in from the device before filtering. The
+  // board used to be the server list alone, so a mark whose upload failed (or is
+  // still queued) was captured, celebrated — and then absent from the one screen
+  // that's supposed to show it. Dedupe is by id, so a mark that already reached
+  // the sheet appears once, in its server form (the backend names the row from
+  // the token, which is the version that must win).
+  const withMine = useMemo(() => {
+    const ids = new Set(all.map((e) => e.id))
+    return [...all, ...getMyRecords().filter((e) => !ids.has(e.id))]
+  }, [all])
+
   const board = useMemo(
-    () => rankUnique(all.filter((e) =>
+    () => rankUnique(withMine.filter((e) =>
       e.lift === lift && e.gender === gender && (wc === 'all' || e.wc === wc))),
-    [all, lift, gender, wc],
+    [withMine, lift, gender, wc],
   )
   const mine = bestOf(board, client)
   const top = board[0]
@@ -103,7 +114,7 @@ function RecordsView({ client }: { client: string }) {
       {/* records captured before the member loaded their bodyweight carry no
           category — surface why a category board can look emptier than "Todas" */}
       {wc !== 'all' && (() => {
-        const sinCat = all.filter((e) => e.lift === lift && e.gender === gender && !e.wc).length
+        const sinCat = withMine.filter((e) => e.lift === lift && e.gender === gender && !e.wc).length
         return sinCat > 0 ? (
           <p className="text-white/40 text-[0.7rem] mb-3 -mt-1">
             {sinCat} {sinCat === 1 ? 'marca no tiene categoría' : 'marcas no tienen categoría'} (esa persona no cargó su peso corporal) — {sinCat === 1 ? 'la ves' : 'las ves'} en "Todas las categorías".

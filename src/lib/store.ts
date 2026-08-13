@@ -82,8 +82,14 @@ const pad = (n: number) => String(n).padStart(2, '0')
 export function localDate(d = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+// Ids must be unique, not just "probably unique": records are deduped BY ID both
+// in the outbox and by the backend, so two ids that collide silently drop one of
+// the two marks. Time alone collides — a circuit block captures a record per
+// exercise inside the same tick, and Date.now()+floor(performance.now()) is the
+// same value for all of them. A process-lifetime counter closes that.
+let ridSeq = 0
 const rid = (): string =>
-  `${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}`
+  `${Date.now().toString(36)}-${Math.floor(performance.now()).toString(36)}${(ridSeq++).toString(36)}`
 
 /** "hoy" / "ayer" / "hace N días" / "hace N semanas" for a YYYY-MM-DD date. */
 export function relDay(date: string): string {
@@ -600,5 +606,6 @@ export function enqueue(kind: OutboxItem['kind'], payload: unknown): void {
   write(KEYS.outbox, box)
 }
 export function clearOutbox(ids: string[]): void {
-  write(KEYS.outbox, getOutbox().filter((i) => !ids.includes(i.id)))
+  const done = new Set(ids)
+  write(KEYS.outbox, getOutbox().filter((i) => !done.has(i.id)))
 }

@@ -188,20 +188,38 @@ export async function syncOutbox(token: string | null): Promise<number> {
   const records = box.filter((i) => i.kind === 'record')
   const logs = box.filter((i) => i.kind !== 'cell' && i.kind !== 'record')
 
-  if (logs.length) {
-    const res = await post({ action: 'logInput', token, items: logs })
-    if (!res.ok) throw new Error(`sync → ${res.status}`)
-  }
-  if (cells.length) {
-    const res = await post({ action: 'updateCells', token, cells: cells.map((i) => i.payload) })
-    if (!res.ok) throw new Error(`updateCells → ${res.status}`)
-  }
-  // A PR hit offline must reach the gym board, not the Seguimiento log. The
-  // backend dedupes by the entry's client-generated id, so replaying one that
+  // Each group flushes INDEPENDENTLY and only what actually landed is cleared.
+  // This used to be one all-or-nothing chain with the Seguimiento logs FIRST: a
+  // single failing log write threw before the record loop ever ran, so a captured
+  // PR could sit in the outbox for weeks and never reach the gym board — the
+  // member saw the celebration and then never appeared on Récords.
+  const sent: string[] = []
+  let failure: unknown = null
+
+  // Records go first: a missing PR is the one thing a member actually notices.
+  // The backend dedupes by the entry's client-generated id, so replaying one that
   // already made it through the direct submitRecord() path is harmless.
   for (const r of records) {
-    await assertWritten(await post({ action: 'postRecord', token, entry: r.payload }), 'postRecord')
+    try {
+      await assertWritten(await post({ action: 'postRecord', token, entry: r.payload }), 'postRecord')
+      sent.push(r.id)
+    } catch (e) { failure = e } // one bad mark must not block the others
   }
-  clearOutbox(box.map((i) => i.id))
-  return box.length
+  if (logs.length) {
+    try {
+      const res = await post({ action: 'logInput', token, items: logs })
+      if (!res.ok) throw new Error(`sync → ${res.status}`)
+      for (const l of logs) sent.push(l.id)
+    } catch (e) { failure = e }
+  }
+  if (cells.length) {
+    try {
+      const res = await post({ action: 'updateCells', token, cells: cells.map((i) => i.payload) })
+      if (!res.ok) throw new Error(`updateCells → ${res.status}`)
+      for (const c of cells) sent.push(c.id)
+    } catch (e) { failure = e }
+  }
+  clearOutbox(sent)
+  if (failure) throw failure // callers retry later; what landed is already cleared
+  return sent.length
 }

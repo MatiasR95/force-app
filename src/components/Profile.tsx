@@ -37,7 +37,12 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
     setGender(gender)
     if (bday) setBirthday(bday)
     const n = parseFloat(bw.replace(',', '.'))
-    if (n > 0 && n !== getBodyweight()) addBodyweight(n)
+    // Save on EVERY Guardar, even when the number didn't change. The monthly nudge
+    // ("pasó un mes, actualizá tu peso") is driven by the DATE of the last entry, so
+    // skipping the write when the weight was identical left the nudge on screen
+    // forever: the member weighed the same, saved, and nothing moved. addBodyweight
+    // already keeps one entry per day, so re-saving just re-dates today's.
+    if (n > 0) addBodyweight(n)
     setRestEduPref(restEdu)
     if (weekly && routine && week !== memberCurrentWeek(routine)) setStartWeek(week) // re-anchor only if changed
     setSaved(true)
