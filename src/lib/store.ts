@@ -418,10 +418,18 @@ export interface Actual {
    *  their own load and reps — one number for the whole block was a lie the member
    *  had no way to correct. Absent index = that series matched the prescription. */
   perSet?: Record<string, SetActual>
+  /** Local date this was last written. Actuals are "what I did TODAY" — read
+   *  through this date guard so yesterday's edited weight never resurfaces
+   *  pre-filled in tomorrow's ledger (it already lives in `lastDone`'s ghost). */
+  date?: string
 }
 type ActualMap = Record<string, Actual>
-export const getActual = (exerciseId: string): Actual | undefined =>
-  read<ActualMap>(KEYS.actuals, {})[exerciseId]
+/** Only returns today's actual — a stale entry from a earlier session reads as
+ *  unset, same as if nothing had ever been logged. */
+export const getActual = (exerciseId: string): Actual | undefined => {
+  const a = read<ActualMap>(KEYS.actuals, {})[exerciseId]
+  return a?.date === localDate() ? a : undefined
+}
 
 /** What the member logged for series `i` (0-based), falling back to the
  *  exercise-level value and then to the caller's prescription. */
@@ -455,7 +463,10 @@ export function setsDetail(a: Actual | undefined, count: number): string {
 
 export function saveActual(exerciseId: string, dayId: string, a: Actual, meta?: { exName?: string; dayLabel?: string; note?: string }): void {
   const m = read<ActualMap>(KEYS.actuals, {})
-  m[exerciseId] = { ...m[exerciseId], ...a, ...(a.perSet ? { perSet: { ...m[exerciseId]?.perSet, ...a.perSet } } : {}) }
+  // A stale (earlier-day) entry doesn't get merged into today's edit — otherwise
+  // touching one series today would drag yesterday's numbers into the others.
+  const prev = m[exerciseId]?.date === localDate() ? m[exerciseId] : undefined
+  m[exerciseId] = { ...prev, ...a, date: localDate(), ...(a.perSet ? { perSet: { ...prev?.perSet, ...a.perSet } } : {}) }
   write(KEYS.actuals, m)
   // The coach's Seguimiento row is a FIXED 8 columns (see apps-script/Code.gs):
   // actualKg / actualReps carry the top series, and any per-series breakdown rides
@@ -472,7 +483,7 @@ export function saveActual(exerciseId: string, dayId: string, a: Actual, meta?: 
 /** Log ONE series of an exercise. */
 export function saveSetActual(exerciseId: string, dayId: string, i: number, s: SetActual, meta?: { exName?: string; dayLabel?: string; sets?: number }): void {
   const m = read<ActualMap>(KEYS.actuals, {})
-  const prev = m[exerciseId] ?? {}
+  const prev = m[exerciseId]?.date === localDate() ? m[exerciseId] : {}
   const perSet = { ...prev.perSet, [String(i)]: { ...prev.perSet?.[String(i)], ...s } }
   saveActual(exerciseId, dayId, { perSet }, {
     exName: meta?.exName, dayLabel: meta?.dayLabel,
