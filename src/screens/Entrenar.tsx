@@ -198,13 +198,30 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // prefer what the member actually did: explicit edit > note mention > prescription.
     // With per-series logging the record is judged on the HEAVIEST series, not on an
     // average or on the last one edited — that top set is the mark they actually hit.
-    const act = topSet(getActual(ex.id))
+    // Each series is resolved the SAME way the ledger rows are (logged value, else
+    // exercise-level edit, else the per-series prescription `plan[i]`). Reading only
+    // `r.reps` here lost a non-linear scheme's top series: on "3X1+2X3" (3 reps the
+    // first series, 2 the rest) it judged the record at 2 reps, so 115×3 never beat
+    // a standing 115×2.
+    const stored = getActual(ex.id)
+    const noteKg = noteWeight(getNote(ex.id))
+    const count = Math.max(1, r.plan?.length ?? r.sets ?? ex.sets ?? 1)
+    let act: { kg?: number; reps?: number } | null = null
+    for (let i = 0; i < count; i++) {
+      const one = actualForSet(stored, i)
+      const s = {
+        kg: one.kg ?? noteKg ?? r.load.value ?? undefined,
+        reps: one.reps ?? r.plan?.[i] ?? r.reps ?? ex.reps ?? undefined,
+      }
+      if (s.kg == null && s.reps == null) continue
+      if (!act || (s.kg ?? 0) > (act.kg ?? 0) || ((s.kg ?? 0) === (act.kg ?? 0) && (s.reps ?? 0) > (act.reps ?? 0))) act = s
+    }
     const reps = act?.reps ?? r.reps ?? ex.reps ?? 0
     // What the member LOGGED stands on its own. Requiring a prescription weight here
     // threw the record away whenever the week cell carried no kg (coach wrote only
     // reps, or the load lives in the observación) even though they had typed the
     // real weight into the ledger.
-    const used = act?.kg ?? noteWeight(getNote(ex.id)) ?? r.load.value
+    const used = act?.kg ?? noteKg ?? r.load.value
     if (used == null || reps <= 0) return false
     const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
     // Mirror the backend's own bounds (postRecord_ in Code.gs): an entry outside them
