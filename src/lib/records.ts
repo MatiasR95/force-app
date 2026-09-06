@@ -127,28 +127,66 @@ export function bestOf(entries: RecordEntry[], client: string): RecordEntry | nu
 
 /**
  * Map an exercise name to a record lift key, or null if it's not record-eligible.
- * Only the headline lifts count; variations that aren't records are excluded
- * (bulgarian/split squats, incline bench, romanian/RDL, etc.).
+ *
+ * The board is a gym-wide leaderboard split by gender and weight category, so a mark
+ * only belongs on it if the number MEANS the same thing for everyone. Three ways a
+ * name fails that, all vetted with the S&C coach against the 192 exercise names the
+ * coaches actually write in their sheets:
+ *
+ *  1. It's a different lift (front/Zercher/landmine/Hatfield squat, incline bench,
+ *     RDL, box & pin squats, Arnold press...).
+ *  2. The kg the app computes isn't the kg that was lifted. `recordKg` doubles a
+ *     "x lado" load and adds a 20 kg bar — wrong for a SINGLE-LIMB press, for a
+ *     plate-loaded MACHINE (no bar at all), and for a SPECIALTY BAR (an SSB is
+ *     25-32 kg, a Swiss bar varies by model).
+ *  3. The resistance isn't the bar. Chains and bands change the load through the
+ *     range — and a band on a PULL-UP does the opposite of a record: it ASSISTS, so
+ *     the member moved LESS than bodyweight, not more.
+ *
+ * Deliberately NOT excluded: pauses and tempo prescriptions ("+ 1"", "TEMPO 3:2:0").
+ * The lift and the kilos are real, only the intent is submaximal — and 18 of the
+ * gym's members train their big lifts that way, so dropping them empties the board.
  */
+
+// Single-limb work. `recordKg`'s "x lado" doubling assumes two limbs sharing ONE bar;
+// one arm (or one leg) moving its own load is not that, and doubling it invents a mark.
+const UNILATERAL = /\b1 ?brazo\b|\b1 ?b\b|\b1 ?pie\b|1 arm|one arm|unilateral|alternad|alternated|alternating|\balt\.? /
+// The bar the app assumes isn't the bar that was used: a plate-loaded machine has no
+// 20 kg bar, and a specialty bar doesn't weigh 20 kg either.
+const WRONG_BAR = /hammer|maquina|machine|barra suiza|swiss|\bssb\b/
+// Chains and bands change the resistance through the range, so the logged weight is
+// not the mark. On a pull-up a band is ASSISTANCE — the opposite of added load.
+const ACCOMMODATING = /cadenas?|\bbandas?\b|c\/banda|con banda/
+
 export function matchRecordLift(name: string): string | null {
   const s = deburr(name)
+  if (UNILATERAL.test(s) || WRONG_BAR.test(s) || ACCOMMODATING.test(s)) return null
   // squats: the back squat only — EXCLUDE bulgarian/split/sissy/pistol/hack/leg-press/
-  // lunges/hatfield/FRONT squat/goblet, and dumbbell/wall/machine variants (e.g. a
-  // finisher like "Open Squat over Wall with DB" must NOT fire a back-squat record)
-  if (/sentadilla|squat/.test(s) && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|frontal|\bfront\b|goblet|\bdb\b|mancuerna|dumbbell|wall|pared/.test(s)) return 'sentadilla'
-  if (/hex/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-hex'
-  if (/sumo/.test(s) && /peso muerto|deadlift/.test(s)) return 'peso-muerto-sumo'
-  // conventional deadlift only (exclude romanian/RDL — es AND en — good-morning, unipodal)
-  if (/peso muerto|deadlift/.test(s) && !/rumano|romanian|\brdl\b|buenos dias|good ?morning|unipodal|1 ?pie/.test(s)) return 'peso-muerto'
+  // lunges/Hatfield (both spellings the coaches use)/FRONT squat/goblet, dumbbell, KB
+  // and wall variants, plus box & pin squats and deficit/Zercher/landmine work, which
+  // move the range of motion or the loading axis somewhere else entirely.
+  if (/sentadilla|squat/.test(s)
+    && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|hadfield|frontal|\bfront\b|goblet|\bdb\b|mancuerna|dumbbell|wall|pared|zecher|zercher|ladmine|landmine|\bkb\b|kettlebell|pesa rusa|al banco|\bbanco\b|cajon|\bpines\b|deficit|abierta/.test(s)) return 'sentadilla'
+  // trap-bar deadlift — but not a split stance, a deficit or an altered range
+  if (/hex/.test(s) && /peso muerto|deadlift/.test(s))
+    return /split|deficit|\brom\b/.test(s) ? null : 'peso-muerto-hex'
+  if (/sumo/.test(s) && /peso muerto|deadlift/.test(s))
+    return /split|deficit|\brom\b/.test(s) ? null : 'peso-muerto-sumo'
+  // conventional deadlift only (exclude romanian/RDL — es AND en — good-morning,
+  // unipodal, deficit pulls and rack pulls, which are a different range)
+  if (/peso muerto|deadlift/.test(s) && !/rumano|romanian|\brdl\b|buenos dias|good ?morning|unipodal|deficit|rack pull/.test(s)) return 'peso-muerto'
   // bench with dumbbells
   if (/(press (plano|de banca|banca)|banca|bench).*(mancuerna|db)|(mancuerna|db).*(press (plano|banca)|banca|bench)/.test(s)) return 'press-banca-db'
-  // flat barbell bench only (exclude incline)
-  if (/press plano|press (de )?banca|press banca|bench press|\bbanca\b/.test(s) && !/inclinad|incline/.test(s)) return 'press-banca'
-  if (/dominada|pull ?up|chin ?up/.test(s)) return 'dominadas'
-  // strict barbell military/overhead press — exclude alternated/Arnold/seated/push-press
-  // and other accessory overhead variants so they don't fire a false record
+  // flat barbell bench only (exclude incline, reverse/close grip, chaos and floor press)
+  if (/press plano|press (de )?banca|press banca|bench press|\bbanca\b/.test(s)
+    && !/inclinad|incline|supinad|cerrad|caos|chaos|floor|piso/.test(s)) return 'press-banca'
+  // weighted pull-ups — the kg is ADDED load, so an assisted rep never counts
+  if (/dominada|pull ?up|chin ?up/.test(s))
+    return /asistid|assist|gravitron/.test(s) ? null : 'dominadas'
+  // strict barbell military/overhead press — exclude Arnold/seated/push-press and the
+  // other accessory overhead variants so they don't fire a false record
   if (/press militar|militar|overhead press|press (de )?hombros?/.test(s)
-    && !/alternad|alternated|arnold|sentad|seated|inclinad|incline|push press|cubano|landmine|z press|kb|mancuerna|unilateral/.test(s)) return 'press-militar'
+    && !/arnold|sentad|seated|inclinad|incline|push press|cubano|z press|\bkb\b|kettlebell|mancuerna/.test(s)) return 'press-militar'
   return null
 }
 

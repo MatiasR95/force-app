@@ -1,5 +1,6 @@
 import type { Routine, RoutineDay, ExerciseRow, MovementPattern } from './types'
 import { DEFAULT_BAR_KG } from './plates'
+import { matchRecordLift } from './records'
 
 // ---------------------------------------------------------------------------
 // S&C metrics. All computed from the routine + the client's own logs — no
@@ -90,20 +91,48 @@ export interface BigLiftE1RM {
   e1rm: number
 }
 
-/** Best estimated 1RM per "Big One" lift across the routine. */
+/**
+ * "Fuerza estimada" is about the THREE powerlifting lifts — sentadilla, peso muerto,
+ * press de banca — and nothing else. It used to take whichever three exercises sat in
+ * a day's "THE BIG ONE" block with the highest estimate, so a plan whose Día 6 opens
+ * with Bíceps Curl Barra put a curl on the strength card. Each group keeps its single
+ * best estimate and they are shown in the classic order, never sorted by weight.
+ *
+ * Deadlift variants (hex/sumo) count as the deadlift — a member whose plan only has
+ * the hex bar still has a deadlift number. Dumbbell bench does NOT: it is a different
+ * lift with its own record board.
+ */
+type BigThreeGroup = 'squat' | 'deadlift' | 'bench'
+const BIG_THREE_GROUP: Record<string, BigThreeGroup> = {
+  'sentadilla': 'squat',
+  'peso-muerto': 'deadlift',
+  'peso-muerto-hex': 'deadlift',
+  'peso-muerto-sumo': 'deadlift',
+  'press-banca': 'bench',
+}
+const BIG_THREE_ORDER: BigThreeGroup[] = ['squat', 'deadlift', 'bench']
+
 export function bigThreeE1RM(r: Routine, barKg = DEFAULT_BAR_KG): BigLiftE1RM[] {
-  const best = new Map<string, BigLiftE1RM>()
+  const best = new Map<BigThreeGroup, BigLiftE1RM>()
   for (const day of r.days) {
-    for (const e of day.blocks.find((b) => b.tag === 'big')?.exercises ?? []) {
-      const kg = exerciseLoadKg(e, barKg)
-      const e1 = epley1RM(kg, repsOf(e))
-      const prev = best.get(e.slug)
-      if (!prev || e1 > prev.e1rm) {
-        best.set(e.slug, { name: e.name, slug: e.slug, topSetKg: kg, reps: repsOf(e), e1rm: e1 })
+    for (const b of day.blocks) {
+      // warm-up ramps are approach sets, not a strength number
+      if (b.tag === 'ramp' || b.tag === 'warmup') continue
+      for (const e of b.exercises) {
+        const lift = matchRecordLift(e.name)
+        const group = lift ? BIG_THREE_GROUP[lift] : undefined
+        if (!group) continue
+        const kg = exerciseLoadKg(e, barKg)
+        const e1 = epley1RM(kg, repsOf(e))
+        if (e1 <= 0) continue
+        const prev = best.get(group)
+        if (!prev || e1 > prev.e1rm) {
+          best.set(group, { name: e.name, slug: e.slug, topSetKg: kg, reps: repsOf(e), e1rm: e1 })
+        }
       }
     }
   }
-  return [...best.values()].sort((a, b) => b.e1rm - a.e1rm)
+  return BIG_THREE_ORDER.map((g) => best.get(g)).filter((x): x is BigLiftE1RM => !!x)
 }
 
 /** Working sets per movement pattern (excludes warm-up ramp). */

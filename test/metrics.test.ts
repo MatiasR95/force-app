@@ -32,13 +32,19 @@ describe('metrics on real routine', () => {
     expect(exerciseLoadKg(press)).toBe(75)
   })
 
-  it('ranks the Big Ones by estimated 1RM', () => {
+  it('reports only the big three, in the classic order', () => {
     const e = bigThreeE1RM(r)
     const names = e.map((x) => x.slug)
     expect(names).toContain('peso-muerto')
     expect(names).toContain('press-plano')
-    // deadlift (20 + 100 = 120kg x3) should out-rank the bench
-    expect(e[0].slug).toBe('peso-muerto')
+    // sentadilla · peso muerto · press de banca — never sorted by weight, and never
+    // more than one row per lift (the deadlift out-estimates the bench here, but the
+    // card is a strength profile, not a leaderboard)
+    expect(e.length).toBeLessThanOrEqual(3)
+    const order = names.map((n) => (n.includes('sentadilla') ? 0 : n.includes('peso-muerto') ? 1 : 2))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    // accessories and non-big-three lifts never appear on the strength card
+    expect(names.some((n) => /curl|biceps|hombro|militar|remo|hip/.test(n))).toBe(false)
   })
 })
 

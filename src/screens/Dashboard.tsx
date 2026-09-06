@@ -107,7 +107,7 @@ export function Dashboard({ routine }: { routine: Routine }) {
       <Reveal>
       <SectionTitle icon={<TrendingUp size={14} />}>Fuerza estimada (1RM)</SectionTitle>
       <div className="space-y-2 mb-6">
-        {big.slice(0, 3).map((b) => (
+        {big.map((b) => (
           <div key={b.slug} className="card p-3.5 flex items-center gap-3">
             <Spine />
             <div className="flex-1 min-w-0">
@@ -120,7 +120,7 @@ export function Dashboard({ routine }: { routine: Routine }) {
             </div>
           </div>
         ))}
-        {big.length === 0 && <Empty>Cuando tu rutina tenga cargas en los básicos, vas a ver tu 1RM estimado.</Empty>}
+        {big.length === 0 && <Empty>Cuando tu rutina tenga cargas en sentadilla, peso muerto o press de banca, vas a ver tu 1RM estimado.</Empty>}
       </div>
       </Reveal>
 

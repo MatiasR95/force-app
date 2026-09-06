@@ -542,6 +542,49 @@ export function saveSessionProgress(p: SessionProgress): void {
 }
 export function clearSessionProgress(): void { write(KEYS.progress, null); clearFinishDraft() }
 
+/**
+ * Close an in-progress session that was never finished — the member trained, marked
+ * their sets, and then never reached the finish screen (phone died, they walked out,
+ * iOS discarded the page). Until this existed the whole day evaporated: no session
+ * row, no check-in, no racha, no tonnage — Matias had to open the app the next day
+ * and re-do his squat day just to have it counted, which then registered on the
+ * WRONG date. So the session is logged for the date it was actually trained.
+ *
+ * The tonnage comes from `pulses` (the kg each marked set moved, recorded live), not
+ * from the day's full prescription: an abandoned session is partial by definition and
+ * must not inflate the lifetime odometer with sets that were never done.
+ *
+ * Records are NOT swept here — they are captured per marked series during the
+ * session (see `captureRecord`), so anything they hit is already on the board.
+ */
+export function closeAbandonedSession(
+  day: { id: string; label: string; blocks: ReadonlyArray<{ tag: string; exercises: ReadonlyArray<{ name: string }> }> },
+): SessionLog | null {
+  const p = getSessionProgress()
+  if (!p || p.dayId !== day.id) return null
+  // already registered (they closed it on another device / re-did the day) — don't duplicate
+  if (getSession(p.date, day.id)) { clearSessionProgress(); return null }
+  const kg = Math.round((p.pulses ?? []).reduce((a, n) => a + n, 0))
+  const startedAt = p.startedAt
+  const endedAt = p.ts ? Date.parse(p.ts) : NaN
+  const durationMin = startedAt && Number.isFinite(endedAt)
+    ? Math.min(240, Math.max(1, Math.round((endedAt - startedAt) / 60_000)))
+    : undefined
+  const entry: SessionLog = {
+    date: p.date, dayId: day.id, dayLabel: day.label,
+    note: 'Sesión cerrada después (quedó sin registrar ese día).',
+    ...(p.week != null ? { week: p.week } : {}),
+    ...(day.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
+      ? { bigOne: day.blocks.find((b) => b.tag === 'big')!.exercises[0].name } : {}),
+    ...(durationMin ? { durationMin } : {}),
+    ...(kg > 0 ? { kg } : {}),
+  }
+  logSession(entry)
+  if (!getCheckins().includes(p.date)) addCheckin(p.date)
+  clearSessionProgress()
+  return entry
+}
+
 /** Minutes since the in-progress session was last touched (Infinity if none). */
 export function sessionIdleMin(p: SessionProgress | null = getSessionProgress()): number {
   const t = p?.ts ? Date.parse(p.ts) : NaN

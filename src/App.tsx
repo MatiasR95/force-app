@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Routine } from './lib/types'
 import { fetchRoutine, fetchRecords, isDemo, syncOutbox } from './lib/api'
 import { runRivalWatch } from './lib/rivalWatch'
-import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, getStartDayAfter, setStartDay, setStartWeek, getSessionProgress, sessionIdleMin, getIntroSeen, setIntroSeen, extractToken, routineFingerprint, getRoutineId, setRoutineId, resetForNewRoutine, dropStaleWeekAnchor } from './lib/store'
+import { getToken, setToken, getClientName, setClientName, getSessions, localDate, getGender, setGender, getStartDay, getStartDayAfter, setStartDay, setStartWeek, getSessionProgress, sessionIdleMin, getIntroSeen, setIntroSeen, extractToken, routineFingerprint, getRoutineId, setRoutineId, resetForNewRoutine, dropStaleWeekAnchor, closeAbandonedSession, clearSessionProgress, relDay } from './lib/store'
 import type { Gender } from './lib/records'
 import { memberCurrentWeek, parseStartDate } from './lib/week'
 import { currentEventTheme } from './lib/eventTheme'
@@ -22,7 +22,7 @@ import { HomeSkeleton } from './components/HomeSkeleton'
 import { usePullToRefresh, PullDial } from './components/PullToRefresh'
 import { SimpleShell } from './screens/simple/SimpleShell'
 import { useUiPrefs } from './lib/UiPrefsContext'
-import { House, CalendarDays, LayoutGrid, BarChart3, Trophy, Play, X as XIcon } from 'lucide-react'
+import { House, CalendarDays, LayoutGrid, BarChart3, Trophy, Play, Check, X as XIcon } from 'lucide-react'
 import emblem from './assets/logo/emblem_gold_t.png'
 
 type Tab = 'inicio' | 'hoy' | 'semana' | 'panel' | 'records'
@@ -76,6 +76,8 @@ export default function App() {
   const [week, setWeek] = useState<number | null>(null)
   const [training, setTraining] = useState<{ dayIdx: number; week: number } | null>(null)
   const [resume, setResume] = useState<{ dayIdx: number; week: number; label: string } | null>(null)
+  // An unfinished session from an EARLIER day — offered for closing, not for resuming.
+  const [orphan, setOrphan] = useState<{ dayIdx: number; date: string; label: string } | null>(null)
   // Modo Simple: a separate 2-destination shell, entered ONLY by the member flipping
   // the switch in Apariencia. Off, the app below behaves exactly as it always has.
   const { prefs } = useUiPrefs()
@@ -128,9 +130,23 @@ export default function App() {
     if (!routine || routine.days.length === 0 || resumeChecked.current) return
     resumeChecked.current = true
     const p = getSessionProgress()
-    if (!p || p.date !== localDate()) return
+    if (!p) return
     const dayIdx = routine.days.findIndex((d) => d.id === p.dayId)
     if (dayIdx < 0) return
+    // An unfinished session from an EARLIER day used to be dropped on the floor: the
+    // member had marked their sets and logged their weights, but never reached the
+    // finish screen (the phone died, they walked out, iOS killed the page), so no
+    // session was ever registered — no attendance, no racha, no tonnage — and they
+    // had to "re-do" the day just to have it counted. Now we offer to close it FOR
+    // ITS OWN DATE. Nothing was marked = nothing to close; just clear it.
+    if (p.date !== localDate()) {
+      if (Object.values(p.done ?? {}).some((n) => n > 0)) {
+        setOrphan({ dayIdx, date: p.date, label: routine.days[dayIdx].label })
+      } else {
+        clearSessionProgress()
+      }
+      return
+    }
     const w = p.week ?? memberCurrentWeek(routine)
     if (sessionIdleMin(p) <= 45) setTraining({ dayIdx, week: w })
     else setResume({ dayIdx, week: w, label: routine.days[dayIdx].label })
@@ -350,6 +366,36 @@ export default function App() {
               Seguir
             </button>
             <button onClick={() => setResume(null)} aria-label="Descartar"
+              className="shrink-0 grid place-items-center h-11 w-11 -mr-1 text-white/40"><XIcon size={16} /></button>
+          </div>
+        </div>
+      )}
+
+      {/* A session from an earlier day that never reached the finish screen. Their
+          sets and weights are still in storage; closing it registers the day for the
+          date they actually trained, so the racha, the asistencia and the odometer
+          all land on the right day instead of the member re-doing the session. */}
+      {orphan && training == null && resume == null && (
+        <div className="shrink-0 relative z-30 px-3 pb-2">
+          <div className="flex items-center gap-3 rounded-card border border-gold/30 bg-gold/[0.10] backdrop-blur px-3 py-2.5">
+            <span className="grid place-items-center h-9 w-9 shrink-0 rounded-full bg-gold-fill text-ink"><Check size={16} /></span>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-bold text-sm truncate">
+                ¿Cerramos el {orphan.label.replace('DÍA', 'Día')}?
+              </div>
+              <div className="text-white/50 text-[0.68rem] truncate">
+                Lo entrenaste {relDay(orphan.date)} y quedó sin registrar
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                closeAbandonedSession(routine.days[orphan.dayIdx])
+                setOrphan(null)
+              }}
+              className="shrink-0 rounded-full bg-gold-fill text-ink font-black uppercase text-xs tracking-wide px-4 min-h-[44px]">
+              Registrar
+            </button>
+            <button onClick={() => { clearSessionProgress(); setOrphan(null) }} aria-label="Descartar"
               className="shrink-0 grid place-items-center h-11 w-11 -mr-1 text-white/40"><XIcon size={16} /></button>
           </div>
         </div>

@@ -36,6 +36,69 @@ describe('matchRecordLift', () => {
     expect(matchRecordLift('Press Hombros KB Sentado')).toBeNull()
     expect(matchRecordLift('Press Hombros KB')).toBeNull()
   })
+  // The gym-wide audit: matchRecordLift run over the 192 exercise names the coaches
+  // actually write. Three ways a name earned an exclusion (see the doc comment):
+  // a different lift, a bar the app can't weigh, or resistance that isn't the bar.
+  it('rejects single-limb work — doubling one arm invents a mark', () => {
+    expect(matchRecordLift('Press Plano 1 Brazo')).toBeNull()
+    expect(matchRecordLift('Press 1 Brazo')).toBeNull()
+    expect(matchRecordLift('Peso Muerto hex split')).toBeNull()
+    expect(matchRecordLift('Alternated Overhead press')).toBeNull()
+    expect(matchRecordLift('Sentadilla 1 pie')).toBeNull()
+  })
+
+  it('rejects machines and specialty bars — the 20 kg bar is a fiction there', () => {
+    // plate-loaded machine: detectImpl reads it as a barbell and adds a bar it hasn't got
+    expect(matchRecordLift('Militar Hammer')).toBeNull()
+    expect(matchRecordLift('Press Hombro Barra Suiza')).toBeNull()
+    expect(matchRecordLift('Bench Press Barra Suiza')).toBeNull()
+    // safety squat bar is 25-32 kg, not 20
+    expect(matchRecordLift('Sentadillas SSB')).toBeNull()
+    expect(matchRecordLift('Sentadillas SSB + 2"')).toBeNull()
+  })
+
+  it('rejects chains and bands — the logged weight is not the resistance', () => {
+    expect(matchRecordLift('Press Plano + Cadenas')).toBeNull()
+    expect(matchRecordLift('Peso Muerto + Bandas 5" Final')).toBeNull()
+    expect(matchRecordLift('Peso Muerto +bandas')).toBeNull()
+    expect(matchRecordLift('Peso Muerto Hex + Banda')).toBeNull()
+    // a band on a pull-up ASSISTS: the member moved less than bodyweight, not more
+    expect(matchRecordLift('Dominadas Pronas Banda')).toBeNull()
+    expect(matchRecordLift('Dominadas Supinas c/banda')).toBeNull()
+  })
+
+  it('rejects squat variants that move the range or the loading axis', () => {
+    expect(matchRecordLift('Sentadilla Hadfield')).toBeNull()   // the coach's spelling of Hatfield
+    expect(matchRecordLift('Sentadilla Zecher')).toBeNull()
+    expect(matchRecordLift('Sentadilla Ladmine')).toBeNull()
+    expect(matchRecordLift('Sentadillas al banco 30 cm')).toBeNull()
+    expect(matchRecordLift('Sentadilla cajon (40)')).toBeNull()
+    expect(matchRecordLift('Sentadillas desde pines (n°21)')).toBeNull()
+    expect(matchRecordLift('Sentadilla Abierta KB + Deficit')).toBeNull()
+  })
+
+  it('rejects pulls and presses with a different range or grip', () => {
+    expect(matchRecordLift('Rack Pull debajo de rodilla')).toBeNull()
+    expect(matchRecordLift('Peso Muerto Hex +Déficit')).toBeNull()
+    expect(matchRecordLift('Peso Muerto Hex. + ROM')).toBeNull()
+    expect(matchRecordLift('Press Plano Supinado')).toBeNull()
+    expect(matchRecordLift('Press Cerrado')).toBeNull()
+    expect(matchRecordLift('Press Plano Caos')).toBeNull()
+    expect(matchRecordLift('Floor Press')).toBeNull()
+  })
+
+  it('KEEPS paused and tempo work — the lift and the kilos are real', () => {
+    // 18 members train their big lifts with pauses; excluding them empties the board
+    expect(matchRecordLift('Sentadillas + 1"')).toBe('sentadilla')
+    expect(matchRecordLift('Sentadilla + 1¨')).toBe('sentadilla')
+    expect(matchRecordLift('Press Plano TEMPO 3:2:0')).toBe('press-banca')
+    expect(matchRecordLift('Peso Muerto + 1"')).toBe('peso-muerto')
+    expect(matchRecordLift('Dominadas Supinas + 2"')).toBe('dominadas')
+    // and high-bar is still a back squat, rings are still a pull-up
+    expect(matchRecordLift('Sentadillas Barra Alta')).toBe('sentadilla')
+    expect(matchRecordLift('Dominadas Anillas')).toBe('dominadas')
+  })
+
   it("excludes English 'Romanian Deadlift' and dumbbell/wall squats (Matias's accessories)", () => {
     // Día 1 accessory — the exclusion listed only the Spanish "rumano", so the
     // English name slipped through and fired a false peso-muerto PR.
