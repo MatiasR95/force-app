@@ -39,6 +39,11 @@ var NOVEDADES_SHEET_ID = ''
 // back to NOVEDADES_SHEET_ID, then to CONFIG_SHEET_ID.
 var COACH_NOTES_SHEET_ID = '1xcsMv97SA8PMwFAkDgc1G6aO_J6a6-eDybCSjt0E0pM'
 
+// La planilla de cuotas (`Pagos FORCE 2026`). Es de la cuenta PERSONAL de Matías y
+// está compartida con la cuenta del gym como **Lector**: este backend solo la lee y
+// no puede escribirla ni por error. Ver docs/PLAN-PAGOS.md.
+var PAGOS_SHEET_ID = '1h_aGDJv6uEHFn7lnkD5GzzJnnkclnyTbQIfZm-DqdSY'
+
 // ---- routing --------------------------------------------------------------
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || ''
@@ -49,6 +54,7 @@ function doGet(e) {
     if (action === 'getStreaks') return json(getStreaks_(e.parameter.token))
     if (action === 'getBirthdays') return json(getBirthdays_(e.parameter.token))
     if (action === 'getNews') return json(getNews_(e.parameter.token))
+    if (action === 'getPago') return json(getPago_(e.parameter.token))
     if (action === 'ping') return json({ ok: true })
     return json({ error: 'unknown action: ' + action }, 400)
   } catch (err) {
@@ -103,7 +109,11 @@ function clientFor_(token) {
   var rows = sh.getDataRange().getValues()
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).trim() === String(token).trim()) {
-      var c = { token: token, nombre: rows[i][1], folderId: rows[i][2], genero: normGender_(rows[i][5]) }
+      var c = {
+        token: token, nombre: rows[i][1], folderId: rows[i][2],
+        genero: normGender_(rows[i][5]),
+        clientId: String(rows[i][6] || '').trim(), // join con `Clients` de la planilla de pagos
+      }
       try { cache.put(key, JSON.stringify(c), 300) } catch (e) { /* cache is best-effort */ }
       return c
     }
@@ -988,4 +998,279 @@ function coachDigestWhere() {
   var msg = 'El digest usa el archivo: "' + name + '" (id ' + id + ')'
   Logger.log(msg)
   return msg
+}
+
+// ---- getPago: estado de cuota (SOLO LECTURA) -------------------------------
+//
+// Lee `Pagos FORCE 2026` y responde si el socio está al día. No escribe una sola
+// celda ahí: la planilla está compartida como Lector a propósito. Las filas las
+// cargan Matías y Fer a mano, como siempre. Ver docs/PLAN-PAGOS.md.
+
+var MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+function getPago_(token) {
+  var c = clientFor_(token)
+  // Sin `clientid` no hay forma SEGURA de saber qué socio es (los nombres de las dos
+  // planillas no coinciden). Antes que arriesgar un cruce por nombre y decirle a
+  // alguien que está al día que debe plata, no se muestra nada.
+  if (!c.clientId) return { sinDatos: true }
+
+  var cache = CacheService.getScriptCache()
+  var key = 'pago:' + token
+  var hit = cache.get(key)
+  if (hit) return JSON.parse(hit)
+
+  // Si la planilla de pagos no se puede leer (no está compartida con la cuenta del
+  // gym, la movieron, la renombraron), esto NO puede romper Inicio ni inventar una
+  // deuda: se degrada a "no hay nada que mostrar" y el error queda en el log del
+  // servidor para que se pueda diagnosticar.
+  var padron
+  try {
+    padron = padronPagos_()            // cacheado aparte: lo comparten todos los socios
+  } catch (err) {
+    try { console.error('getPago: no pude leer la planilla de pagos — ' + err) } catch (e2) { /* no-op */ }
+    return { sinDatos: true }
+  }
+  var yo = padron.socios[c.clientId]
+  if (!yo) return { sinDatos: true }   // `clientid` que ya no existe en `Clients`
+
+  // --- grupo familiar ---
+  var pagadorId = yo.pagaPor || c.clientId
+  var miembrosIds = padron.grupos[pagadorId] || [pagadorId]
+  var soyPagador = !yo.pagaPor
+  var grupo = null
+  if (miembrosIds.length > 1) {
+    var nombres = [], registradas = 0
+    for (var i = 0; i < miembrosIds.length; i++) {
+      var m = padron.socios[miembrosIds[i]]
+      if (!m) continue
+      nombres.push(primerNombre_(m.nombre))
+      if (padron.pagaron[normPago_(m.nombre)]) registradas++
+    }
+    var pagador = padron.socios[pagadorId]
+    grupo = {
+      pagador: pagador ? primerNombre_(pagador.nombre) : '',
+      soyPagador: soyPagador,
+      miembros: nombres,
+      cuotasRegistradas: registradas,
+      cuotasTotales: miembrosIds.length
+    }
+  }
+
+  // --- pagado? ---
+  // Alcanza con que CUALQUIERA del grupo tenga fila: hay grupos donde la fila del mes
+  // está cargada a nombre de un hijo y quien paga es la madre. Mirar solo al pagador
+  // dejaría a todo el grupo marcado como deudor.
+  var pagado = false, pagadoEl = '', medio = ''
+  for (var j = 0; j < miembrosIds.length; j++) {
+    var mm = padron.socios[miembrosIds[j]]
+    if (!mm) continue
+    var fila = padron.pagaron[normPago_(mm.nombre)]
+    if (fila) { pagado = true; if (!pagadoEl) { pagadoEl = fila.fecha; medio = fila.medio } }
+  }
+
+  // --- monto esperado ---
+  // El pagador de un grupo ve el total del grupo; el resto, lo suyo.
+  var monto = null
+  if (soyPagador && miembrosIds.length > 1) {
+    monto = 0
+    for (var k = 0; k < miembrosIds.length; k++) {
+      var sub = montoDe_(padron, padron.socios[miembrosIds[k]])
+      if (sub == null) { monto = null; break }
+      monto += sub
+    }
+  } else {
+    monto = montoDe_(padron, yo)
+  }
+
+  var out = {
+    periodo: padron.periodo,
+    estado: estadoCuota_(pagado),
+    monto: monto,
+    actualizadoAl: padron.actualizadoAl,
+    grupo: grupo,
+    config: pagosConfig_(),   // alias / CVU / recargo: viajan acá para no pedir 2 veces
+  }
+  if (pagado) { out.pagadoEl = pagadoEl; out.medio = medio }
+  try { cache.put(key, JSON.stringify(out), 600) } catch (e) { /* best-effort */ }
+  return out
+}
+
+/** `al_dia` | `por_vencer` | `ultimo_dia` | `vencida`. El front lo recalcula con la
+ *  fecha del teléfono (la respuesta se cachea 10 min y el día 10 no puede llegar tarde);
+ *  acá va el mismo cálculo para que la respuesta sirva por sí sola. */
+function estadoCuota_(pagado) {
+  if (pagado) return 'al_dia'
+  var dia = new Date().getDate()
+  if (dia < 10) return 'por_vencer'
+  if (dia === 10) return 'ultimo_dia'
+  return 'vencida'
+}
+
+/** Monto esperado de UN socio: `MontoPactado` pisa a `Pricing`. Sin días cargados no
+ *  se puede calcular, y se prefiere no mostrar monto antes que mostrar uno inventado. */
+function montoDe_(padron, socio) {
+  if (!socio) return null
+  if (socio.montoPactado) return socio.montoPactado
+  if (!socio.dias) return null
+  var p = padron.precios[String(socio.dias)]
+  return p || null
+}
+
+/**
+ * El padrón + los pagos del mes, en un blob chico que comparten TODOS los socios.
+ * Cacheado 10 minutos: sin esto cada teléfono releería las tres pestañas enteras y a
+ * la hora pico se satura la cuota de ejecuciones simultáneas de la cuenta del gym.
+ */
+function padronPagos_() {
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('padron')
+  if (hit) return JSON.parse(hit)
+
+  var ss = SpreadsheetApp.openById(PAGOS_SHEET_ID)
+  var hoy = new Date()
+  var periodo = hoy.getFullYear() + '-' + pad2_(hoy.getMonth() + 1)
+  var mesNombre = MESES_ES[hoy.getMonth()]
+
+  // --- Clients ---
+  var cl = ss.getSheetByName('Clients').getDataRange().getValues()
+  var iId = col_(cl[0], 'clientid'), iNom = col_(cl[0], 'nombreapellido')
+  var iDias = col_(cl[0], 'daysperweek'), iPaga = col_(cl[0], 'pagapor')
+  var iPact = col_(cl[0], 'montopactado')
+  var socios = {}, grupos = {}
+  for (var i = 1; i < cl.length; i++) {
+    var id = String(cl[i][iId] || '').trim()
+    if (!id) continue
+    socios[id] = {
+      nombre: String(cl[i][iNom] || ''),
+      dias: Number(cl[i][iDias]) || 0,
+      pagaPor: iPaga >= 0 ? String(cl[i][iPaga] || '').trim() : '',
+      montoPactado: iPact >= 0 ? (Number(String(cl[i][iPact]).replace(/[^0-9.]/g, '')) || 0) : 0
+    }
+  }
+  for (var id2 in socios) {
+    var jefe = socios[id2].pagaPor || id2
+    if (!grupos[jefe]) grupos[jefe] = []
+    grupos[jefe].push(id2)
+  }
+
+  // --- Pricing del mes ---
+  var pr = ss.getSheetByName('Pricing').getDataRange().getValues()
+  var pDias = col_(pr[0], 'daysperweek'), pPrecio = col_(pr[0], 'baseprice'), pMes = col_(pr[0], 'month')
+  var precios = {}
+  for (var k = 1; k < pr.length; k++) {
+    if (String(pr[k][pMes]).trim() === periodo) precios[String(pr[k][pDias]).trim()] = Number(pr[k][pPrecio]) || 0
+  }
+
+  // --- pestaña del mes ---
+  // Se busca por nombre de pestaña y se VALIDA contra la columna `Mes de Pago`: si el
+  // mes no coincide, mejor no mostrar nada que marcar deudor a todo el gimnasio.
+  var pagaron = {}, actualizadoAl = ''
+  var sh = pestanaDelMes_(ss, mesNombre)
+  if (sh) {
+    var mv = sh.getDataRange().getValues()
+    // por NOMBRE de encabezado: febrero no tiene columna `Medio` y el formato cambia
+    var mNom = col_(mv[0], 'nombreyapellido'), mMes = col_(mv[0], 'mesdepago')
+    var mFecha = col_(mv[0], 'fecha'), mMedio = col_(mv[0], 'medio')
+    for (var r = 1; r < mv.length; r++) {
+      var nom = String(mv[r][mNom] || '').trim()
+      if (!nom) continue
+      if (String(mv[r][mMes] || '').trim().toLowerCase() !== mesNombre) continue
+      var fecha = mFecha >= 0 ? fechaIso_(mv[r][mFecha]) : ''
+      pagaron[normPago_(nom)] = { fecha: fecha, medio: mMedio >= 0 ? String(mv[r][mMedio] || '') : '' }
+      if (fecha > actualizadoAl) actualizadoAl = fecha
+    }
+  }
+
+  var out = {
+    periodo: periodo, socios: socios, grupos: grupos,
+    precios: precios, pagaron: pagaron,
+    actualizadoAl: actualizadoAl || localIso_(hoy)
+  }
+  try { cache.put('padron', JSON.stringify(out), 600) } catch (e) { /* >100 KB: sin caché */ }
+  return out
+}
+
+/**
+ * Alias, CVU, titular, WhatsApp y recargo. Viven en el tab `pagos_config` del Config
+ * sheet (clave | valor) para que Matías los cambie sin tocar código ni publicar de
+ * nuevo, y para que NUNCA estén escritos en el repo, que es público.
+ */
+function pagosConfig_() {
+  var cache = CacheService.getScriptCache()
+  var hit = cache.get('pagos_config')
+  if (hit) return JSON.parse(hit)
+  var out = { alias: '' }
+  try {
+    var sh = SpreadsheetApp.openById(CONFIG_SHEET_ID).getSheetByName('pagos_config')
+    if (sh) {
+      var rows = sh.getDataRange().getValues()
+      for (var i = 0; i < rows.length; i++) {
+        var k = normPago_(rows[i][0]).replace(/ /g, '_')
+        var v = String(rows[i][1] == null ? '' : rows[i][1]).trim()
+        if (!k || !v) continue
+        if (k === 'alias') out.alias = v
+        else if (k === 'cvu' || k === 'cbu') out.cvu = v
+        else if (k === 'titular') out.titular = v
+        else if (k === 'whatsapp') out.whatsapp = v.replace(/[^0-9]/g, '')
+        else if (k === 'recargo_semanal' || k === 'recargo') out.recargoSemanal = Number(String(v).replace(/[^0-9]/g, '')) || 0
+      }
+    }
+  } catch (e) { /* sin config: la hoja "Cómo pagar" muestra lo que haya */ }
+  try { cache.put('pagos_config', JSON.stringify(out), 600) } catch (e) { /* best-effort */ }
+  return out
+}
+
+/**
+ * La pestaña del mes en curso. No se asume el nombre exacto: hoy son "Septiembre",
+ * "Agosto"…, pero alcanza con que alguien la renombre a "Septiembre 2026" para que
+ * `getSheetByName` devuelva null y NADIE vea su cuota. Se busca por nombre que
+ * CONTENGA el mes y, si no aparece, se revisa la columna `Mes de Pago` de cada
+ * pestaña. Si igual no está, se devuelve null y la tarjeta simplemente no sale.
+ */
+function pestanaDelMes_(ss, mesNombre) {
+  var hojas = ss.getSheets()
+  for (var i = 0; i < hojas.length; i++) {
+    if (normPago_(hojas[i].getName()).indexOf(mesNombre) >= 0) return hojas[i]
+  }
+  for (var j = 0; j < hojas.length; j++) {
+    var head = hojas[j].getRange(1, 1, 1, hojas[j].getLastColumn()).getValues()[0]
+    var cMes = col_(head, 'mesdepago')
+    if (cMes < 0 || hojas[j].getLastRow() < 2) continue
+    var muestra = hojas[j].getRange(2, cMes + 1, Math.min(5, hojas[j].getLastRow() - 1), 1).getValues()
+    for (var k = 0; k < muestra.length; k++) {
+      if (normPago_(muestra[k][0]) === mesNombre) return hojas[j]
+    }
+  }
+  return null
+}
+
+/** Índice de columna por nombre de encabezado, sin acentos, espacios ni mayúsculas. */
+function col_(header, nombre) {
+  for (var i = 0; i < header.length; i++) {
+    var h = String(header[i]).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^A-Za-z]/g, '').toLowerCase()
+    if (h === nombre) return i
+  }
+  return -1
+}
+
+/** Nombres para cruzar filas de pago con socios: sin acentos ni dobles espacios. */
+function normPago_(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function primerNombre_(s) { return String(s || '').trim().split(' ')[0] }
+function pad2_(n) { return n < 10 ? '0' + n : String(n) }
+function capitalizar_(s) { return s.charAt(0).toUpperCase() + s.slice(1) }
+function localIso_(d) { return d.getFullYear() + '-' + pad2_(d.getMonth() + 1) + '-' + pad2_(d.getDate()) }
+
+function fechaIso_(v) {
+  if (v instanceof Date) return localIso_(v)
+  var s = String(v || '').trim()
+  var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)   // 9/1/2026 = M/D/AAAA
+  if (m) return m[3] + '-' + pad2_(Number(m[1])) + '-' + pad2_(Number(m[2]))
+  return ''
 }

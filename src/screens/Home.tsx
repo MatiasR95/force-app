@@ -16,7 +16,13 @@ import {
   getClientName, getCheckins, getMaxStreak, localDate,
   isBirthdayToday, bodyweightAgeDays, getBodyweight, getSessions, getBirthday, getToken,
 } from '../lib/store'
-import { fetchBirthdays, cachedBirthdays, type BirthdayEntry } from '../lib/api'
+import { fetchBirthdays, cachedBirthdays, fetchPago, isDemo, type BirthdayEntry } from '../lib/api'
+import { PagoCard, PagoLinea } from '../components/PagoCard'
+import {
+  DEMO_CONFIG, demoPago, estadoDePago, visibilidadEnInicio,
+  type DemoRol, type PagoEstado, type PagoInfo,
+} from '../lib/pagos'
+import { topAlert, type AlertKind } from '../lib/homeAlerts'
 import { sameClient } from '../lib/records'
 import { WeekRing } from '../components/WeekRing'
 import { recapMonth, dismissRecap, RecapStory } from '../components/MonthlyRecap'
@@ -48,6 +54,12 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
   const [recapOpen, setRecapOpen] = useState(false)
   const [refresh, setRefresh] = useState<'idle' | 'busy' | 'ok'>('idle')
   const [rivals, setRivals] = useState(() => getRivalPending())
+  // MUESTRA: sin backend no hay planilla de pagos, así que la tarjeta arranca en el
+  // estado que corresponde a la fecha de hoy y el selector de abajo deja ver los otros
+  // tres. Cuando exista `getPago`, esto se reemplaza por la respuesta del backend.
+  const [pagoDemo, setPagoDemo] = useState<PagoEstado>(() => estadoDePago(false))
+  const [rolDemo, setRolDemo] = useState<DemoRol>('sola')
+  const [pagoReal, setPagoReal] = useState<PagoInfo | null>(null)
   const name = getClientName()
   const day = routine.days[suggestedDay]
   const bigOne = day?.blocks.find((b) => b.tag === 'big')?.exercises[0]?.name
@@ -65,7 +77,30 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
   const daysTrainedThisWeek = daysTrainedInWeek(routine.days, getSessions(), weekStartOf(localDate()))
   const totalDays = routine.days.length
 
+  // Cuánto lugar merece la cuota hoy. "Al día" no aparece acá (está en Perfil) y
+  // los primeros días del mes tampoco: ver `visibilidadEnInicio`.
+  const pago = isDemo() ? demoPago(pagoDemo, rolDemo) : pagoReal
+  // Los datos de transferencia vienen del backend (tab `pagos_config`). Los de demo
+  // son inventados a propósito: el repo es público y un CVU ahí se raspa solo.
+  const pagoConfig = pago?.config ?? DEMO_CONFIG
+  const pagoVis = pago ? visibilidadEnInicio(pago.estado, new Date(), pago.grupo) : 'oculta'
+
+  // UN solo bloque de atención. El resto espera al día siguiente sin perderse:
+  // el recap sigue ofrecido hasta que lo descarta, el récord robado queda pendiente
+  // y la cuota no se paga sola. Ver `src/lib/homeAlerts.ts`.
+  const alerta = topAlert([
+    isBirthdayToday() && 'cumple',
+    pagoVis === 'tarjeta' && 'cuota',
+    rivals.length > 0 && 'rival',
+    recap && 'recap',
+  ].filter(Boolean) as AlertKind[])
+
   useEffect(() => { getWeather().then(setWeather) }, [])
+
+  // La cuota se lee aparte y nunca bloquea Inicio: si falla, no hay tarjeta y listo.
+  useEffect(() => {
+    if (!isDemo()) fetchPago(getToken()).then(setPagoReal).catch(() => {})
+  }, [])
 
   // The gym's cumpleaños board. Paints from the last known list instantly, then
   // refreshes — and the same call upserts the member's own date, so saving it in
@@ -134,8 +169,17 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
       {/* gym announcements (holiday hours / closures) — staff-managed */}
       <NewsBanner />
 
+      {/* estado de cuota — solo lectura de la planilla de pagos (docs/PLAN-PAGOS.md).
+          Tarjeta entera solo si ganó el slot de atención; la línea fina de los días
+          5 a 9 va abajo, con el recordatorio de peso. */}
+      {pago && alerta === 'cuota' && <PagoCard pago={pago} config={pagoConfig} />}
+      {isDemo() && (
+        <PagoDemoSwitch estado={pagoDemo} onChange={setPagoDemo} vis={pagoVis}
+          rol={rolDemo} onRol={setRolDemo} />
+      )}
+
       {/* last month's recap, offered once when the month turns */}
-      {recap && (
+      {alerta === 'recap' && recap && (
         <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-3.5 mb-4 flex items-center gap-3">
           <Disc3 size={22} className="text-gold shrink-0" />
           <div className="flex-1 min-w-0">
@@ -152,7 +196,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
       )}
 
       {/* someone in your category took a record → go for the revancha */}
-      {rivals.length > 0 && (
+      {alerta === 'rival' && rivals.length > 0 && (
         <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-3.5 mb-4 flex items-start gap-3">
           <Flame size={20} className="text-gold shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -167,7 +211,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
       {/* birthday board — yours first, then whoever else in the room is turning
           a year older today. Profile has always promised "el tablero de cumpleaños
           del día"; the board is real now (a `cumples` tab keyed by access token). */}
-      {isBirthdayToday() && (
+      {alerta === 'cumple' && (
         <div className="rounded-card border border-gold/40 bg-gold/[0.10] p-4 mb-4 flex items-center gap-3">
           <Cake size={22} className="text-gold shrink-0" />
           <p className="text-white/90 text-sm">¡Feliz cumpleaños{name ? `, ${name.split(' ')[0]}` : ''}! 🎉 Hoy entrenás con todo. La sala te festeja. 💪</p>
@@ -306,6 +350,8 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
         </div>
       </button>
 
+      {pago && pagoVis === 'linea' && <PagoLinea pago={pago} config={pagoConfig} />}
+
       {/* bodyweight nudge */}
       {needBw && (
         <button onClick={() => setProfile(true)} className="rounded-card border border-gold/25 bg-white/[0.03] p-3.5 mb-2 w-full text-left flex items-center gap-3 active:scale-[0.99]">
@@ -317,7 +363,48 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
         </button>
       )}
 
-      <Profile open={profile} onClose={() => setProfile(false)} routine={routine} />
+      <Profile open={profile} onClose={() => setProfile(false)} routine={routine}
+        pago={pago} pagoConfig={pagoConfig} />
+    </div>
+  )
+}
+
+/** Selector de estados — SOLO MUESTRA, se borra cuando la tarjeta lea el backend.
+ *  Existe para poder mirar los cuatro estados sin esperar a que cambie el mes. */
+function PagoDemoSwitch({ estado, onChange, vis, rol, onRol }: {
+  estado: PagoEstado; onChange: (e: PagoEstado) => void; vis: 'oculta' | 'linea' | 'tarjeta'
+  rol: DemoRol; onRol: (r: DemoRol) => void
+}) {
+  const estados: Array<[PagoEstado, string]> = [
+    ['al_dia', 'Al día'],
+    ['por_vencer', 'Por vencer'],
+    ['ultimo_dia', 'Día 10'],
+    ['vencida', 'Vencida'],
+  ]
+  const roles: Array<[DemoRol, string]> = [
+    ['sola', 'Paga lo suyo'],
+    ['pagadora', 'Paga al grupo'],
+    ['me_pagan', 'Se la pagan'],
+  ]
+  const pill = (activo: boolean) =>
+    `shrink-0 rounded-full px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide border ${
+      activo ? 'bg-gold text-ink border-gold' : 'bg-white/5 text-white/50 border-white/10'}`
+  return (
+    <div className="-mt-2 mb-4 space-y-1.5">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <span className="text-white/25 text-[0.6rem] uppercase tracking-micro font-bold shrink-0">
+          Muestra · {vis === 'tarjeta' ? 'tarjeta' : vis === 'linea' ? 'línea abajo' : 'en Perfil'}
+        </span>
+        {estados.map(([v, label]) => (
+          <button key={v} onClick={() => onChange(v)} className={pill(estado === v)}>{label}</button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <span className="text-white/25 text-[0.6rem] uppercase tracking-micro font-bold shrink-0">Quién paga</span>
+        {roles.map(([v, label]) => (
+          <button key={v} onClick={() => onRol(v)} className={pill(rol === v)}>{label}</button>
+        ))}
+      </div>
     </div>
   )
 }

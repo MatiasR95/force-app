@@ -11,12 +11,19 @@ import type { Gender } from '../lib/records'
 import { weightClass } from '../lib/records'
 import { memberCurrentWeek } from '../lib/week'
 import type { Routine } from '../lib/types'
-import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen, Palette, ChevronRight, Trash2 } from 'lucide-react'
+import { User, Cake, Scale, Check, CalendarRange, Minus, Plus, BookOpen, Palette, ChevronRight, Trash2, Wallet } from 'lucide-react'
+import { PagoPerfil } from './PagoCard'
+import type { PagoConfig, PagoInfo } from '../lib/pagos'
 
 // Member profile: name, gender (record categories), birthday (cumpleaños board),
 // current bodyweight (record weight class + monthly nudge) and — for weekly plans —
 // "mi semana actual" so a member who joined mid-cycle can fix their week. All local-first.
-export function Profile({ open, onClose, routine }: { open: boolean; onClose: () => void; routine?: Routine }) {
+export function Profile({ open, onClose, routine, pago, pagoConfig }: {
+  open: boolean; onClose: () => void; routine?: Routine
+  // La cuota vive acá: "al día" no ocupa lugar en Inicio para no decir nada, pero
+  // el socio tiene que poder mirarla cuando quiere.
+  pago?: PagoInfo | null; pagoConfig?: PagoConfig
+}) {
   const [name, setName] = useState(getClientName() ?? '')
   const [gender, setG] = useState<Gender>(getGender() ?? 'M')
   const [bday, setB] = useState(getBirthday() ?? '') // MM-DD
@@ -54,6 +61,12 @@ export function Profile({ open, onClose, routine }: { open: boolean; onClose: ()
       <div className="px-5 pb-7 pt-1">
         <div className="kicker mb-1">Tu perfil</div>
         <h2 className="heading text-2xl text-white mb-5">Tus datos</h2>
+
+        {pago && pagoConfig && (
+          <Field icon={<Wallet size={15} />} label="Mi cuota">
+            <PagoPerfil pago={pago} config={pagoConfig} />
+          </Field>
+        )}
 
         <Field icon={<User size={15} />} label="Nombre">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre"

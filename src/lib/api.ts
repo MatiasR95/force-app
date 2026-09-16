@@ -1,5 +1,6 @@
 import type { Routine } from './types'
 import type { RecordEntry, StreakEntry } from './records'
+import { estadoDePago, type PagoInfo } from './pagos'
 import { parseRoutine } from './parser'
 import { ENERO_2026 } from '../data/fixtureEnero2026'
 import { getOutbox, clearOutbox, getMyRecords, getClientName, setClientName } from './store'
@@ -61,6 +62,20 @@ export async function fetchNews(token: string | null): Promise<NewsItem[]> {
     const items = await call<NewsItem[]>('getNews', { token })
     return Array.isArray(items) ? items : []
   } catch { return [] } // news is non-critical: never block the home screen
+}
+
+/** Estado de cuota del socio. `null` = no hay nada que mostrar: modo demo, sin token,
+ *  socio sin `clientid` cargado, o la lectura falló. Nunca se inventa un estado: una
+ *  tarjeta de deuda por un error de lectura es peor que no mostrar nada. */
+export async function fetchPago(token: string | null): Promise<PagoInfo | null> {
+  if (isDemo() || !token) return null
+  try {
+    const raw = await call<(PagoInfo & { sinDatos?: boolean; error?: string })>('getPago', { token })
+    if (!raw || raw.sinDatos || raw.error || !raw.periodo) return null
+    // El backend cachea 10 minutos, así que su `estado` puede haber quedado del otro
+    // lado del día 10. Acá manda el reloj del teléfono: el socio ve SU día.
+    return { ...raw, estado: estadoDePago(raw.estado === 'al_dia') }
+  } catch { return null } // la cuota no bloquea Inicio
 }
 
 /** History list (past cycles in Historial/). */
