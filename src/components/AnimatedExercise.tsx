@@ -250,7 +250,8 @@ export function pickMove(name: string, pattern: MovementPattern): string {
 
 export function detectImpl(name: string): Impl {
   const s = deburr(name)
-  if (/mancuerna|dumbbell|\bdb\b|martillo/.test(s)) return 'dumbbell'
+  // coaches abbreviate and misspell dumbbells: "MC", "Manc", "Macuernas", "Manuernas"
+  if (/mancuerna|macuerna|manuerna|\bmanc\b|\bmc\b|dumbbell|\bdb\b|martillo/.test(s)) return 'dumbbell'
   if (/\bkb\b|kettlebell|rusa|pesa rusa|goblet/.test(s)) return 'kettlebell'
   if (/polea|cable|soga|cruce/.test(s)) return 'cable'
   if (/banda|band\b|gomas?/.test(s)) return 'band'

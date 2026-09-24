@@ -204,3 +204,39 @@ describe('plate inventory (Jul 2026: full 20·15·10·5 + micros; no 25s)', () =
     expect(isDeadliftName('Press Plano')).toBe(false)
   })
 })
+
+// Sweep of every exercise name the gym's coaches wrote (161 live routines, Sep 2026):
+// these used to reach the board as the barbell lift.
+describe('matchRecordLift — false records found in the Sep 2026 sweep', () => {
+  it('reads the coaches\' dumbbell abbreviations as dumbbells', () => {
+    expect(matchRecordLift('Press Plano MC')).toBe('press-banca-db')
+    expect(matchRecordLift('Press Plano Manc')).toBe('press-banca-db')
+    expect(matchRecordLift('Press Plano Macuernas + 2"')).toBe('press-banca-db')
+    expect(matchRecordLift('Press Militar MC')).toBeNull()
+    expect(matchRecordLift('Press Hombros Manc')).toBeNull()
+  })
+  it('"alt" at the end of a name is still alternating (one arm at a time)', () => {
+    expect(matchRecordLift('Press Plano Mancuerna alt.')).toBeNull()
+    expect(matchRecordLift('Press Plano Mancuernas ALT')).toBeNull()
+    expect(matchRecordLift('Press militar alt')).toBeNull()
+    expect(matchRecordLift('Sentadillas Barra Alta')).toBe('sentadilla') // "alta" is not "alt"
+  })
+  it('squat variants that are not the back squat', () => {
+    for (const n of ['Sentadilla Copa', 'Sentadilla en copa+1¨', 'Sentadilla cosaco carrito', 'Sentadilla Bombero',
+      'Sentadilla Skater', 'Sentadilla con salto', 'Sentadilla lateral', 'Sentadilla Española', 'Sentadilla sobre FB',
+      'Sentadilla Def', 'Pin Squat mas bajo', 'Swing + Squat', 'Swing+sentadilla'])
+      expect(matchRecordLift(n), n).toBeNull()
+    expect(matchRecordLift('Sentadilla TEMPO 3:2:0')).toBe('sentadilla') // tempo is kept on purpose
+    expect(matchRecordLift('Sentadillas + 1"')).toBe('sentadilla')       // and so are pauses
+  })
+  it('bench, deadlift, pull-up and overhead variants', () => {
+    for (const n of ['Press Plano + ⛓️‍💥', 'Press Plano Larsen', 'Press Plano Excentrico', 'Press Plano Neutro',
+      'Peso Muerto KB Sumo', 'Peso Muerto Piernas Rigidas', 'Peso Muerto Hex.+défcit', 'Peso Muerto Hex. (Negra)',
+      'Peso muerto sumo con despegue elevado.', 'Peso Muerto c/Kb', 'Dominada Supina Desde CAJON', 'Dominadas Asimetricas',
+      'Dominadas Iso', 'Curl Martillo + Press Militar', 'Press hombro arodillado', 'Press hombro landmine', 'Press Militar Neutro'])
+      expect(matchRecordLift(n), n).toBeNull()
+    expect(matchRecordLift('Peso Muerto Hex.+1"')).toBe('peso-muerto-hex')
+    expect(matchRecordLift('Peso Muerto c/pausa')).toBe('peso-muerto')
+    expect(matchRecordLift('Dominadas Anillas Clusters')).toBe('dominadas')
+  })
+})

@@ -150,43 +150,66 @@ export function bestOf(entries: RecordEntry[], client: string): RecordEntry | nu
 
 // Single-limb work. `recordKg`'s "x lado" doubling assumes two limbs sharing ONE bar;
 // one arm (or one leg) moving its own load is not that, and doubling it invents a mark.
-const UNILATERAL = /\b1 ?brazo\b|\b1 ?b\b|\b1 ?pie\b|1 arm|one arm|unilateral|alternad|alternated|alternating|\balt\.? /
+// ("alt" / "alt." / "ALT" at the END of a name too — "Press Plano Mancuerna alt.")
+const UNILATERAL = /\b1 ?brazo\b|\b1 ?b\b|\b1 ?pie\b|1 arm|one arm|unilateral|alternad|alternated|alternating|\balt\b/
 // The bar the app assumes isn't the bar that was used: a plate-loaded machine has no
 // 20 kg bar, and a specialty bar doesn't weigh 20 kg either.
-const WRONG_BAR = /hammer|maquina|machine|barra suiza|swiss|\bssb\b/
+const WRONG_BAR = /hammer|maquina|machine|barra suiza|swiss|\bssb\b|smith|multipower/
 // Chains and bands change the resistance through the range, so the logged weight is
-// not the mark. On a pull-up a band is ASSISTANCE — the opposite of added load.
-const ACCOMMODATING = /cadenas?|\bbandas?\b|c\/banda|con banda/
+// not the mark. On a pull-up a band is ASSISTANCE — the opposite of added load. A band
+// colour in the NAME ("Peso Muerto Hex. (Negra)") is a band too; coaches also draw the
+// chains ("Press Plano + ⛓️‍💥").
+const ACCOMMODATING = /cadenas?|⛓|\bbandas?\b|c\/banda|con banda|\b(?:negr|roj|amarill)[ao]s?\b|\bverdes?\b|\bvioletas?\b|\bnaranjas?\b|\bgris(?:es)?\b|\bazul(?:es)?\b|\bcelestes?\b/
+// Dumbbells, as the coaches actually abbreviate and misspell them: "MC", "Manc",
+// "Macuernas", "Manuernas". Missing these put a phantom 20 kg bar on a DB press.
+const DUMBBELL = /mancuerna|macuerna|manuerna|\bmanc\b|\bmc\b|dumbbell|\bdb\b/
+const KETTLEBELL = /\bkb\b|kettlebell|pesa rusa/
+// Not a heavier version of the lift but a different drill built on it: a complex with
+// a swing/curl/row, an isometric hold, an eccentric-only or negative rep.
+const DRILL = /swing|\bcurl\b|\bremo\b|\biso\b|isometric|excentric|negativa|shrug/
+// A deficit, however it's spelled ("Def", "défcit", "défixit").
+const DEFICIT = /deficit|defcit|defixit|\bdef\b/
 
 export function matchRecordLift(name: string): string | null {
   const s = deburr(name)
-  if (UNILATERAL.test(s) || WRONG_BAR.test(s) || ACCOMMODATING.test(s)) return null
+  if (UNILATERAL.test(s) || WRONG_BAR.test(s) || ACCOMMODATING.test(s) || DRILL.test(s)) return null
   // squats: the back squat only — EXCLUDE bulgarian/split/sissy/pistol/hack/leg-press/
-  // lunges/Hatfield (both spellings the coaches use)/FRONT squat/goblet, dumbbell, KB
-  // and wall variants, plus box & pin squats and deficit/Zercher/landmine work, which
-  // move the range of motion or the loading axis somewhere else entirely.
+  // lunges/Hatfield (both spellings the coaches use)/FRONT squat/goblet ("copa" in
+  // Spanish), dumbbell, KB and wall variants, cossack/lateral/skater/jump squats, the
+  // fireman-carry and Spanish (band) squats, fitball squats, plus box & pin squats and
+  // deficit/Zercher/landmine work, which move the range of motion or the loading axis
+  // somewhere else entirely.
   if (/sentadilla|squat/.test(s)
-    && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|hadfield|frontal|\bfront\b|goblet|\bdb\b|mancuerna|dumbbell|wall|pared|zecher|zercher|ladmine|landmine|\bkb\b|kettlebell|pesa rusa|al banco|\bbanco\b|cajon|\bpines\b|deficit|abierta/.test(s)) return 'sentadilla'
-  // trap-bar deadlift — but not a split stance, a deficit or an altered range
-  if (/hex/.test(s) && /peso muerto|deadlift/.test(s))
-    return /split|deficit|\brom\b/.test(s) ? null : 'peso-muerto-hex'
-  if (/sumo/.test(s) && /peso muerto|deadlift/.test(s))
-    return /split|deficit|\brom\b/.test(s) ? null : 'peso-muerto-sumo'
-  // conventional deadlift only (exclude romanian/RDL — es AND en — good-morning,
-  // unipodal, deficit pulls and rack pulls, which are a different range)
-  if (/peso muerto|deadlift/.test(s) && !/rumano|romanian|\brdl\b|buenos dias|good ?morning|unipodal|deficit|rack pull/.test(s)) return 'peso-muerto'
-  // bench with dumbbells
-  if (/(press (plano|de banca|banca)|banca|bench).*(mancuerna|db)|(mancuerna|db).*(press (plano|banca)|banca|bench)/.test(s)) return 'press-banca-db'
-  // flat barbell bench only (exclude incline, reverse/close grip, chaos and floor press)
+    && !DUMBBELL.test(s) && !KETTLEBELL.test(s) && !DEFICIT.test(s)
+    && !/bulgara|split|sissy|pistol|hack|prensa|estocada|zancada|hatfield|hadfield|frontal|\bfront\b|goblet|\bcopa\b|wall|pared|zecher|zercher|ladmine|landmine|al banco|\bbanco\b|cajon|\bbox\b|\bpin(?:es)?\b|abierta|cosac|cosak|carrito|lateral|skater|salto|bombero|espanola|\bfb\b|fitball/.test(s)) return 'sentadilla'
+  if (/peso muerto|deadlift/.test(s)) {
+    // every deadlift board assumes a loaded bar pulled from the floor: not dumbbells or
+    // KBs, not a landmine, not stiff-legged, not from a deficit or an elevated start
+    if (DUMBBELL.test(s) || KETTLEBELL.test(s) || DEFICIT.test(s)
+      || /landmine|rigid|elevad|split|\brom\b|rack pull|unipodal/.test(s)) return null
+    if (/hex/.test(s)) return 'peso-muerto-hex'
+    if (/sumo/.test(s)) return 'peso-muerto-sumo'
+    // conventional only (exclude romanian/RDL — es AND en — and good-mornings)
+    return /rumano|romanian|\brdl\b|buenos dias|good ?morning/.test(s) ? null : 'peso-muerto'
+  }
+  // bench with dumbbells (flat only)
+  const bench = /press (plano|de banca|banca)|banca|bench/
+  if (bench.test(s) && DUMBBELL.test(s))
+    return /inclinad|incline|declinad|decline|supinad/.test(s) ? null : 'press-banca-db'
+  // flat barbell bench only (exclude incline/decline, reverse/close/neutral grip, chaos,
+  // floor, Larsen and pin presses — a pin press starts from a dead stop above the chest)
   if (/press plano|press (de )?banca|press banca|bench press|\bbanca\b/.test(s)
-    && !/inclinad|incline|supinad|cerrad|caos|chaos|floor|piso/.test(s)) return 'press-banca'
-  // weighted pull-ups — the kg is ADDED load, so an assisted rep never counts
+    && !KETTLEBELL.test(s)
+    && !/inclinad|incline|declinad|decline|supinad|cerrad|neutr|caos|chaos|floor|piso|\bpines?\b|pin press|larsen/.test(s)) return 'press-banca'
+  // weighted pull-ups — the kg is ADDED load, so an assisted rep never counts, and
+  // neither does one started from a box or pulled with uneven hands
   if (/dominada|pull ?up|chin ?up/.test(s))
-    return /asistid|assist|gravitron/.test(s) ? null : 'dominadas'
-  // strict barbell military/overhead press — exclude Arnold/seated/push-press and the
-  // other accessory overhead variants so they don't fire a false record
+    return /asistid|assist|gravitron|cajon|asimetric/.test(s) ? null : 'dominadas'
+  // strict barbell military/overhead press — exclude Arnold/seated/kneeling/push-press,
+  // dumbbell and neutral-grip work and the other accessory overhead variants
   if (/press militar|militar|overhead press|press (de )?hombros?/.test(s)
-    && !/arnold|sentad|seated|inclinad|incline|push press|cubano|z press|\bkb\b|kettlebell|mancuerna/.test(s)) return 'press-militar'
+    && !DUMBBELL.test(s) && !KETTLEBELL.test(s)
+    && !/arnold|sentad|seated|arrodill|arodill|kneel|inclinad|incline|push press|cubano|z press|neutr|landmine/.test(s)) return 'press-militar'
   return null
 }
 

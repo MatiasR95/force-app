@@ -29,6 +29,8 @@ export interface WeekCell {
   timeSec?: number | null // HIIT/timed override work-time in seconds: "25¨X4"→25 (with sets=4)
   name?: string       // a DIFFERENT exercise prescribed for this week only
                       // ("Semana 4: 8X5 Polea Pronado 27,5kg x lado" — a variation week)
+  variant?: boolean   // `name` is the SAME lift with another implement/range ("Bench Press Mancuernas")
+  variation?: boolean // this week is a whole-plan variation week (most lifts swapped for one week)
 }
 
 export type MovementPattern =

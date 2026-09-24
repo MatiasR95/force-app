@@ -19,6 +19,7 @@ export interface Resolved {
   name: string              // the lift to train THIS week (a variation week swaps it)
   slug: string              // media/animation key for `name`
   substitution: boolean     // true when the coach swapped the lift for this week only
+  variant: boolean          // the swap is the SAME lift with another implement/range ("… Mancuernas")
 }
 
 /** "+5kg" / "↑2,5kg" in a week cell means "last week's weight PLUS that", not 5 kg. */
@@ -57,7 +58,7 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
     plan: null,
     // a timed HIIT override ("25¨X4") carries new seconds; a plain cell inherits.
     timeSec: w.timeSec ?? prev.timeSec,
-    name: prev.name, slug: prev.slug, substitution: prev.substitution,
+    name: prev.name, slug: prev.slug, substitution: prev.substitution, variant: prev.variant,
   }
 }
 
@@ -75,7 +76,7 @@ function carryTo(ex: ExerciseRow, week: number): Resolved {
     complexRaw: ex.plan && ex.plan.length ? (ex.raw.series || ex.raw.reps) : null,
     plan: ex.plan ?? null,
     timeSec: ex.timeSec,
-    name: ex.name, slug: ex.slug, substitution: false,
+    name: ex.name, slug: ex.slug, substitution: false, variant: false,
   }
   if (week <= 1) {
     // some coaches put week 1 in an explicit "Semana 1" column instead of the
@@ -92,11 +93,34 @@ function carryTo(ex: ExerciseRow, week: number): Resolved {
   // "Mismo semana 4" repeats THAT week, not simply the one before this cell.
   if (w.inherit && w.inheritFrom) return carryTo(ex, w.inheritFrom)
   // A substitution week is skipped so the weeks after it resume the base lift's
-  // progression — but only when it carries its OWN weight. If it doesn't (or if the
-  // swap was a misread), dropping it would strand later weeks on an older, lighter
-  // load, so the prescription still flows through.
-  if (w.name && w.load?.value != null) return carryTo(ex, week - 1)
-  return applyCell(w, carryTo(ex, week - 1))
+  // progression — but only when it carries its OWN load (kg or a band colour: the
+  // "Búlgaras Naranjas" week must not leave the Hatfield squat on an orange band).
+  // If it carries none (or if the swap was a misread), dropping it would strand later
+  // weeks on an older, lighter load, so the prescription still flows through.
+  const ownLoad = w.load != null && (w.load.value != null || !!w.load.band)
+  if (w.name && !w.variant && ownLoad) return carryTo(ex, week - 1)
+  const prev = carryTo(ex, week - 1)
+  if (w.variation && isVariationOnly(w, prev)) return prev
+  return applyCell(w, prev)
+}
+
+/**
+ * Inside a whole-plan variation week (see `markVariationWeeks` in parser.ts), which
+ * cells belong to THAT week only. Real case, Matias: S4 deadlift "6X4 70kg c/bandas"
+ * and S8 bench "5X4 31,25kg x lado Pines" — the blank weeks after them kept 70 and
+ * 31,25 instead of going back to 80 and 32,5. Kept out of the chain:
+ *  - any swap or implement/range variant, with or without its own load (its reps
+ *    are for another exercise too: "15X4 Gemelos KB" is not the next calf target);
+ *  - prose the parser couldn't split ("COMPLEX KB: …") — a per-series plan is fine;
+ *  - a LIGHTER weight on the same lift: that is the variation's deload, not the new
+ *    baseline. A heavier one is ordinary progression and flows through, and so does a
+ *    reps-only cell ("10X3" on a finisher keeps progressing through the week).
+ */
+function isVariationOnly(w: WeekCell, prev: Resolved): boolean {
+  if (w.name) return true
+  if (w.complex && !(w.plan && w.plan.length) && !(w.sets != null && w.load == null)) return true
+  const kg = w.load?.value
+  return kg != null && !w.load?.delta && prev.load.value != null && kg < prev.load.value
 }
 
 function resolveRaw(ex: ExerciseRow, week: number): Resolved {
@@ -106,8 +130,11 @@ function resolveRaw(ex: ExerciseRow, week: number): Resolved {
     // progression up to the previous week (so a swap cell with no weight still
     // inherits something sane), and the substituted name/animation/cues.
     const own = applyCell(w, carryTo(ex, week - 1))
-    return { ...own, name: w.name, slug: slugify(w.name), substitution: true }
+    return { ...own, name: w.name, slug: slugify(w.name), substitution: true, variant: !!w.variant }
   }
+  // a variation week's own cell still applies to THAT week ("4X4 40kg x lado +1¨" is
+  // what the member trains on Semana 8) — `carryTo` only keeps it out of later weeks
+  if (w?.variation && !w.inherit) return applyCell(w, carryTo(ex, week - 1))
   return carryTo(ex, week)
 }
 
@@ -129,7 +156,8 @@ export function resolveWeek(ex: ExerciseRow, week: number): Resolved {
   // NOT across a substitution: the swapped lift has its own convention (a cable
   // pulldown is one stack even if the base lift was loaded per side). Inheriting it
   // doubled the weight and pushed a fabricated PR onto the gym-wide records board.
-  if (!hanging && !r.substitution && !r.load.perSide && ex.load.perSide)
+  // A same-lift VARIANT keeps it ("Deadlift c/bandas 70kg" is still 70 per side).
+  if (!hanging && (!r.substitution || r.variant) && !r.load.perSide && ex.load.perSide)
     return { ...r, load: { ...r.load, perSide: true } }
   return r
 }

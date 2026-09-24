@@ -100,7 +100,10 @@ export function parseLoad(obs: string): Load {
   // 2,5kg)" is 60), so brackets are ignored while hunting for the weight.
   // (an UNCLOSED bracket is a comment too — coaches forget the closing one)
   const scan = raw.replace(/\([^)]*\)/g, ' ').replace(/\([^)]*$/, ' ')
-  const kg = scan.match(/([+↑↓]?)\s*(-?\d+(?:[.,]\d+)?)\s*kg/i)
+  // (a leading "-" is a sign only when no number sits right before it: "22,5-20kg"
+  // is a descending dumbbell range that starts at 22,5, not a -20 kg load)
+  const range = scan.match(/(\d+(?:[.,]\d+)?)\s*[-–]\s*\d+(?:[.,]\d+)?\s*kg/i)
+  const kg = range ? ['', '', range[1]] : scan.match(/([+↑↓]?)\s*(-?\d+(?:[.,]\d+)?)\s*kg/i)
   let value: number | null = null
   let delta = false
   if (kg) {
@@ -182,16 +185,17 @@ export function parseSeriesPlan(raw: string): { plan: number[]; rest: string } |
 // Head nouns that make a leftover phrase an exercise name.
 const EXERCISE_NOUN = new RegExp([
   'sentadilla', 'squat', 'bulgara', 'zancada', 'estocada', 'desplante', 'lunge', 'split',
-  'step ?up', 'incorporacion', 'pistol', 'prensa', 'hack', 'sissy', 'hatfield',
+  'step ?up', 'subida', 'incorporacion', 'pistol', 'prensa', 'hack', 'sissy', 'hatfield',
   'peso muerto', 'deadlift', 'rdl', 'hip thrust', 'buenos dias', 'good ?morning', 'ghd',
   'puente', 'gluteo', 'bisagra', 'hyper', 'nordic', 'isquio', 'swing', 'back extension',
-  'remo', 'dominada', 'jalon', 'polea', 'face ?pull', 'pull ?apart', 'band ?pull', 'traccion', 'menton',
+  'remo', 'dominada', 'jalon', 'polea', 'pull ?over', 'face ?pull', 'pull ?apart', 'band ?pull', 'traccion', 'menton',
   'encogimiento', 'shrug', 'pajaro', 'biceps', 'curl',
   'press', 'flexion', 'fondos?', 'empuje', 'push ?up', 'militar', 'frances', 'tricep',
   'apertura', 'vuelo', 'elevacion', 'patada', 'gemelos', 'calf',
   'caminata', 'carry', 'farmer', 'valijero', 'paseo', 'traslado',
   'abdominal', 'plancha', 'pallof', 'hollow', 'bird ?dog', 'dead ?bug', 'oblicuo',
   'rueda', 'ruedita', 'sierra',
+  'complex', // "COMPLEX KB: Sentadilla Frontal 8+12X3 Peso Muerto Rumano" — a chain of lifts
 ].join('|'), 'i')
 
 // Words that must NEVER, on their own, be read as an exercise: band colours (in
@@ -226,7 +230,9 @@ export function detectSwap(raw: string, base: string): string | null {
   const s = raw
     .replace(/\([^)]*\)/g, ' ')          // member/coach comments: "(hice con amarillas)"
     .replace(/\b(?:m[aá]s|menos|mismo|igual)\s+(?:peso|carga)\b/gi, ' ') // "mas peso"
+    .replace(/(?<![xX]\s*)\b\d+\s*\+\s*\d+\s*[xX]\s*\d+/g, ' ') // two-part reps × sets ("8+12X3"), not "5X1 + 4X3"
     .replace(/\d+\s*[xX]\s*\d+/g, ' ')   // set×rep schemes
+    .replace(/\d+\s*\+\s*\d+/g, ' ')      // two-part reps ("10+10 Gemelos …")
     .replace(/\d+(?:[.,]\d+)?\s*kg\b/gi, ' ')
     .replace(/\bc\/\s*\w+/gi, ' ')       // "c/bandas", "c/barra"
     .replace(/\d+\s*:\s*\d+\s*:\s*\d+/g, ' ') // tempo
@@ -266,6 +272,41 @@ export function detectSwap(raw: string, base: string): string | null {
   return name
 }
 
+// Implement/range modifiers that turn the SAME lift into a variation for one week:
+// "8X4 32,5kg x lado Mancuernas" is a dumbbell bench, "5X4 31,25kg x lado Pines" a pin
+// press, "6X4 70kg c/bandas" a banded deadlift, "5X4 40kg x lado al banco" a box squat.
+// None of them names a new exercise, so `detectSwap` rightly leaves them alone — but
+// the member still trained a different thing: other implement (animation, plate calc),
+// other range or resistance (not a mark for the records board). Deliberately NOT here:
+// pauses and tempo (records keep them, see records.ts) and bare band colours (on a band
+// exercise the colour IS the load, not a variation).
+const VARIANT = new RegExp('\\b(?:' + [
+  'mancuernas?', 'dumbbells?', 'db', 'kb', 'kettlebells?', 'pesa rusa', // implement
+  'pines', 'pin press', 'al banco', 'box', 'cajon', 'deficit',           // range
+  'c/ ?bandas?', 'con bandas?', 'c/ ?cadenas?', 'cadenas',                // resistance
+  'landmine', 'smith', 'multipower', 'ssb', 'barra suiza', 'hex', 'trap ?bar', // bar / machine
+  'sumo', 'agarre cerrado', 'inclinad[oa]', 'declinad[oa]',              // stance / angle
+].join('|') + ')\\b', 'g')
+
+/**
+ * The modifier a "Semana N" cell adds to the base lift ("Mancuernas", "c/bandas",
+ * "al banco"), or null. Only counts when the base name doesn't already carry it —
+ * "Sentadilla al banco" restating itself is not a variation week.
+ */
+export function detectVariant(raw: string, base: string): string | null {
+  const text = raw.replace(/\([^)]*\)/g, ' ').replace(/\([^)]*$/, ' ')
+  const s = deburr(text)
+  const b = deburr(base)
+  // EVERY modifier counts: "Hex. c/déficit" is a deficit hex pull, and the record
+  // matcher needs to see "déficit" to keep it off the hex board
+  const mods = [...s.matchAll(VARIANT)]
+    .filter((m) => !b.includes(m[0].replace(/^c\/\s*/, '').replace(/s$/, '')))
+    // hand back the coach's own spelling (accents, capitals) for the display name
+    // (deburr keeps the length of precomposed text, so the offsets line up)
+    .map((m) => text.slice(m.index!, m.index! + m[0].length))
+  return mods.length ? mods.join(' ') : null
+}
+
 /**
  * Drop a leading restatement of the base lift so the prescription behind it parses:
  * "Sentadilla +1\" 5x4 21,25kg x lado" → "5x4 21,25kg x lado". Only strips text BEFORE
@@ -303,7 +344,11 @@ export function parseWeekCell(raw: string, week: number, col = -1, base = ''): W
     return cell
   }
   const swap = base ? detectSwap(s, base) : null
-  const withSwap = (c: WeekCell): WeekCell => (swap ? { ...c, name: swap } : c)
+  // same lift, other implement/range/resistance ("… Mancuernas", "c/bandas", "al banco")
+  const variant = !swap && base ? detectVariant(s, base) : null
+  const withSwap = (c: WeekCell): WeekCell =>
+    swap ? { ...c, name: swap }
+      : variant ? { ...c, name: `${base.trim()} ${variant}`, variant: true } : c
   // With the lift's NAME lifted out, what's left is an ordinary prescription — so
   // "Sentadillas al banco 6X4 40kg x lado" reads as 6×4 @ 40 kg per side instead of
   // falling into the unparseable "complex" bucket. Same when the coach merely RESTATES
@@ -356,12 +401,16 @@ export function parseWeekCell(raw: string, week: number, col = -1, base = ''): W
   const secs = /\+\s*\d+\s*["¨'']/.test(body) || /\d+\s*[xX]\s*\d+/.test(body)
     ? null : parseTimeSec(body)
   if (secs != null) {
-    const rounds = body.match(/[x×]\s*(\d+)\s*$/i)
-    return withSwap({ week, reps: null, sets: rounds ? parseInt(rounds[1], 10) : null, load: null, raw: s, complex: false, inherit: false, col, timeSec: secs })
+    // a band behind the time is still the load ("12¨X4 Azul" on an iso hip bridge),
+    // and the round count then sits before it instead of at the end
+    const band = body.match(BAND)
+    const rounds = body.match(band ? /[x×]\s*(\d+)/i : /[x×]\s*(\d+)\s*$/i)
+    return withSwap({ week, reps: null, sets: rounds ? parseInt(rounds[1], 10) : null, load: band ? parseLoad(band[0]) : null, raw: s, complex: false, inherit: false, col, timeSec: secs })
   }
   // couldn't cleanly split → keep raw, surface any weight. With the substituted lift's
   // name removed, a bare number left behind IS its weight ("remo pronado 12.5 6reps").
-  const load = /kg/i.test(body) || (swap && /^\d/.test(body)) ? parseLoad(body) : null
+  // ("10+10" left behind by "10+10 Gemelos Open and closed" is a rep count, not kg)
+  const load = /kg/i.test(body) || (swap && /^\d+(?:[.,]\d+)?(?!\s*\+|[.,]?\d)/.test(body)) ? parseLoad(body) : null
   return withSwap({ week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col })
 }
 
@@ -632,5 +681,35 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   const style: 'weekly' | 'daily' = weeksAvailable.length > 1 ? 'weekly' : 'daily'
 
   if (!dedup.length) warnings.push('No se detectaron días (DÍA N) en la planilla.')
+  markVariationWeeks(dedup)
   return { title, meta, days: dedup, weeksAvailable, totalWeeks, style, parsedWarnings: warnings }
+}
+
+/**
+ * Flag whole-plan VARIATION weeks: the week a coach changes (nearly) every lift for
+ * one week and then goes back — Matias's plan does it every 4th week. Real case
+ * (Semana 4 / Semana 8): the Big Ones become "6X4 70kg c/bandas" or "Pines", the
+ * accessories become Búlgaras, Good Mornings, Remo Gorila… and the weeks after it
+ * are left blank or give only reps, meaning "back to what you were doing". Read
+ * cell by cell, those blanks inherited the variation's lighter kg and band colours.
+ *
+ * A week counts when at least 3 lifts are swapped for another exercise AND they
+ * make up at least a quarter of that week's written cells — one swap is just a
+ * substitution, a whole-plan pattern is a variation week. `resolveWeek` uses the
+ * flag to keep that week's loads out of the weeks after it.
+ */
+function markVariationWeeks(days: RoutineDay[]): void {
+  const cells = days.flatMap((d) => d.blocks.filter((b) => b.tag !== 'ramp')
+    .flatMap((b) => b.exercises.flatMap((e) => Object.values(e.weeks))))
+  const per = new Map<number, { all: number; swaps: number }>()
+  for (const c of cells) {
+    if (c.inherit) continue
+    const n = per.get(c.week) ?? { all: 0, swaps: 0 }
+    n.all++
+    if (c.name && !c.variant) n.swaps++
+    per.set(c.week, n)
+  }
+  const special = new Set([...per].filter(([, n]) => n.swaps >= 3 && n.swaps / n.all >= 0.25).map(([w]) => w))
+  if (!special.size) return
+  for (const c of cells) if (special.has(c.week)) c.variation = true
 }
