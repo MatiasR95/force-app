@@ -9,6 +9,7 @@ import { LastTime } from '../components/LastTime'
 import { groupInfo } from '../components/DayView'
 import { SegmentRail, BottomSheet } from '../components/ui'
 import { resolveWeek, circuitRounds, liftOfWeek } from '../lib/week'
+import { splitWarmup } from '../lib/parser'
 import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, saveSetActual, actualForSet, topSet, getLastDone, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft, READINESS_LABEL, type Readiness } from '../lib/store'
 import { keepAwake, stopAwake } from '../lib/screenAwake'
 import { useUiPrefs } from '../lib/UiPrefsContext'
@@ -891,7 +892,7 @@ function Stepper({ label, value, step, steps, onChange }: { label: string; value
 // The day's entrada en calor as the opening step. Split the "A + B + C" line the
 // coach writes into a short checklist so it reads clearly before the first lift.
 function WarmupView({ text }: { text: string }) {
-  const parts = text.split('+').map((s) => s.trim()).filter(Boolean)
+  const parts = splitWarmup(text)
   return (
     <>
       <div className="kicker flex items-center gap-1.5"><Flame size={13} className="text-gold" /> Entrada en calor</div>

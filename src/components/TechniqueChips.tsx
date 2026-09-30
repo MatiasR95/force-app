@@ -43,6 +43,14 @@ export function TechniqueChips({ ex, hideTempo = false }: { ex: ExerciseRow; hid
   )
 }
 
+// "25 s", or the coach's own split when the time comes in parts ("10\"-10\"-10\"": three
+// holds of 10 s — "10 s" alone would hide two of them)
+function timeLabel(r: ReturnType<typeof resolveWeek>): string {
+  const parts = r.repsRaw.match(/\d+\s*(?:''|"|¨|″|”|s\b)/g)
+  if (parts && parts.length > 1 && r.repsRaw.includes(String(r.timeSec))) return parts.map((p) => `${parseInt(p, 10)}″`).join(' + ')
+  return `${r.timeSec} s`
+}
+
 /** "REPS × SERIES" for a given week (reps first, series second); tolerant of
  *  ramp/complex rows. e.g. "5 × 4" = 5 reps in 4 series. */
 export function setsReps(ex: ExerciseRow, week = 1): string {
@@ -54,7 +62,7 @@ export function setsReps(ex: ExerciseRow, week = 1): string {
   // timed HIIT/isometrics: show the WEEK's work-time (Semana 6 = 25″, not the base 20″)
   if (r.timeSec != null) {
     const sets = r.sets != null ? `${r.sets}` : r.setsRaw
-    return sets ? `${r.timeSec} s × ${sets}` : `${r.timeSec} s`
+    return sets ? `${timeLabel(r)} × ${sets}` : timeLabel(r)
   }
   if (r.complexRaw) return r.complexRaw
   const reps = r.repsRaw || (r.reps != null ? String(r.reps) : '')
@@ -66,7 +74,7 @@ export function setsReps(ex: ExerciseRow, week = 1): string {
 /** Just the reps portion (for circuit rows where series is on the header). */
 export function repsText(ex: ExerciseRow, week = 1): string {
   const r = resolveWeek(ex, week)
-  if (r.timeSec != null) return `${r.timeSec} s` // week-resolved work-time (25″ at Semana 6)
+  if (r.timeSec != null) return timeLabel(r) // week-resolved work-time (25″ at Semana 6)
   if (r.complexRaw) return r.complexRaw
   return r.repsRaw || (r.reps != null ? String(r.reps) : '—')
 }

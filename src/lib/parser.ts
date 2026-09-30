@@ -1,5 +1,5 @@
 import type {
-  Routine, RoutineDay, RoutineMeta, ExerciseRow, Load, Technique, SectionTag, WeekCell,
+  Routine, RoutineDay, RoutineMeta, ExerciseRow, Load, Technique, SectionTag, WeekCell, Block,
 } from './types'
 import { slugify, classifyPattern, deburr } from './normalize'
 
@@ -7,8 +7,27 @@ import { slugify, classifyPattern, deburr } from './normalize'
 
 // Cells can hold hard line breaks (coaches type "Sentadilla ⏎ 4x4 20kg x lado" in a
 // single week cell). Flatten them to spaces so one cell = one parseable string.
+// A cell holding an in-cell image (the FORCE logo on every tab) comes through as an
+// object ({ valueType: 'IMAGE' }) — never text. Stringified it read "[object Object]"
+// and opened a phantom section with that title.
 const norm = (v: unknown): string =>
-  (v == null ? '' : String(v)).replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ').trim()
+  (v == null || typeof v === 'object' ? '' : String(v)).replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ').trim()
+
+// Google Sheets turns a rep scheme typed as "10-10" or "15-12-10" into a DATE, and the
+// backend hands it over as an ISO datetime ("2026-10-10T03:00:00.000Z" = 10-10). Real
+// cases in REPETICIONES: Carina "10-10", Julieta/Valentina "15-12-10" (→ 15/12/2010).
+// Rebuild what the coach typed: day-month, plus the year's last two digits when it was
+// typed too (a year far from today can only come from a third number).
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
+function repsCell(v: unknown): string {
+  const s = norm(v)
+  const m = s.match(ISO_DATE)
+  if (!m) return s
+  const [y, mo, d] = [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
+  if (y < 1950) return s // a time of day (1899-12-30T…), not a typed scheme
+  const typedYear = Math.abs(y - new Date().getFullYear()) > 1
+  return typedYear ? `${d}-${mo}-${String(y % 100).padStart(2, '0')}` : `${d}-${mo}`
+}
 
 const SECTION_TITLES: Record<SectionTag, string> = {
   warmup: 'Entrada en calor',
@@ -34,7 +53,12 @@ function tagInfo(a: string): { tag: SectionTag; title: string } | null {
   if (s.includes('big one')) return { tag: 'big', title: SECTION_TITLES.big }
   if (s.startsWith('acc')) return { tag: 'accessory', title: SECTION_TITLES.accessory }
   if (s.startsWith('fini')) return { tag: 'finisher', title: SECTION_TITLES.finisher } // FINISHERS / FINIISHERS
-  if (s.includes('hiit') || s.includes('metabol')) return { tag: 'hiit', title: SECTION_TITLES.hiit }
+  // "HIIT", "HIT", "HIIIT", "HIIT A" — coaches spell it every way
+  if (/\bhi+t\b/.test(s) || s.includes('metabol')) {
+    // keep the letter a coach uses to tell circuits apart: "HIIT A" / "HIIT B"
+    const v = a.trim().match(/^hi+t\s+(\(?(?:opci[oó]n\s+)?[a-z0-9]\)?)$/i)
+    return { tag: 'hiit', title: v ? `${SECTION_TITLES.hiit} ${v[1].toUpperCase()}` : SECTION_TITLES.hiit }
+  }
   if (s.includes('core') || s.includes('zona media') || s.includes('abdomin')) return { tag: 'core', title: SECTION_TITLES.core }
   // unknown label → its own circuit-capable section, titled as written
   return { tag: 'other', title: titleCase(a) }
@@ -85,12 +109,16 @@ const SCHEME = /\d+\s*[xX]\s*\d+/g
 
 // Resistance-band colours as coaches actually write them — any gender, singular or
 // plural ("Naranjas", "Violetas", "GRISES"): the load IS the band.
-const BAND = /\b(banda[s]?\s+\w+|gris(?:es)?|verdes?|roj[ao]s?|negr[ao]s?|azul(?:es)?|amarill[ao]s?|violetas?|naranjas?|celestes?|marron(?:es)?)\b/i
+const BAND = /\b(banda[s]?\s+(?!(?:en|de|del|la|el|los|las|con|y|a|al|para)\b)\w+|gris(?:es)?|verdes?|roj[ao]s?|negr[ao]s?|azul(?:es)?|amarill[ao]s?|violetas?|naranjas?|celestes?|marron(?:es)?)\b/i
+// the colour alone — preferred over "banda <word>" when both appear: "Swing c/banda KB
+// Roja" is a red band, not a band called "KB"
+// ("Banda Azul" keeps its word)
+const BAND_COLOR = /\b((?:bandas?\s+)?(?:gris(?:es)?|verdes?|roj[ao]s?|negr[ao]s?|azul(?:es)?|amarill[ao]s?|violetas?|naranjas?|celestes?|marron(?:es)?))\b/i
 
 export function parseLoad(obs: string): Load {
   const raw = obs.trim()
   const perSide = PER_SIDE.test(raw)
-  const bandMatch = raw.match(BAND)
+  const bandMatch = raw.match(BAND_COLOR) ?? raw.match(BAND)
   // The weight is the number tagged "kg" — NOT simply the first number in the cell.
   // Real case (Matias, Agosto 2026): OBSERVACIONES = "5X4 43,75kg x lado" is a full
   // prescription; reading the first number showed the member a 5 kg squat instead of
@@ -112,7 +140,8 @@ export function parseLoad(obs: string): Load {
     delta = kg[1] === '+' || kg[1] === '↑' || kg[1] === '↓'
     if (kg[1] === '↓' && value != null) value = -value
   } else {
-    const bare = scan.replace(SCHEME, ' ').trim()
+    // (a two-part rep count "8+8" isn't a weight either)
+    const bare = scan.replace(SCHEME, ' ').replace(/\d+\s*\+\s*\d+/g, ' ').trim()
     if (/^-?\d/.test(bare)) value = toNum(bare)
   }
   const load: Load = { value, perSide, unit: 'kg', raw }
@@ -121,12 +150,17 @@ export function parseLoad(obs: string): Load {
   return load
 }
 
+// A pause/hold mark: "+1\"", "+ 2¨", "+5\" finales". It rides on a lift or a rep count —
+// never a separate exercise, and never a HIIT work-time.
+const PAUSE_MARK = /\+\s*\d+\s*(?:["¨'’´″”]|seg\b|s\b)/gi
+
 export function parseTechniques(name: string, reps: string, obs: string): Technique[] {
   const hay = `${name} ${reps} ${obs}`
   const t: Technique[] = []
   const tempo = hay.match(/(\d:\d:\d)/)
   if (tempo) t.push({ type: 'tempo', value: tempo[1] })
-  const pause = hay.match(/\+\s*(\d+)\s*["¨'']/)
+  // "+1\"" on the lift or the reps, or bracketed on the reps: "10 (2\")"
+  const pause = hay.match(/\+\s*(\d+)\s*["¨'’´″”]/) ?? reps.match(/\(\s*\+?\s*(\d+)\s*["¨'’´″”][^)]*\)/)
   if (pause) t.push({ type: 'pause', seconds: parseInt(pause[1], 10) })
   if (/myo\s*reps?/i.test(hay)) t.push({ type: 'myoreps' })
   const cluster = hay.match(/cluster\s*(\d+)?\s*["¨'']?/i)
@@ -150,17 +184,22 @@ function extractNote(obs: string, load: Load): string {
 // Returns the expanded per-series reps + any trailing text (a weight/band).
 export function parseSeriesPlan(raw: string): { plan: number[]; rest: string } | null {
   const s = raw.trim()
-  // plus/X form (≥2 segments joined by "+")
-  const plus = s.match(/^(\d+\s*[xX]\s*\d+(?:\s*\+\s*\d+\s*[xX]\s*\d+)+)(.*)$/)
-  if (plus) {
+  // plus/X form (≥2 segments joined by "+"). A segment may also be a dash list of
+  // single series: "4X2+3-2-2" → [4,4,3,2,2] (real case, Matias bench S7).
+  const SEG = String.raw`(?:\d+\s*[xX]\s*\d+|\d+(?:\s*-\s*\d+)+)`
+  const plus = s.match(new RegExp(String.raw`^(${SEG}(?:\s*\+\s*${SEG})+)(.*)$`))
+  if (plus && /[xX]/.test(plus[1])) {
     const plan: number[] = []
     for (const seg of plus[1].split('+')) {
       const m = seg.match(/(\d+)\s*[xX]\s*(\d+)/)
-      if (!m) return null
-      const reps = parseInt(m[1], 10), sets = parseInt(m[2], 10)
-      for (let k = 0; k < sets; k++) plan.push(reps)
+      if (m) {
+        const reps = parseInt(m[1], 10), sets = parseInt(m[2], 10)
+        for (let k = 0; k < sets; k++) plan.push(reps)
+      } else {
+        plan.push(...seg.split('-').map((n) => parseInt(n.trim(), 10)))
+      }
     }
-    return plan.length ? { plan, rest: plus[2].trim() } : null
+    return plan.length && plan.every((n) => !Number.isNaN(n)) ? { plan, rest: plus[2].trim() } : null
   }
   // dash form — require ≥3 numbers so a 2-number rep range ("8-12") isn't mistaken
   // for a 2-set plan.
@@ -194,14 +233,15 @@ const EXERCISE_NOUN = new RegExp([
   'apertura', 'vuelo', 'elevacion', 'patada', 'gemelos', 'calf',
   'caminata', 'carry', 'farmer', 'valijero', 'paseo', 'traslado',
   'abdominal', 'plancha', 'pallof', 'hollow', 'bird ?dog', 'dead ?bug', 'oblicuo',
-  'rueda', 'ruedita', 'sierra',
+  'rueda', 'ruedita', 'sierra', 'pasos', // "Pasos Banda" (lateral band walks)
+  'cuadriceps', 'sillon', 'camilla', 'abduc', 'aduc', // machine/isolation work
   'complex', // "COMPLEX KB: Sentadilla Frontal 8+12X3 Peso Muerto Rumano" — a chain of lifts
 ].join('|'), 'i')
 
 // Words that must NEVER, on their own, be read as an exercise: band colours (in
 // every gender/plural, incl. ALL CAPS), technique/effort notes, filler.
 const NOISE_WORD = new RegExp('^(?:' + [
-  'naranjas?', 'verdes?', 'violetas?', 'amarill[ao]s?', 'gris(?:es)?', 'roj[ao]s?',
+  'naranjas?', 'verdes?', 'violetas?', 'rosas?', 'amarill[ao]s?', 'gris(?:es)?', 'roj[ao]s?',
   'negr[ao]s?', 'celestes?', 'azul(?:es)?', 'blanc[ao]s?', 'marr(?:o|ó)n(?:es)?',
   'orange', 'green', 'purple', 'yellow', 'gr[ae]y', 'red', 'black', 'blue', 'white', 'brown',
   'banda', 'bandas', 'goma', 'gomas',
@@ -229,6 +269,8 @@ const isSoftToken = (t: string): boolean =>
 export function detectSwap(raw: string, base: string): string | null {
   const s = raw
     .replace(/\([^)]*\)/g, ' ')          // member/coach comments: "(hice con amarillas)"
+    .replace(PAUSE_MARK, ' ')            // "Gemelos KB+2¨" — the pause isn't part of the name
+    .replace(/\b\d+\s*pasos\b/gi, ' ')   // "16 pasos X3" — a step COUNT, not the exercise
     .replace(/\b(?:m[aá]s|menos|mismo|igual)\s+(?:peso|carga)\b/gi, ' ') // "mas peso"
     .replace(/(?<![xX]\s*)\b\d+\s*\+\s*\d+\s*[xX]\s*\d+/g, ' ') // two-part reps × sets ("8+12X3"), not "5X1 + 4X3"
     .replace(/\d+\s*[xX]\s*\d+/g, ' ')   // set×rep schemes
@@ -269,7 +311,11 @@ export function detectSwap(raw: string, base: string): string | null {
   const baseStems = stems(base)
   const novel = [...stems(name)].filter((t) => !baseStems.has(t))
   if (!novel.length) return null
-  return name
+  // hand back the coach's own spelling: "Flexiones de brazo s/KB", "Abdominales 1/2
+  // bisagra" (the tokenizer above turned the slashes into spaces)
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const asWritten = raw.match(new RegExp(best.map(esc).join(String.raw`[\s/.,"¨'´;:!¿?|]*`), 'i'))
+  return asWritten ? asWritten[0].trim() : name
 }
 
 // Implement/range modifiers that turn the SAME lift into a variation for one week:
@@ -322,17 +368,47 @@ function stripLeadingName(s: string, base: string): string {
   const stem = (t: string) => deburr(t).replace(/(?:es|s)$/, '')
   const baseStems = new Set(deburr(base).split(/[^a-z0-9]+/).filter(Boolean).map(stem))
   const words = prefix.split(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+/).filter(Boolean)
-  if (!words.length) return s
+  // only NUMBERS in front means the scheme itself starts earlier — "17+10X3",
+  // "8-8-6-6X4", "7 a 1 X3" — never a name to drop (it used to chop them to
+  // "10X3", "6X4", "1X3" and show the member the wrong reps)
+  if (!words.some((w) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(w) && !SOFT_WORD.test(deburr(w)))) return s
   const known = words.every((w) => /^\d+$/.test(w) || SOFT_WORD.test(deburr(w)) || baseStems.has(stem(w)))
   return known ? s.slice(at) : s
+}
+
+/**
+ * The warm-up line as its separate movements. Coaches chain them with "+" ("Remo Banda
+ * 20 x 2 + Band Pull apart 8 x 2 + …"), but a "+" also marks a PAUSE ("Flexiones de
+ * brazo + 1\" 8 x 2") or joins rep counts ("Pasos banda (6+6) x2", "12+10\"X2") — those
+ * belong to the movement they sit on. So only a "+" followed by a WORD, outside
+ * brackets, starts a new movement.
+ */
+export function splitWarmup(text: string): string[] {
+  const out: string[] = []
+  let cur = '', depth = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '(') depth++
+    else if (ch === ')') depth = Math.max(0, depth - 1)
+    if (ch === '+' && depth === 0 && /^\s*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(text.slice(i + 1))) {
+      out.push(cur)
+      cur = ''
+      continue
+    }
+    cur += ch
+  }
+  out.push(cur)
+  return out.map((p) => p.trim()).filter(Boolean)
 }
 
 // A "Semana N" cell, e.g. "10X3", "2X4 28,75kg x lado", "3X1+2X3" (complex),
 // "Mismo semana ant." (inherit previous week).
 export function parseWeekCell(raw: string, week: number, col = -1, base = ''): WeekCell | null {
   const s = raw.trim()
-  if (!s) return null
-  if (/mism[oa]s?\s+sem|sem(ana)?\s*ant|^=$|^idem$|^igual/i.test(deburr(s))) {
+  // a lone dash is the coach's "nothing new" — same as a blank cell
+  if (!s || /^[-–—]+$/.test(s)) return null
+  // "Mismo semana ant.", "mismo que semana pasada", "Mismo semana 4"
+  if (/mism[oa]s?\s+(?:que\s+)?(?:la\s+)?sem|sem(ana)?\s*(?:ant|pasada)|^=$|^idem$|^igual/i.test(deburr(s))) {
     // "Mismo semana 4" points at a SPECIFIC week, not simply the previous one — real
     // case (Rodri Leuzzi): S5 "Mismo semana 4", S8 "Mismo semana 7".
     const from = deburr(s).match(/sem(?:ana)?\s*(\d+)/)
@@ -353,38 +429,64 @@ export function parseWeekCell(raw: string, week: number, col = -1, base = ''): W
   // "Sentadillas al banco 6X4 40kg x lado" reads as 6×4 @ 40 kg per side instead of
   // falling into the unparseable "complex" bucket. Same when the coach merely RESTATES
   // the base lift ("Sentadilla +1\" 5x4 21,25kg x lado" — real case, Marisol).
-  const body = (swap ? s.replace(swap, ' ') : stripLeadingName(s, base)).replace(/\s+/g, ' ').trim()
+  const body = (swap ? s.replace(swap, ' ') : stripLeadingName(s, base))
+    .replace(/\b(\d+)\s*pasos(?:\s*totales)?\s*(?=[xX]\s*\d)/i, '$1') // "16 pasos X3" = 16 × 3
+    .replace(/\s+/g, ' ').trim()
   const m = body.match(/^(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
-  if (m && !/[x+]/i.test(m[3].replace(/x\s*lado/i, ''))) {
+  // what follows the scheme may be a weight, a band, a note or a pause ("10X4 + 5"
+  // Finales", "25X3 + banda") — only ANOTHER scheme behind it ("5X1+4X3", "4X2+3-2-2")
+  // makes it a per-series plan instead
+  const moreScheme = (rest: string) => /\d\s*[xX]\s*\d|\+\s*\d+\s*(?:[xX]|-\s*\d)/.test(rest)
+  if (m && !moreScheme(m[3])) {
     const rest = m[3].trim()
+    const reps = parseInt(m[1], 10)
+    // a pause/hold riding on the reps ("10X4 + 5\" Finales") is part of the target
+    const hold = rest.match(/\+\s*(\d+)\s*["¨'’´″”]/)
     return withSwap({
       week,
-      reps: parseInt(m[1], 10),
+      reps,
       sets: parseInt(m[2], 10),
       load: rest ? parseLoad(rest) : null,
       raw: s,
       complex: false,
       inherit: false,
       col,
+      ...(hold ? { repsRaw: `${reps} + ${hold[1]}″` } : {}),
     })
   }
   // Bilateral / two-part reps × sets: "4+4x4", "10+8x3", "6+6x3 Gris" — "4+4" is ONE
   // set (4 per side, or 4+4 of two movements), done N times. Without this the set
   // count silently stayed on the previous week's (real case: Marisol's Skater squats
-  // showed 3 series for the whole cycle while the coach wrote 4).
-  const pair = body.match(/^(\d+)\s*\+\s*(\d+)\s*[xX]\s*(\d+)\s*(.*)$/)
+  // showed 3 series for the whole cycle while the coach wrote 4). A hold can ride on
+  // the second part: "6 + 2\"X4", "10+2\"c/uX4" = 6 reps with a 2″ pause.
+  const pair = body.match(/^(\d+)\s*\+\s*(\d+)\s*(["¨'’´″”]\s*(?:c\/u)?)?\s*[xX]\s*(\d+)\s*(.*)$/)
   if (pair) {
-    const rest = pair[4].trim()
+    const rest = pair[5].trim()
     return withSwap({
       week,
       reps: null,
-      sets: parseInt(pair[3], 10),
+      sets: parseInt(pair[4], 10),
       load: rest ? parseLoad(rest) : null,
       raw: s,
-      complex: true, // the "4+4" label is shown as written
+      complex: false,
       inherit: false,
       col,
+      repsRaw: pair[3] ? `${pair[1]} + ${pair[2]}″` : `${pair[1]}+${pair[2]}`,
     })
+  }
+  // reps per side × series: "8 x lado x3", "10x lado X4", "6 ladoX3"
+  const side = body.match(/^(\d+)\s*(?:x\s*)?lado\s*[xX]\s*(\d+)\s*(.*)$/i)
+  if (side) {
+    const rest = side[3].trim()
+    return withSwap({ week, reps: parseInt(side[1], 10), sets: parseInt(side[2], 10), load: rest ? parseLoad(rest) : null, raw: s, complex: false, inherit: false, col, repsRaw: `${side[1]} x lado` })
+  }
+  // a descending ladder per series: "7 a 1 X3" = 7, 6, … 1 reps, three times (it used
+  // to be cut to "1X3", and on a swap week the 7 was read as 7 kg)
+  const ladder = body.match(/^(\d+)\s*a\s*(\d+)\s*[xX]\s*(\d+)\s*(.*)$/i)
+  if (ladder) {
+    const rest = ladder[4].trim()
+    const load = rest ? parseLoad(rest) : null
+    return withSwap({ week, reps: null, sets: parseInt(ladder[3], 10), load, raw: s, complex: false, inherit: false, col, repsRaw: `${ladder[1]} a ${ladder[2]}` })
   }
   // a non-linear per-series plan ("4X1+3X3", "10-10-8-8") → expand to per-set reps
   const sp = parseSeriesPlan(body)
@@ -414,10 +516,20 @@ export function parseWeekCell(raw: string, week: number, col = -1, base = ''): W
   return withSwap({ week, reps: null, sets: null, load, raw: s, complex: true, inherit: false, col })
 }
 
-// Work time in seconds from a reps cell: "30''", "30s", "40 seg", "30\"".
+// Work time in seconds from a reps cell: "30''", "30s", "40 seg", "30\"", "AMRAP 45¨",
+// "10\"-10\"-10\"". A cell that ALSO counts reps is not timed work: "6+1\"" is 6 reps
+// with a 1″ pause, "15+10¨" 15 reps then a 10″ hold, "12+2¨ excéntrica" a 2″ negative.
+// Reading those as a 1–10 s work-time turned a bench press into "1 s" and the whole
+// block into a HIIT circuit.
 export function parseTimeSec(reps: string): number | null {
-  const m = reps.match(/(\d+)\s*(?:''|"|seg|segs|s\b|´´|¨)/i)
-  return m ? parseInt(m[1], 10) : null
+  const TIME = /(\d+)\s*(?:''|"|seg|segs|segundos|s\b|´´|¨|″|”)/i
+  const m = reps.match(TIME)
+  if (!m) return null
+  const parts = reps.split('+').map((p) => p.trim()).filter(Boolean)
+  if (parts.length > 1 && parts.some((p) => /\d/.test(p) && !TIME.test(p))) return null
+  // "10 (2\")" — ten reps, the time in brackets is the pause on each
+  if (/^\s*\d+\s*\(/.test(reps) && !TIME.test(reps.replace(/\([^)]*\)/g, ''))) return null
+  return parseInt(m[1], 10)
 }
 
 // The per-client "Seguimiento" LOG sheet (timestamp | tipo | dia | ejercicio |
@@ -467,6 +579,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
   let section: SectionTag = 'ramp'
   let seenBig = false
   let exIdx = 0
+  let labelBlock: Block | null = null // the HIIT/other section a label just opened
   let weekCols: Array<{ week: number; col: number }> = []
   let lastDayIndex = 0 // for weekday-named days, which carry no number
   const explicitDayIdx = new Set<number>() // numbers claimed by real "DÍA N" markers
@@ -475,8 +588,8 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     if (!day) return
     const b = norm(cells[1])
     if (!b) return
-    const c = norm(cells[2])
-    const d = norm(cells[3])
+    const c = repsCell(cells[2])
+    const d = repsCell(cells[3])
     const e = norm(cells[4])
     const load = parseLoad(e)
     const setOrdinalMatch = d.match(/(\d+)\s*°/)
@@ -488,7 +601,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
     const basePlan = setOrdinalMatch ? null : (parseSeriesPlan(d)?.plan ?? parseSeriesPlan(c)?.plan ?? null)
     const weeks: Record<number, WeekCell> = {}
     for (const wc of weekCols) {
-      const cell = parseWeekCell(norm(cells[wc.col]), wc.week, wc.col, b)
+      const cell = parseWeekCell(repsCell(cells[wc.col]), wc.week, wc.col, b)
       if (cell) weeks[wc.week] = cell
     }
     const row: ExerciseRow = {
@@ -513,7 +626,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       raw: { exercise: b, reps: c, series: d, obs: e },
     }
     const tag = row.section
-    let block = day.blocks.find((bl) => bl.tag === tag)
+    let block = labelBlock && labelBlock.tag === tag ? labelBlock : day.blocks.find((bl) => bl.tag === tag)
     if (!block) {
       block = { tag, title: SECTION_TITLES[tag], circuit: false, rounds: null, timed: false, exercises: [] }
       day.blocks.push(block)
@@ -563,6 +676,7 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       section = 'ramp'
       seenBig = false
       exIdx = 0
+      labelBlock = null
       weekCols = scanWeekCols(cells)
       continue
     }
@@ -604,9 +718,14 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
       section = info.tag
       if (info.tag === 'big') seenBig = true
       // remember custom titles for "other"/unknown sections
+      // Each labelled HIIT/other section is its OWN circuit: "HIIT A" and "HIIT B"
+      // (real case, Luis Quintas) are two different rounds of three — merged, they
+      // read as one six-exercise circuit.
+      labelBlock = null
       if (info.tag === 'other' || info.tag === 'hiit') {
-        const exists = day.blocks.find((bl) => bl.tag === info.tag)
-        if (!exists) day.blocks.push({ tag: info.tag, title: info.title, circuit: false, rounds: null, timed: false, exercises: [] })
+        const exists = day.blocks.find((bl) => bl.tag === info.tag && bl.title === info.title && !bl.exercises.length)
+        labelBlock = exists ?? { tag: info.tag, title: info.title, circuit: false, rounds: null, timed: false, exercises: [] }
+        if (!exists) day.blocks.push(labelBlock)
       }
     }
 
@@ -620,6 +739,9 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
 
   // finalize blocks: circuits (done in rounds), the alternating Big One pair, HIIT timing
   for (const dd of days) {
+    // a section label with no exercise under it (a stray note in column A, an image
+    // cell) leaves an empty shell behind — drop it
+    dd.blocks = dd.blocks.filter((b) => b.exercises.length > 0)
     // derive the day's available weeks from the week cells actually parsed, so it's
     // correct no matter which row the "Semana N" headers sat on (or none → just [1]).
     const wset = new Set<number>([1])
@@ -633,19 +755,20 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
         const setCounts = bl.exercises.map((x) => x.sets).filter((n): n is number => n != null)
         bl.rounds = setCounts.length ? Math.max(...setCounts) : null
       }
-      bl.timed = bl.tag === 'hiit' || bl.exercises.some((x) => x.timeSec != null)
-
       // HIIT/timed circuit: the coach usually writes the "30″ × 4" scheme once on
       // the first row and leaves the rest blank (they share it). Carry the work
       // time + round count forward so every row shows it instead of a "—".
-      if (bl.timed && bl.exercises.length > 1) {
+      // Only onto rows with NO reps of their own: a finisher that closes with one
+      // timed movement ("Sentadilla bombero AMRAP 20″" before "Sierras FB 15") must
+      // not turn the reps row after it into 20 seconds.
+      if (bl.exercises.some((x) => x.timeSec != null) && bl.exercises.length > 1) {
         let lastTime: number | null = null, lastSets: number | null = null, lastTimeRaw = ''
         let lastWeeks: Record<number, WeekCell> = {}
         for (const ex of bl.exercises) {
           if (ex.timeSec != null) { lastTime = ex.timeSec; lastTimeRaw = ex.repsRaw; lastWeeks = ex.weeks }
-          else if (lastTime != null) {
+          else if (lastTime != null && !ex.repsRaw) {
             ex.timeSec = lastTime
-            if (!ex.repsRaw) ex.repsRaw = lastTimeRaw
+            ex.repsRaw = lastTimeRaw
             // the coach writes the per-week work-time ("25¨X4") once, on the first
             // circuit row — the blanks below share it. Carry the week overrides too
             // so every row resolves the same seconds/rounds per week (not just wk1).
@@ -653,6 +776,25 @@ export function parseRoutine(rows: string[][], title = 'Rutina'): Routine {
           }
           if (ex.sets != null) lastSets = ex.sets
           else if (lastSets != null) ex.sets = lastSets
+        }
+      }
+      // A block is a HIIT circuit when the coach says so, or when EVERY movement in it
+      // is by time. One timed exercise among rep work (a plank, a battle rope or a
+      // carry to close the finishers) is just another exercise of that series — it
+      // keeps the rounds and the series logging instead of becoming a "Circuito HIIT".
+      bl.timed = bl.tag === 'hiit' ||
+        (bl.tag !== 'ramp' && bl.tag !== 'big' && bl.exercises.length > 0 && bl.exercises.every((x) => x.timeSec != null))
+      // Inside a timed circuit a bare "25X5" is 25 SECONDS × 5 — the coach dropped the
+      // ¨ they wrote on every other week. Read as reps it would end the timed work.
+      if (bl.timed) {
+        for (const ex of bl.exercises) {
+          if (ex.timeSec == null) continue
+          for (const w of Object.values(ex.weeks)) {
+            if (!w.complex && !w.name && w.reps != null && w.repsRaw == null && w.timeSec == null) {
+              w.timeSec = w.reps
+              w.reps = null
+            }
+          }
         }
       }
     }

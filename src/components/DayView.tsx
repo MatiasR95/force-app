@@ -37,10 +37,10 @@ export function DayView({ day, week, onPick }: {
         </div>
       )}
 
-      {blocks.map((block) =>
+      {blocks.map((block, bi) =>
         block.circuit
-          ? <CircuitCard key={block.tag} block={block} week={week} onPick={onPick} />
-          : <PlainBlock key={block.tag} block={block} week={week} onPick={onPick} />,
+          ? <CircuitCard key={`${block.tag}-${bi}`} block={block} week={week} onPick={onPick} />
+          : <PlainBlock key={`${block.tag}-${bi}`} block={block} week={week} onPick={onPick} />,
       )}
     </div>
   )

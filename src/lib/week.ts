@@ -44,20 +44,22 @@ function applyCell(w: WeekCell, prev: Resolved): Resolved {
     if (w.plan && w.plan.length) {
       return { ...prev, sets: w.plan.length, plan: w.plan, load: mergeLoad(w, prev), complexRaw: w.raw }
     }
-    return { ...prev, load: mergeLoad(w, prev), complexRaw: w.raw }
+    return { ...prev, sets: w.sets ?? prev.sets, load: mergeLoad(w, prev), complexRaw: w.raw }
   }
   // a partial cell (e.g. "5X4" with no weight) inherits the missing fields from
   // the previous week, per the repeat-previous rule.
   return {
-    reps: w.reps ?? prev.reps,
+    // a labelled target ("6+6", "10 + 5″") is the week's reps even without one number
+    reps: w.repsRaw != null ? w.reps : (w.reps ?? prev.reps),
     sets: w.sets ?? prev.sets,
-    repsRaw: w.reps != null ? String(w.reps) : prev.repsRaw,
+    repsRaw: w.repsRaw ?? (w.reps != null ? String(w.reps) : prev.repsRaw),
     setsRaw: w.sets != null ? String(w.sets) : prev.setsRaw,
     load: mergeLoad(w, prev),
     complexRaw: null,
     plan: null,
     // a timed HIIT override ("25¨X4") carries new seconds; a plain cell inherits.
-    timeSec: w.timeSec ?? prev.timeSec,
+    // …and a reps prescription ends a timed one ("15X3 Swing" after "17¨X4" iso weeks)
+    timeSec: w.timeSec ?? (w.reps != null || w.repsRaw != null ? null : prev.timeSec),
     name: prev.name, slug: prev.slug, substitution: prev.substitution, variant: prev.variant,
   }
 }
