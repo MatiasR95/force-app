@@ -233,7 +233,7 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // is rejected server-side, and would sit in the outbox retrying forever.
     if (kg <= 0 || kg > 500 || reps > 100) return false
     // Far above today's prescription = a typo or another lift, never a PR.
-    if (r.load.value != null && kg > plausibleMax(recordTotal(lift, r.load.value, r.load.perSide, barbell))) return false
+    if (r.load.value != null && kg > plausibleMax(recordTotal(lift, r.load.value, r.load.perSide, barbell), lift)) return false
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
     if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return false // not a PR

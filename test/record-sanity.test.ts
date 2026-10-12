@@ -53,6 +53,11 @@ describe('recordTotal', () => {
     expect(320 > plausibleMax(recordTotal('peso-muerto', 65, true, true))).toBe(true)
     expect(170 > plausibleMax(recordTotal('peso-muerto', 65, true, true))).toBe(false)
   })
+  it('keeps pull-up lastre on a tight leash', () => {
+    expect(15 > plausibleMax(5, 'dominadas')).toBe(true)       // Belu: 5 kg prescribed, 15 logged
+    expect(32.5 > plausibleMax(25, 'dominadas')).toBe(false)   // Nico: a real 32,5 over 25
+    expect(12.5 > plausibleMax(10, 'dominadas')).toBe(false)
+  })
 })
 
 describe('reconcileMyRecords', () => {

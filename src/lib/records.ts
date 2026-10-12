@@ -260,8 +260,13 @@ export function noteLoad(note: string, presc: number | null, perSide: boolean, i
 /**
  * Highest total a record may claim against today's prescription. A logged number far
  * above what the coach wrote is a typo or a different lift, not a PR.
+ *
+ * Pull-ups get a tighter margin: the kg is ADDED load, so the numbers are small and a
+ * flat +10 is a different athlete — a member prescribed 5 kg of lastre who slipped the
+ * stepper to 15 put 15 × 5 on the women's board.
  */
-export const plausibleMax = (prescTotal: number): number => prescTotal * 1.5 + 10
+export const plausibleMax = (prescTotal: number, lift?: string): number =>
+  lift === 'dominadas' ? prescTotal * 1.5 + 2.5 : prescTotal * 1.5 + 10
 
 /**
  * Read the weight the member actually used from their observación, if they
