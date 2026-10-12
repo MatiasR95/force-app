@@ -220,6 +220,50 @@ export function recordKg(value: number, perSide: boolean, isBarbell: boolean, ba
 }
 
 /**
+ * Total kg a record counts for one lift. `recordKg` plus the two ways a coach's cell
+ * under-states the load:
+ *  - Dumbbell bench: the coach writes the weight of ONE dumbbell, with or without
+ *    "x lado" ("15kg x lado" and "7kg" both mean each hand). The board and its medals
+ *    count the pair, so it's always doubled — before, only the "x lado" rows were and
+ *    the board mixed per-dumbbell and per-pair numbers.
+ *  - A barbell load under the bar's own weight can't be the total: the coach wrote the
+ *    plates per side and left "x lado" out ("Sentadillas 13,75").
+ */
+export function recordTotal(lift: string, value: number, perSide: boolean, isBarbell: boolean, barKg = 20): number {
+  if (lift === 'press-banca-db') return value * 2
+  if (isBarbell && !perSide && value < barKg) return value * 2 + barKg
+  return recordKg(value, perSide, isBarbell, barKg)
+}
+
+/**
+ * The load an observación reports, in the prescription's own unit (per side when the
+ * lift is loaded per side) — or null when it can't be trusted for a record.
+ *
+ * Notes are free text. Members write the TOTAL as often as the per-side number, and
+ * sometimes describe a different lift altogether: "Peso Muerto Hex con déficit. 6X4
+ * 150kg" on a deadlift prescribed at 65 kg/lado was read as 150 PER SIDE and put a
+ * 320 kg deadlift on the board. So: a number nearer the prescription's total than its
+ * per-side value is a total, and anything still far from the prescription is ignored.
+ */
+export function noteLoad(note: string, presc: number | null, perSide: boolean, isBarbell: boolean, barKg = 20): number | null {
+  const n = noteWeight(note)
+  if (n == null) return null
+  if (presc == null || presc <= 0) return n
+  let v = n
+  if (perSide && !/lado|side/.test(deburr(note))) {
+    const total = recordKg(presc, true, isBarbell, barKg)
+    if (Math.abs(n - total) < Math.abs(n - presc)) v = (n - (isBarbell ? barKg : 0)) / 2
+  }
+  return v >= presc * 0.5 && v <= presc * 1.5 ? v : null
+}
+
+/**
+ * Highest total a record may claim against today's prescription. A logged number far
+ * above what the coach wrote is a typo or a different lift, not a PR.
+ */
+export const plausibleMax = (prescTotal: number): number => prescTotal * 1.5 + 10
+
+/**
  * Read the weight the member actually used from their observación, if they
  * mentioned one (e.g. "bajé a 25kg", "subí a 30kg", "lo hice con 27,5kg").
  * Used to correct the auto-record up OR down to what they really lifted.

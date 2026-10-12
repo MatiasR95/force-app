@@ -3,7 +3,7 @@ import type { RecordEntry, StreakEntry } from './records'
 import { estadoDePago, type PagoInfo } from './pagos'
 import { parseRoutine } from './parser'
 import { ENERO_2026 } from '../data/fixtureEnero2026'
-import { getOutbox, clearOutbox, getMyRecords, getClientName, setClientName } from './store'
+import { getOutbox, clearOutbox, getMyRecords, reconcileMyRecords, getClientName, setClientName } from './store'
 
 // The Apps Script Web App URL (gym account). Empty in demo → use local fixture.
 // Set via Vite env: VITE_FORCE_API=https://script.google.com/macros/s/XXXX/exec
@@ -137,6 +137,8 @@ export async function fetchRecords(token: string | null): Promise<RecordEntry[]>
   }
   const list = await call<RecordEntry[]>('getRecords', { token })
   cacheSet('force.cache.records', list)
+  // a mark staff removed from the board must leave this phone too
+  if (Array.isArray(list)) reconcileMyRecords(new Set(list.map((e) => String(e.id))))
   return list
 }
 

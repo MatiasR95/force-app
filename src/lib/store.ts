@@ -313,6 +313,26 @@ export function addMyRecord(entry: RecordEntry): RecordEntry[] {
 }
 
 /**
+ * Drop this device's marks that the gym board no longer has. The board (the `records`
+ * tab) is the source of truth once a mark has synced: when staff delete a false record
+ * there, the copy on the member's phone must go too — otherwise it reappears on their
+ * own board, keeps its medal, and keeps blocking real PRs (a phantom 320 kg deadlift
+ * makes every honest 190 "not a record").
+ *
+ * Kept: anything still queued in the outbox (not synced yet), and anything younger
+ * than an hour — the board is served from a short cache, so a mark posted a minute
+ * ago may not be on the list yet. Returns how many were dropped.
+ */
+export function reconcileMyRecords(serverIds: Set<string>, now = Date.now()): number {
+  const queued = new Set(getOutbox().filter((i) => i.kind === 'record').map((i) => (i.payload as { id?: string }).id))
+  const mine = getMyRecords()
+  const keep = mine.filter((e) =>
+    serverIds.has(e.id) || queued.has(e.id) || !(now - Date.parse(e.ts) > 3_600_000))
+  if (keep.length !== mine.length) write(KEYS.myRecords, keep)
+  return mine.length - keep.length
+}
+
+/**
  * Wipe THIS DEVICE's record history and everything derived from it, and nothing
  * else. Scoped deliberately — the four things below are the complete set of local
  * state that records feed:

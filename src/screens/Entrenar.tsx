@@ -13,7 +13,7 @@ import { splitWarmup } from '../lib/parser'
 import { logSet, logSession, localDate, getNote, saveNote, saveNoteDraft, getActual, saveActual, saveSetActual, actualForSet, topSet, getLastDone, getGender, getClientName, getMyRecords, addMyRecord, getToken, queueCellWrites, getBodyweight, addCheckin, hasCheckedInToday, setLastDone, getCheckins, getSessions, getSeenMedals, markMedalsSeen, getSessionProgress, saveSessionProgress, clearSessionProgress, getAwakeIdleSec, getFinishDraft, saveFinishDraft, READINESS_LABEL, type Readiness } from '../lib/store'
 import { keepAwake, stopAwake } from '../lib/screenAwake'
 import { useUiPrefs } from '../lib/UiPrefsContext'
-import { matchRecordLift, recordKg, bestOf, liftLabel, noteWeight, weightClass, wcLabel } from '../lib/records'
+import { matchRecordLift, recordKg, recordTotal, noteLoad, plausibleMax, bestOf, liftLabel, weightClass, wcLabel } from '../lib/records'
 import { currentStreakWeeks } from '../lib/metrics'
 import {
   type Tier, TIER_LABEL, defaultCat, strengthThresholds, strengthMedals, earnedMedalIds, STREAK_LADDER, SESSION_LADDER,
@@ -191,11 +191,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
 
   // Auto-capture a record when a record-eligible lift is completed (a PR vs the
   // member's own best). No manual entry — it just happens when they finish it.
-  const captureRecord = (ex: ExerciseRow, silent = false): boolean => {
+  const captureRecord = (ex: ExerciseRow, marked: number, silent = false): boolean => {
     const lift = matchRecordLift(ex.name)
     const gender = getGender()
-    if (!lift || !gender) return false
+    if (!lift || !gender || marked <= 0) return false
     const r = resolveWeek(ex, week)
+    const barbell = detectImpl(ex.name) === 'barbell'
     // prefer what the member actually did: explicit edit > note mention > prescription.
     // With per-series logging the record is judged on the HEAVIEST series, not on an
     // average or on the last one edited — that top set is the mark they actually hit.
@@ -204,9 +205,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // `r.reps` here lost a non-linear scheme's top series: on "3X1+2X3" (3 reps the
     // first series, 2 the rest) it judged the record at 2 reps, so 115×3 never beat
     // a standing 115×2.
+    //
+    // Only the series actually MARKED count: an unmarked series was never lifted, so
+    // its prescription (or a later, heavier per-series target) is not a mark.
     const stored = getActual(ex.id)
-    const noteKg = noteWeight(getNote(ex.id))
-    const count = Math.max(1, r.plan?.length ?? r.sets ?? ex.sets ?? 1)
+    const noteKg = noteLoad(getNote(ex.id), r.load.value, r.load.perSide, barbell)
+    const count = Math.min(Math.max(1, r.plan?.length ?? r.sets ?? ex.sets ?? 1), marked)
     let act: { kg?: number; reps?: number } | null = null
     for (let i = 0; i < count; i++) {
       const one = actualForSet(stored, i)
@@ -224,10 +228,12 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // real weight into the ledger.
     const used = act?.kg ?? noteKg ?? r.load.value
     if (used == null || reps <= 0) return false
-    const kg = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
+    const kg = recordTotal(lift, used, r.load.perSide, barbell)
     // Mirror the backend's own bounds (postRecord_ in Code.gs): an entry outside them
     // is rejected server-side, and would sit in the outbox retrying forever.
     if (kg <= 0 || kg > 500 || reps > 100) return false
+    // Far above today's prescription = a typo or another lift, never a PR.
+    if (r.load.value != null && kg > plausibleMax(recordTotal(lift, r.load.value, r.load.perSide, barbell))) return false
     const client = getClientName() ?? 'Vos'
     const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), client)
     if (prev && (kg < prev.kg || (kg === prev.kg && reps <= prev.reps))) return false // not a PR
@@ -273,8 +279,9 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     const marks = { ...done, ...extra }
     for (const it of items) {
       if (it.type === 'warmup' || !(marks[keyOf(it)] ?? 0)) continue
-      if (it.type === 'single') { if (it.section !== 'ramp') captureRecord(it.ex, true) }
-      else it.block.exercises.forEach((ex) => captureRecord(ex, true))
+      const n = marks[keyOf(it)] ?? 0
+      if (it.type === 'single') { if (it.section !== 'ramp') captureRecord(it.ex, n, true) }
+      else it.block.exercises.forEach((ex) => captureRecord(ex, n, true))
     }
   }
 
@@ -333,11 +340,11 @@ export function Entrenar({ day, week, lastWeek, onClose }: {
     // actually beats their own best, so the extra calls are silent no-ops.
     if (item.type === 'single') {
       logSet({ exerciseId: item.ex.id, dayId: day.id, done: n >= target })
-      if (item.section !== 'ramp') record = captureRecord(item.ex)
+      if (item.section !== 'ramp') record = captureRecord(item.ex, n)
       if (n >= target) recordLastDone(item.ex)
     } else {
       item.block.exercises.forEach((ex) => {
-        if (captureRecord(ex)) record = true
+        if (captureRecord(ex, n)) record = true
         if (n >= target) { logSet({ exerciseId: ex.id, dayId: day.id, done: true }); recordLastDone(ex) }
       })
     }
@@ -931,7 +938,7 @@ function prCharge(ex: ExerciseRow, week: number, done: number, target: number): 
   const act = getActual(ex.id)
   const used = topSet(act)?.kg ?? actualForSet(act, target - 1).kg ?? r.load.value
   if (used == null) return null
-  const today = recordKg(used, r.load.perSide, detectImpl(ex.name) === 'barbell')
+  const today = recordTotal(lift, used, r.load.perSide, detectImpl(ex.name) === 'barbell')
   if (today < prev.kg) return null // not a record day for this lift — no charge
   return { pct: Math.min(1, done / target), left: Math.max(0, target - done) }
 }
@@ -945,7 +952,7 @@ function PrProximity({ ex, week }: { ex: ExerciseRow; week: number }) {
   if (!lift || !gender || r.load.value == null) return null
   const prev = bestOf(getMyRecords().filter((e) => e.lift === lift && e.gender === gender), getClientName() ?? 'Vos')
   if (!prev || prev.kg <= 0) return null
-  const today = recordKg(r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell')
+  const today = recordTotal(lift, r.load.value, r.load.perSide, detectImpl(ex.name) === 'barbell')
   if (today <= 0) return null
   const pct = Math.min(100, Math.round((today / prev.kg) * 100))
   const atPr = today >= prev.kg
