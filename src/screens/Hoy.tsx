@@ -7,6 +7,7 @@ import emblem from '../assets/logo/emblem_gold_t.png'
 import { Dumbbell, History, Quote, TriangleAlert, Repeat, CheckCircle2, Circle } from 'lucide-react'
 import { getClientName, lastSession, localDate, getSessions, getSession } from '../lib/store'
 import { weekStartOf } from '../lib/metrics'
+import { planWeek } from '../lib/week'
 import { nextQuote } from '../lib/quotes'
 
 const TODAY = () =>
@@ -41,9 +42,9 @@ export function Hoy({ routine, currentWk, suggestedDay, onPickWeek, onTrain }: {
   const [quote] = useState(() => nextQuote())
   const day = routine.days[dayIdx] ?? routine.days[0]
   const weekly = routine.style === 'weekly'
-  const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
-  // clamp to the day's last DEFINED week (repeat-previous), never snap back to week 1
-  const effWeek = Math.min(Math.max(1, wk), Math.max(1, ...dayWeeks))
+  // the member's week as-is: a week this day doesn't list repeats the previous one
+  // inside resolveWeek, it is NOT a different week (see planWeek)
+  const effWeek = planWeek(routine, wk)
   const isLastWeek = weekly && routine.totalWeeks > 1 && wk >= routine.totalWeeks
   const multiWeek = weekly && routine.totalWeeks > 1
   // adjust + persist the cycle week (re-anchors so it advances one/real-week and the

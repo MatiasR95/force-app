@@ -56,7 +56,9 @@ export interface NewsItem { titulo: string; mensaje: string; tipo: string; desde
 export async function fetchNews(token: string | null): Promise<NewsItem[]> {
   if (isDemo() || !token) {
     // demo: a friendly sample so the section isn't blank in previews
-    return [{ titulo: 'Feriado 9 de Julio', mensaje: 'El martes 9 permanecemos cerrados. ¡Volvemos con todo el miércoles!', tipo: 'cerrado' }]
+    // (undated on purpose: a dated sample — "Feriado 9 de Julio" — read as a live
+    // announcement in October)
+    return [{ titulo: 'Horario especial en feriados', mensaje: 'Abrimos de 8 a 13. El resto de la semana, horario de siempre.', tipo: 'horario' }]
   }
   try {
     const items = await call<NewsItem[]>('getNews', { token })

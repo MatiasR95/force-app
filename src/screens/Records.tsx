@@ -8,6 +8,14 @@ import { Pill } from '../components/ui'
 import { StreakFlame } from '../components/StreakFlame'
 import { Trophy, Crown, Sparkles, Flame } from 'lucide-react'
 
+// Chip labels for the lift picker. `label.split(' ')[0]` made three lifts read
+// "Peso" and three read "Press" — indistinguishable.
+const SHORT: Record<string, string> = {
+  'sentadilla': 'Sentadilla', 'peso-muerto': 'Peso muerto', 'peso-muerto-hex': 'Hexagonal',
+  'peso-muerto-sumo': 'Sumo', 'press-banca': 'Banca', 'press-banca-db': 'Banca mancuernas',
+  'dominadas': 'Dominadas', 'press-militar': 'Militar',
+}
+
 export function Records() {
   const [view, setView] = useState<'records' | 'rachas'>('records')
   const client = getClientName() ?? 'Vos'
@@ -93,7 +101,7 @@ function RecordsView({ client }: { client: string }) {
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3 -mx-1 px-1">
         {lifts.map((l) => (
-          <Pill key={l.key} active={l.key === lift} onClick={() => setLift(l.key)}>{l.emoji} {l.label.split(' ')[0]}</Pill>
+          <Pill key={l.key} active={l.key === lift} onClick={() => setLift(l.key)}>{l.emoji} {SHORT[l.key] ?? l.label}</Pill>
         ))}
       </div>
 

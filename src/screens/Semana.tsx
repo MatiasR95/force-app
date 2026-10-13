@@ -5,22 +5,23 @@ import { Pill } from '../components/ui'
 import { WeekBar } from '../components/WeekBar'
 import { ExerciseSheet } from './ExerciseSheet'
 import { fetchHistory } from '../lib/api'
+import { planWeek } from '../lib/week'
 import { getToken, getSessions, getCycleBaseline } from '../lib/store'
 import { Target, CalendarRange, Clock, History, MapPinned } from 'lucide-react'
 
 // PLAN = the whole cycle at a glance. The bird's-eye matrix (weeks × days) is the
 // navigator: filled cells are sessions already trained, the gold ring is what
 // you're looking at, the ▸ row is where you are in the cycle. Tap any cell.
-export function Semana({ routine, week, currentWk, setWeek }: {
-  routine: Routine; week: number; currentWk: number; setWeek: (w: number) => void
+export function Semana({ routine, week, currentWk, setWeek, initialDay = 0 }: {
+  routine: Routine; week: number; currentWk: number; setWeek: (w: number) => void; initialDay?: number
 }) {
-  const [dayIdx, setDayIdx] = useState(0)
+  // opens on TODAY's cell (current week × suggested day), not always Día 1
+  const [dayIdx, setDayIdx] = useState(initialDay)
   const [picked, setPicked] = useState<ExerciseRow | null>(null)
   const [history, setHistory] = useState<Array<{ id: string; title: string }>>([])
   const day = routine.days[dayIdx] ?? routine.days[0]
-  // clamp to the day's last defined week (repeat-previous), never snap back to week 1
-  const dayWeeks = day.weeks.length > 1 ? day.weeks : routine.weeksAvailable
-  const effWeek = Math.min(Math.max(1, week), Math.max(1, ...dayWeeks))
+  // the selected week as-is (blank weeks repeat the previous one inside resolveWeek)
+  const effWeek = planWeek(routine, week)
   const matrix = routine.style === 'weekly' && routine.totalWeeks > 1
 
   useEffect(() => { fetchHistory(getToken()).then(setHistory).catch(() => {}) }, [])

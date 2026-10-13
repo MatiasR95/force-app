@@ -182,6 +182,19 @@ export function substitutedFrom(ex: ExerciseRow, week: number): string | null {
   return resolveWeek(ex, week).substitution ? ex.name : null
 }
 
+/**
+ * The plan week a screen shows and trains: the member's week, kept inside the plan.
+ * NOT clamped to the last "Semana N" column a day happens to list — `resolveWeek`
+ * already carries a blank/missing week forward (repeat-previous), so a day that only
+ * lists Semana 1–3 still shows week 8's real numbers. Clamping there used to label
+ * Hoy "Sem 3" while Inicio said "Sem 8", log the session as week 3, and send the
+ * member's weight/rep edits to the coach's SEMANA 3 cells.
+ */
+export function planWeek(routine: Pick<Routine, 'totalWeeks'>, week: number): number {
+  const total = Math.max(1, routine.totalWeeks || 1)
+  return Number.isFinite(week) ? Math.min(total, Math.max(1, Math.floor(week))) : 1
+}
+
 /** Circuit rounds for a given week (max resolved set count in the block). */
 export function circuitRounds(block: Block, week: number): number | null {
   const counts = block.exercises

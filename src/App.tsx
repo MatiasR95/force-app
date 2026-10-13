@@ -71,6 +71,8 @@ export default function App() {
     if (t === tab) return
     setNavDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
     setTab(t)
+    // leaving Plan drops its browse week, so Plan reopens on today's cell
+    if (tab === 'semana') setWeek(null)
     try { navigator.vibrate?.(8) } catch { /* no-op */ }
   }
   const [week, setWeek] = useState<number | null>(null)
@@ -252,6 +254,9 @@ export default function App() {
   // the member's current week: from their chosen start-week anchor (advancing each
   // real week), else the plan's start date. `week` is a transient manual override.
   const currentWk = memberCurrentWeek(routine)
+  // `week` is Plan's BROWSE week (a tap on the cycle matrix). It must never leak
+  // into what the member trains: Inicio used to read it, so peeking at S3 in Plan
+  // turned Inicio into "Semana 3" and trained (and wrote back to) week 3.
   const wk = week ?? currentWk
 
   // during an event window, expose its accent as a CSS var so the chrome (nav
@@ -307,7 +312,7 @@ export default function App() {
           --event-accent from this container → blue on 9 de Julio, gold otherwise) */}
       <div className="aurora-mesh" aria-hidden />
       {prefs.simple ? (
-        <SimpleShell routine={routine} week={wk} suggestedDay={suggestedDay}
+        <SimpleShell routine={routine} week={currentWk} suggestedDay={suggestedDay}
           onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />
       ) : (
         <>
@@ -326,7 +331,7 @@ export default function App() {
           <span className="spine h-4 mr-2.5 shrink-0" aria-hidden />
           <span className="heading text-sm text-white truncate">{TAB_TITLE[tab]}</span>
           {routine.style === 'weekly' && routine.totalWeeks > 1 && (
-            <span className="ml-auto text-[0.6rem] font-black uppercase tracking-micro text-gold/90 tabular-nums shrink-0">Sem {wk}</span>
+            <span className="ml-auto text-[0.6rem] font-black uppercase tracking-micro text-gold/90 tabular-nums shrink-0">Sem {tab === 'semana' ? wk : currentWk}</span>
           )}
         </div>
         <EventDecor />
@@ -340,11 +345,11 @@ export default function App() {
 
         <ErrorBoundary key={tab}>
           <div className={navDir === 0 ? 'screen-in' : navDir > 0 ? 'screen-in-right' : 'screen-in-left'}>
-            {tab === 'inicio' && <Home routine={routine} week={wk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} onRefresh={refreshNow} />}
+            {tab === 'inicio' && <Home routine={routine} week={currentWk} suggestedDay={suggestedDay} onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} onGoRecords={() => go('records')} onRefresh={refreshNow} />}
             {tab === 'hoy' && <Hoy routine={routine} currentWk={currentWk} suggestedDay={suggestedDay}
               onPickWeek={(w) => { setStartWeek(w); setWeek(null) }}
               onTrain={(dayIdx, w) => setTraining({ dayIdx, week: w })} />}
-            {tab === 'semana' && <Semana routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} />}
+            {tab === 'semana' && <Semana routine={routine} week={wk} currentWk={currentWk} setWeek={setWeek} initialDay={suggestedDay} />}
             {tab === 'panel' && <Dashboard routine={routine} />}
             {tab === 'records' && <Records />}
           </div>
@@ -449,7 +454,7 @@ export default function App() {
           }}
         />
       )}
-      {intro && <Intro day={routine.days[suggestedDay]} week={wk} onStart={() => { setIntroSeen(); setIntro(false) }} />}
+      {intro && <Intro day={routine.days[suggestedDay]} week={currentWk} onStart={() => { setIntroSeen(); setIntro(false) }} />}
     </div>
   )
 }

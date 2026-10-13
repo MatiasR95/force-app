@@ -30,11 +30,24 @@ export default {
         accent: ['Caveat', 'cursive'],
         alt: ['Archivo', 'Montserrat', 'sans-serif'],
       },
+      // Tailwind 3 ships opacity in steps of 5 only: `bg-white/8`, `border-white/12`
+      // & co. (≈45 uses) compiled to NOTHING — invisible stepper discs, sheet close
+      // buttons, ring tracks. These are the off-grid steps the app actually uses.
+      opacity: {
+        6: '0.06',
+        8: '0.08',
+        12: '0.12',
+        14: '0.14',
+        22: '0.22',
+        32: '0.32',
+        92: '0.92',
+      },
       borderRadius: {
         card: '16px',
         photo: '22px',
         icon: '18px',
         chip: '5px',
+        bar: '9px', // the Panel/medal progress bars used `rounded-bar` with no such key
       },
       letterSpacing: {
         kicker: '0.30em',

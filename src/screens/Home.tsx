@@ -160,7 +160,7 @@ export function Home({ routine, week, suggestedDay, onTrain, onGoRecords, onRefr
         <h1 className="heading text-3xl text-white mt-4 glow-text">
           {name ? <>{saludo()}, <span className="text-gold">{name.split(' ')[0]}</span></> : 'Bienvenido a FORCE'}
         </h1>
-        <div className="text-white/45 text-sm mt-1 capitalize">{TODAY_LONG()}</div>
+        <div className="text-white/45 text-sm mt-1 first-letter:uppercase">{TODAY_LONG()}</div>
       </FoilTilt>
 
       {/* event-aware banner (patrias, Navidad, fin de año, Malvinas) — date-driven */}
